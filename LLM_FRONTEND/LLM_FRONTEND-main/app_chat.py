@@ -350,8 +350,11 @@ def main(page: ft.Page):
 if __name__ == "__main__":
     import os
     os.environ["FLET_FORCE_WEB"] = "1"
+
+    port = int(os.getenv("PORT", "3000"))  # <- use Railway's expected variable
     ft.app(
         target=main,
-        view=ft.AppView.WEB_BROWSER,
-        port=int(os.getenv("FLET_SERVER_PORT", "3000")),
-        host=os.getenv("FLET_APP_HOST", "0.0.0.0"))
+        view=ft.AppView.WEB,               # ✅ use WEB instead of WEB_BROWSER
+        host="0.0.0.0",                    # ✅ bind to all interfaces
+        port=port
+    )
