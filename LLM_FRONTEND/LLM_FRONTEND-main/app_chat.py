@@ -248,7 +248,9 @@ def main(page: ft.Page):
         page.clean()
         page.add(ft.Column([codigo_texto_visible, temporizador_text, main_row],
                            spacing=20, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER))
-
+        # ✅ attach button handlers after controls exist
+        siguiente_button.on_click = enviar_respuesta
+        send_button.on_click = enviar_respuesta
         # ---- Funciones internas ----
         def _submit_from_enter(e):
             val = (e.control.value or "").strip()
@@ -263,6 +265,11 @@ def main(page: ft.Page):
             problema_actual_id = id_problema
             save_k(page, STATE_KEYS["current_problem"], problema_actual_id)
             chat_area.controls.clear()
+            # ✅ ensure buttons are re-enabled on each new problem
+            siguiente_button.disabled = False
+            send_button.disabled = False
+            page.update()
+            page._is_loading_problem = True
 
             try:
                 r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{id_problema}")
@@ -288,6 +295,7 @@ def main(page: ft.Page):
 
                     respuesta_container.controls.append(tf)
                     feedback_text.value = ""; status_row.visible = False
+                    page._is_loading_problem = False
                     page.update()
                 else:
                     feedback_text.value = "Error al cargar el problema."
@@ -331,8 +339,6 @@ def main(page: ft.Page):
             save_k(page, STATE_KEYS["current_problem"], next_id)
             cargar_problema(next_id)
 
-        siguiente_button.on_click = enviar_respuesta
-
         # start
         cargar_problema(problema_actual_id)
 
@@ -350,6 +356,9 @@ def main(page: ft.Page):
             remaining = max(0, TOTAL_SECONDS - elapsed)
 
             def cuenta():
+                # ✅ skip updates while page is rebuilding
+                while getattr(page, "_is_loading_problem", False):
+                    time.sleep(0.1)
                 t = remaining
                 while t > 0 and not stop_timer:
                     m, s = divmod(t, 60)
