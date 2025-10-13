@@ -248,9 +248,7 @@ def main(page: ft.Page):
         page.clean()
         page.add(ft.Column([codigo_texto_visible, temporizador_text, main_row],
                            spacing=20, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER))
-        # ✅ attach button handlers after controls exist
-        siguiente_button.on_click = enviar_respuesta
-        send_button.on_click = enviar_respuesta
+
         # ---- Funciones internas ----
         def _submit_from_enter(e):
             val = (e.control.value or "").strip()
@@ -338,6 +336,10 @@ def main(page: ft.Page):
             next_id = problema_actual_id + 1
             save_k(page, STATE_KEYS["current_problem"], next_id)
             cargar_problema(next_id)
+
+        # ✅ attach button handlers after controls exist
+        siguiente_button.on_click = enviar_respuesta
+        send_button.on_click = enviar_respuesta
 
         # start
         cargar_problema(problema_actual_id)
