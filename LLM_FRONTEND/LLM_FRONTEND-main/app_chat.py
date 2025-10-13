@@ -221,6 +221,63 @@ def main(page: ft.Page):
             text="Enviar", icon=ft.icons.SEND,
             bgcolor=COLORES["boton"], color=ft.colors.WHITE
         )
+        def send_message(e):
+            msg = (user_input.value or "").strip()
+            if not msg:
+                chat_area.controls.append(
+                    ft.Container(
+                        content=ft.Text("Por favor, escribe un mensaje.", color=COLORES["error"]),
+                        padding=10, bgcolor=ft.colors.RED_50, border_radius=5,
+                        alignment=ft.alignment.center_right,
+                    )
+                )
+                page.update()
+                return
+
+            # Show user bubble
+            chat_area.controls.append(
+                ft.Row(
+                    [ft.Container(
+                        content=ft.Text(f"Usuario: {msg}", color=ft.colors.WHITE),
+                        padding=10, bgcolor=COLORES["boton"], border_radius=10,
+                        alignment=ft.alignment.center_right, width=200
+                    )],
+                    alignment=ft.MainAxisAlignment.END,
+                )
+            )
+            user_input.value = ""
+            page.update()
+
+            # Call backend
+            try:
+                r = requests.post(
+                    f"{BACKEND_URL_CHAT}/{problema_actual_id}",
+                    json={"message": msg, "codigo_identificacion": codigo},
+                    timeout=30,
+                )
+                data = r.json() if r.ok else {"response": "Sin respuesta"}
+                chat_area.controls.append(
+                    ft.Row(
+                        [ft.Container(
+                            content=ft.Text(f"Agente: {data.get('response','Sin respuesta')}", color=ft.colors.BLACK),
+                            padding=10, bgcolor="#d4edda", border_radius=10,
+                            alignment=ft.alignment.center_left, width=400
+                        )],
+                        alignment=ft.MainAxisAlignment.START,
+                    )
+                )
+            except Exception:
+                chat_area.controls.append(
+                    ft.Row(
+                        [ft.Container(
+                            content=ft.Text("Error de conexión con el servidor.", color=COLORES["error"]),
+                            padding=10, bgcolor=ft.colors.RED_100, border_radius=10
+                        )],
+                        alignment=ft.MainAxisAlignment.START,
+                    )
+                )
+            page.update()
+
 
         # ---- Problem area ----
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
