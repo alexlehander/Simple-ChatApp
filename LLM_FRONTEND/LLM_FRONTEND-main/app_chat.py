@@ -6,6 +6,9 @@ import os
 import random
 import string
 
+if __name__ == "__main__":
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER)
+
 # ========= Config / Colors =========
 COLORES = {
     "fondo": "#b6f0cc",
@@ -348,4 +351,10 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.getenv("FLET_SERVER_PORT", "3000")), host=os.getenv("FLET_APP_HOST", "0.0.0.0"))
+    import os
+    os.environ["FLET_FORCE_WEB"] = "1"
+    ft.app(
+        target=main,
+        view=ft.AppView.WEB_BROWSER,
+        port=int(os.getenv("FLET_SERVER_PORT", "3000")),
+        host=os.getenv("FLET_APP_HOST", "0.0.0.0"))
