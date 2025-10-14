@@ -70,9 +70,7 @@ class RespuestaUsuario(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("railway_usuario.id"), nullable=True)
     problema_id = db.Column(db.Integer, nullable=False)
     codigo_identificacion = db.Column(db.String(32), nullable=True)
-    # store the user's free-text answer
-    respuesta = db.Column(db.String(255), nullable=True)
-    # no grading in this flow (nullable so it can be None)
+    respuesta = db.Column(db.Text, nullable=True)   # changed from String(255) to Text
     correcta = db.Column(db.Boolean, nullable=True)
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
 
@@ -88,14 +86,52 @@ class ChatLog(db.Model):
 
 with app.app_context():
     db.create_all()
-    # Best-effort migration to allow correcta = NULL
+
+    # --- Auto-migrate: respuesta -> TEXT (run only once) ---
     try:
-        db.session.execute(db.text(
-            "ALTER TABLE railway_respuesta_usuario MODIFY correcta TINYINT(1) NULL"
-        ))
-        db.session.commit()
-    except Exception:
+        dtype = db.session.execute(db.text(
+            "SELECT DATA_TYPE "
+            "FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() "
+            "AND TABLE_NAME = 'railway_respuesta_usuario' "
+            "AND COLUMN_NAME = 'respuesta'"
+        )).scalar()
+
+        if dtype == "varchar":
+            db.session.execute(db.text(
+                "ALTER TABLE railway_respuesta_usuario "
+                "MODIFY COLUMN respuesta TEXT"
+            ))
+            db.session.commit()
+            print("✔ Migrated railway_respuesta_usuario.respuesta to TEXT")
+        else:
+            print(f"↪ respuesta already {dtype}, skipping")
+    except Exception as e:
         db.session.rollback()
+        print("⚠️ Skipping respuesta TEXT migration:", e)
+
+    # --- Auto-migrate: correcta -> NULLABLE (run only once) ---
+    try:
+        is_nullable = db.session.execute(db.text(
+            "SELECT IS_NULLABLE "
+            "FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() "
+            "AND TABLE_NAME = 'railway_respuesta_usuario' "
+            "AND COLUMN_NAME = 'correcta'"
+        )).scalar()
+
+        if is_nullable == "NO":
+            db.session.execute(db.text(
+                "ALTER TABLE railway_respuesta_usuario "
+                "MODIFY COLUMN correcta TINYINT(1) NULL"
+            ))
+            db.session.commit()
+            print("✔ Made railway_respuesta_usuario.correcta NULLable")
+        else:
+            print("↪ correcta already NULLable, skipping")
+    except Exception as e:
+        db.session.rollback()
+        print("⚠️ Skipping correcta NULL migration:", e)
 
 # ------------------------------------------------------------------------------------
 # Problem bank (18 open-ended problems; replace texts with yours if needed)
@@ -225,36 +261,27 @@ def obtener_problema(problema_id: int):
     return jsonify(payload)
 
 @app.route("/verificar_respuesta/<int:problema_id>", methods=["POST"])
-def verificar_respuesta(problema_id: int):
-    """
-    Store user's free-text answer and return ok.
-    No correctness check is performed in this study design.
-    """
-    data = request.get_json() or {}
-    respuesta = (data.get("respuesta") or "").strip()
-    codigo_identificacion = (data.get("codigo_identificacion") or "").strip()
+def verificar_respuesta(problema_id):
+    data = request.get_json()
+    respuesta = data.get("respuesta")
+    codigo = data.get("codigo_identificacion")
 
-    if not respuesta:
-        return jsonify({"error": "Respuesta vacía"}), 400
+    if not respuesta or not codigo:
+        return jsonify({"error": "Datos incompletos"}), 400
 
-    # Ensure problem exists (for logging integrity)
-    problema = next((p for p in PROBLEMAS if p["id"] == problema_id), None)
-    if not problema:
-        return jsonify({"error": "Problema no encontrado"}), 404
+    usuario = get_or_create_user(codigo)
 
-    usuario = get_or_create_user(codigo_identificacion or None)
-
-    nueva = RespuestaUsuario(
-        user_id=usuario.id if usuario else None,
+    nueva_respuesta = RespuestaUsuario(
+        user_id=usuario.id,
         problema_id=problema_id,
-        codigo_identificacion=codigo_identificacion or None,
+        codigo_identificacion=codigo,
         respuesta=respuesta,
-        correcta=None  # no grading in this protocol
+        correcta=False
     )
-    db.session.add(nueva)
+    db.session.add(nueva_respuesta)
     db.session.commit()
 
-    return jsonify({"ok": True})
+    return jsonify({"message": "Respuesta registrada"}), 200
 
 @app.route("/chat/<int:problema_id>", methods=["POST"])
 def chat(problema_id: int):
