@@ -343,7 +343,7 @@ def main(page: ft.Page):
                 chat_area.controls.append(
                     ft.Row(
                         [ft.Container(
-                            content = ft.Text(f"Agente: {data.get('response','Sin respuesta')}", color=COLORES["texto"]),
+                            content = ft.Text(f"{data.get('response','Sin respuesta')}", color=COLORES["texto"]),
                             bgcolor=COLORES["accento"],
                             padding=10,
                             border_radius=10,
@@ -435,8 +435,8 @@ def main(page: ft.Page):
 
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
-                        hint_text="Escribe tu respuesta (texto libre)…",
-                        expand=True, multiline=True, min_lines=1, max_lines=6,
+                        hint_text="Escribe tu respuesta aqui",
+                        expand=True, multiline=True, min_lines=1, max_lines=15,
                         bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                         focused_border_color=COLORES["primario"], border_radius=15,
                         hint_style=ft.TextStyle(color=COLORES["accento"]),
