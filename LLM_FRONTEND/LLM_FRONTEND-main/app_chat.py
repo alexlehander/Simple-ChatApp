@@ -436,7 +436,8 @@ def main(page: ft.Page):
         # ✅ attach button handlers after controls exist
         siguiente_button.on_click = enviar_respuesta
         send_button.on_click = send_message
-        
+        # start
+        cargar_problema(problema_actual_id)
         # Temporizador (120min)
         def iniciar_temporizador():
             nonlocal stop_timer
