@@ -361,8 +361,9 @@ def main(page: ft.Page):
                         alignment=ft.MainAxisAlignment.START,
                     )
                 )
-                chat_area.scroll_to(offset=1, duration=100)
+                chat_area.auto_scroll = True
                 chat_area.update()
+                chat_area.auto_scroll = False
             except Exception:
                 chat_area.controls.append(
                     ft.Row(
