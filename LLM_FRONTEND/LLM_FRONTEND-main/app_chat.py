@@ -524,10 +524,9 @@ def main(page: ft.Page):
                     page.update()
 
                     # Give a small delay before showing the final survey
-    def go_final():
-        page.invoke_later(lambda: mostrar_pantalla_encuesta_final())
-
-    threading.Timer(2.0, go_final).start()
+                    def go_final():
+                        page.invoke_later(lambda: mostrar_pantalla_encuesta_final())
+                    threading.Timer(2.0, go_final).start()
 
             except Exception:
                 feedback_text.value = "Error al registrar o cargar el siguiente problema."
