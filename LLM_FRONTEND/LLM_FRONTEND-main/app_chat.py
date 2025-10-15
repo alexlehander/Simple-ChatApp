@@ -300,7 +300,7 @@ def main(page: ft.Page):
         )
         
         send_button = ft.ElevatedButton(
-            text="Enviar", icon=ft.icons.SEND,
+            text="Enviar", icon=ft.Icons.SEND,
             bgcolor=COLORES["boton"], color=COLORES["accento"]
         )
         
@@ -373,7 +373,7 @@ def main(page: ft.Page):
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
         respuesta_container = ft.Column(spacing=10)
         feedback_text = ft.Text("", size=16, color=COLORES["exito"])
-        status_icon = ft.Icon(ft.icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
+        status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
         status_text = ft.Text("", size=12, color=COLORES["exito"])
         status_row = ft.Row([status_icon, status_text], spacing=6, visible=False)
 
