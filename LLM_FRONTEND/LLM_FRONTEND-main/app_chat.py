@@ -5,29 +5,54 @@ import threading
 import os
 
 # ========= Config / Colors =========
+#COLORES = {
+#    # Fondos y superficies
+#    "fondo": "#F5F7FA",         # gris-azulado muy claro (base neutra)
+#    "accento": "#E8F1FA",       # azul pastel para tarjetas / paneles
+#
+#    # Colores de texto
+#    "texto": "#1E2A38",         # gris-azul oscuro, alto contraste
+#    "subtitulo": "#4E5D6C",     # gris medio, ideal para instrucciones y detalles
+#
+#    # Colores principales de interacción
+#    "primario": "#1A4E8A",      # azul profesional, más cálido que el marino puro
+#    "secundario": "#5BA3D0",    # azul claro moderno para áreas intermedias
+#    "boton": "#1A4E8A",         # igual que primario para consistencia
+#    "borde": "#C8D6E5",         # gris azulado claro para contornos suaves
+#
+#    # Estados del sistema
+#    "exito": "#2E8B57",         # verde esmeralda legible (feedback positivo)
+#    "error": "#D64541",         # rojo coral (mejor contraste que #e63946)
+#    "advertencia": "#E0A800",   # amarillo dorado para alertas suaves
+#
+#    # Acentos (para resaltar)
+#    "acento": "#FFB400",        # dorado para llamar la atención sin saturar
+#    "acento2": "#E25B50",       # coral suave (resaltar textos o etiquetas)
+#}
+
 COLORES = {
     # Fondos y superficies
-    "fondo": "#F5F7FA",         # gris-azulado muy claro (base neutra)
-    "accento": "#E8F1FA",       # azul pastel para tarjetas / paneles
+    "fondo":     "#0F172A",  # slate-900-ish (muy oscuro, sin negro puro)
+    "accento":   "#111827",  # slate-800 para tarjetas/paneles
 
-    # Colores de texto
-    "texto": "#1E2A38",         # gris-azul oscuro, alto contraste
-    "subtitulo": "#4E5D6C",     # gris medio, ideal para instrucciones y detalles
+    # Texto
+    "texto":     "#E5E7EB",  # gris muy claro (mejor que blanco puro)
+    "subtitulo": "#A7B0BF",  # gris medio frío para secundarios
 
-    # Colores principales de interacción
-    "primario": "#1A4E8A",      # azul profesional, más cálido que el marino puro
-    "secundario": "#5BA3D0",    # azul claro moderno para áreas intermedias
-    "boton": "#1A4E8A",         # igual que primario para consistencia
-    "borde": "#C8D6E5",         # gris azulado claro para contornos suaves
+    # Interacción
+    "primario":  "#93C5FD",  # azul claro (contrasta sobre fondos oscuros)
+    "secundario":"#60A5FA",  # azul medio para áreas intermedias/inputs
+    "boton":     "#1E3A8A",  # azul profundo para botones sólidos
+    "borde":     "#334155",  # slate-700 para contornos/sombras suaves
 
-    # Estados del sistema
-    "exito": "#2E8B57",         # verde esmeralda legible (feedback positivo)
-    "error": "#D64541",         # rojo coral (mejor contraste que #e63946)
-    "advertencia": "#E0A800",   # amarillo dorado para alertas suaves
+    # Estados
+    "exito":     "#34D399",  # verde jade (legible en dark)
+    "error":     "#F87171",  # rojo suave visible sin deslumbrar
+    "advertencia":"#F59E0B", # ámbar accesible
 
-    # Acentos (para resaltar)
-    "acento": "#FFB400",        # dorado para llamar la atención sin saturar
-    "acento2": "#E25B50",       # coral suave (resaltar textos o etiquetas)
+    # Acentos
+    "acento":    "#FBBF24",  # dorado cálido (pequeños highlights)
+    "acento2":   "#FB7185",  # coral para etiquetas/pequeños énfasis
 }
 
 BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
@@ -304,7 +329,7 @@ def main(page: ft.Page):
             chat_area.controls.append(
                 ft.Row(
                     [ft.Container(
-                        content=ft.Text(f"Usuario: {msg}", color=COLORES["accento"]),
+                        content=ft.Text(f"{msg}", color=COLORES["accento"]),
                         bgcolor=COLORES["boton"],
                         padding=10, border_radius=10,
                         alignment=ft.alignment.center_right, width=200
