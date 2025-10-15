@@ -589,17 +589,20 @@ def main(page: ft.Page):
     def mostrar_pantalla_encuesta_final():
         save_k(page, STATE_KEYS["screen"], "final")
         def copiar_codigo_final(e):
-            # ✅ get the stored code safely
+            # Safely retrieve code from local storage
             codigo_guardado = page.client_storage.get("codigo_identificacion") or "No disponible"
             page.set_clipboard(codigo_guardado)
-            # ✅ show snackbar using show_snack_bar() (simpler, safer)
-            page.show_snack_bar(
-                ft.SnackBar(
-                    content=ft.Text("Código copiado al portapapeles", color=COLORES["accento"]),
-                    bgcolor=COLORES["exito"],
-                    duration=1500,
-                )
+
+            # Create and show snackbar manually (compatible with Flet 0.27)
+            snack = ft.SnackBar(
+                ft.Text("Código copiado al portapapeles", color=COLORES["accento"]),
+                bgcolor=COLORES["exito"],
+                open=True,
+                duration=1500,
             )
+
+            page.snack_bar = snack
+            page.update()
 
         instruccion = ft.Text(
             "Después de terminar los problemas, te agradecería mucho que respondieras el siguiente cuestionario, ya que es muy importante conocer tu experiencia con el sistema. Por favor, copia y pega tu código de identificación en esta última encuesta. Al finalizarla, habrás completado tu participación en el estudio y podrás cerrar todas las pestañas utilizadas. Si leiste este mensaje con atencion, mandame un correo con el mensaje secreto 'quiero 10' y tendras 10 sobre 100 puntos extras en esta practica.",
