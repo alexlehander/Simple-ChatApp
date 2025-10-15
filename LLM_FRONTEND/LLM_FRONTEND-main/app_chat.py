@@ -324,14 +324,15 @@ def main(page: ft.Page):
             siguiente_button.disabled = False
             send_button.disabled = False
             page.update()
-            page._is_loading_problem = True
 
+            page._is_loading_problem = True
             try:
                 r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{id_problema}")
                 if r.status_code == 200:
                     p = r.json()
                     ejercicio_text.value = f"Problema {p.get('id', id_problema)}\n\n{p.get('enunciado', '')}"
                     ejercicio_text.text_align = ft.TextAlign.CENTER
+
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
                         hint_text="Escribe tu respuesta (texto libre)…",
@@ -349,58 +350,93 @@ def main(page: ft.Page):
                         tf.value = draft
 
                     respuesta_container.controls.append(tf)
-                    feedback_text.value = ""; status_row.visible = False
-                    page._is_loading_problem = False
-                    page.update()
+                    feedback_text.value = ""
+                    status_row.visible = False
+
+                    # (opcional) si antes hubo error de backend, limpia el flag
+                    if getattr(page, "_backend_error_reported", False):
+                        page._backend_error_reported = False
                 else:
                     feedback_text.value = "Error al cargar el problema."
                     feedback_text.color = COLORES["error"]
+
             except Exception as e:
                 if not getattr(page, "_backend_error_reported", False):
                     feedback_text.value = "Error de conexión con el servidor."
                     feedback_text.color = COLORES["error"]
-                    page._backend_error_reported = True  # flag to avoid spamming
-                # optional: log locally
+                    page._backend_error_reported = True  # evita spam de errores
                 print(f"[WARN] Connection error: {type(e).__name__}")
-            page.update()
+
+            finally:
+                # ✅ siempre liberar el flag y actualizar UI
+                page._is_loading_problem = False
+                page.update()
 
         def enviar_respuesta(e):
+            if getattr(page, "_is_sending_response", False):
+                return
+            page._is_sending_response = True
             nonlocal problema_actual_id, stop_timer
-            siguiente_button.disabled = True; send_button.disabled = True; page.update()
-            val = ""
-            if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
-                val = (respuesta_container.controls[0].value or "").strip()
-
-            if not val:
-                feedback_text.value = "La respuesta no puede estar vacía."
-                feedback_text.color = COLORES["error"]
-                siguiente_button.disabled = False; send_button.disabled = False; page.update(); return
+            siguiente_button.disabled = True
+            send_button.disabled = True
+            page.update()
 
             try:
-                resp = requests.post(f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
-                                     json={"respuesta": val, "codigo_identificacion": codigo})
+                val = ""
+                if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
+                    val = (respuesta_container.controls[0].value or "").strip()
+                if not val:
+                    feedback_text.value = "La respuesta no puede estar vacía."
+                    feedback_text.color = COLORES["error"]
+                    siguiente_button.disabled = False
+                    send_button.disabled = False
+                    page.update()
+                    return
+
+                resp = requests.post(
+                    f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
+                    json={"respuesta": val, "codigo_identificacion": codigo},
+                )
                 resp.raise_for_status()
+
+                # ✅ Guardar y avanzar de forma segura
+                save_k(page, f"respuesta_{problema_actual_id}", val)
+                feedback_text.value = ""
+                save_snack.open = True
+                status_icon.visible = True
+                status_text.value = "Guardado"
+                status_row.visible = True
+                page.update()
+                threading.Timer(1.2, lambda: (setattr(status_row, "visible", False), page.update())).start()
+
+                # --- Verificar existencia del siguiente problema ---
+                next_id = problema_actual_id + 1
+                r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{next_id}", timeout=10)
+                if r.status_code == 200:
+                    save_k(page, STATE_KEYS["current_problem"], next_id)
+                    cargar_problema(next_id)
+                else:
+                    feedback_text.value = "¡Has terminado todos los problemas!"
+                    feedback_text.color = COLORES["exito"]
+                    siguiente_button.disabled = True
+                    send_button.disabled = True
+                    page.update()
+                    threading.Timer(2.5, lambda: page.invoke_later(mostrar_pantalla_encuesta_final)).start()
+
             except Exception:
-                feedback_text.value = "Error al registrar en el servidor."
+                feedback_text.value = "Error al registrar o cargar el siguiente problema."
                 feedback_text.color = COLORES["error"]
-                siguiente_button.disabled = False; send_button.disabled = False; page.update(); return
-
-            save_k(page, f"respuesta_{problema_actual_id}", val)
-            feedback_text.value = ""; save_snack.open = True
-            status_icon.visible = True; status_text.value = "Guardado"; status_row.visible = True; page.update()
-            threading.Timer(1.2, lambda: (setattr(status_row, "visible", False), page.update())).start()
-
-            next_id = problema_actual_id + 1
-            save_k(page, STATE_KEYS["current_problem"], next_id)
-            cargar_problema(next_id)
-
+                siguiente_button.disabled = False
+                send_button.disabled = False
+                page.update()
+            finally:
+                # ✅ Siempre desbloquear
+                page._is_sending_response = False
+        
         # ✅ attach button handlers after controls exist
         siguiente_button.on_click = enviar_respuesta
         send_button.on_click = send_message
-
-        # start
-        cargar_problema(problema_actual_id)
-
+        
         # Temporizador (120min)
         def iniciar_temporizador():
             nonlocal stop_timer
