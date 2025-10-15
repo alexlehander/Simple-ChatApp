@@ -201,14 +201,19 @@ def main(page: ft.Page):
 
         codigo_text = ft.Text("Utiliza el siguiente código de identificación para ingresar al cuestionario:", size=18, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
 
-        def copiar_codigo(e):
-            page.set_clipboard(codigo_generado)
+        def copiar_codigo_final(e):
+            # Retrieve the identification code from persistent storage
+            codigo_guardado = page.client_storage.get("codigo_identificacion") or "No disponible"
+            # Copy to clipboard
+            page.set_clipboard(codigo_guardado)
+            # Reuse the same snackbar pattern as the working function
             page.snack_bar = save_snack
             page.snack_bar.content = ft.Text(
                 "Código copiado al portapapeles", color=COLORES["accento"]
             )
             page.snack_bar.bgcolor = COLORES["exito"]
             page.snack_bar.open = True
+            # Refresh the UI
             page.update()
 
         codigo_btn = ft.TextButton(
