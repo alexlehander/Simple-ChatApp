@@ -6,16 +6,16 @@ import os
 
 # ========= Config / Colors =========
 COLORES = {
-    "fondo": "#b6f0cc",
-    "primario": "#0e3a2d",
-    "secundario": "#7dd1a3",
-    "accento": "#b7e4c7",
-    "texto": "#1a3a32",
-    "subtitulo": "#5a7c6e",
-    "boton": "#0e3a2d",
-    "borde": "#c8e6d5",
-    "error": "#e57373",
-    "exito": "#81c784",
+    "fondo": "#f5f9ff",         # azul muy claro casi blanco
+    "primario": "#1d3557",      # azul marino
+    "secundario": "#a8dadc",    # celeste pastel
+    "accento": "#dbeafe",       # azul grisáceo para tarjetas
+    "texto": "#0b0c10",         # casi negro
+    "subtitulo": "#457b9d",
+    "boton": "#1d3557",
+    "borde": "#e0e7ff",
+    "error": "#e63946",
+    "exito": "#2a9d8f",
 }
 
 BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
