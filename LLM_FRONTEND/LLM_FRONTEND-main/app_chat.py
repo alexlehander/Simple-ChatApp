@@ -201,19 +201,14 @@ def main(page: ft.Page):
 
         codigo_text = ft.Text("Utiliza el siguiente código de identificación para ingresar al cuestionario:", size=18, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
 
-        def copiar_codigo_final(e):
-            # Retrieve the identification code from persistent storage
-            codigo_guardado = page.client_storage.get("codigo_identificacion") or "No disponible"
-            # Copy to clipboard
-            page.set_clipboard(codigo_guardado)
-            # Reuse the same snackbar pattern as the working function
+        def copiar_codigo(e):
+            page.set_clipboard(codigo_generado)
             page.snack_bar = save_snack
             page.snack_bar.content = ft.Text(
                 "Código copiado al portapapeles", color=COLORES["accento"]
             )
             page.snack_bar.bgcolor = COLORES["exito"]
             page.snack_bar.open = True
-            # Refresh the UI
             page.update()
 
         codigo_btn = ft.TextButton(
@@ -594,19 +589,16 @@ def main(page: ft.Page):
     def mostrar_pantalla_encuesta_final():
         save_k(page, STATE_KEYS["screen"], "final")
         def copiar_codigo_final(e):
-            # Safely retrieve code from local storage
+            # Retrieve the identification code from persistent storage
             codigo_guardado = page.client_storage.get("codigo_identificacion") or "No disponible"
+            # Copy to clipboard
             page.set_clipboard(codigo_guardado)
-
-            # Create and show snackbar manually (compatible with Flet 0.27)
-            snack = ft.SnackBar(
-                ft.Text("Código copiado al portapapeles", color=COLORES["accento"]),
-                bgcolor=COLORES["exito"],
-                open=True,
-                duration=1500,
-            )
-
-            page.snack_bar = snack
+            # Reuse the same snackbar pattern as the working function
+            page.snack_bar = save_snack
+            page.snack_bar.content = ft.Text("Código copiado al portapapeles", color=COLORES["accento"])
+            page.snack_bar.bgcolor = COLORES["exito"]
+            page.snack_bar.open = True
+            # Refresh the UI
             page.update()
 
         instruccion = ft.Text(
