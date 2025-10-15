@@ -287,24 +287,6 @@ def main(page: ft.Page):
             height=400, border_radius=8, expand=True
         )
 
-        user_input = ft.TextField(
-            hint_text="Escribe tu mensaje aquí",
-            expand=True,
-            color=COLORES["texto"],
-            bgcolor=COLORES["secundario"],
-            border_color=COLORES["borde"],
-            focused_border_color=COLORES["primario"],
-            border_radius=15,
-            hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
-            max_length=500,
-            on_submit=send_message,
-        )
-        
-        send_button = ft.ElevatedButton(
-            text="Enviar", icon=ft.Icons.SEND,
-            bgcolor=COLORES["boton"], color=COLORES["accento"]
-        )
-        
         def send_message(e):
             msg = (user_input.value or "").strip()
             if not msg:
@@ -369,6 +351,23 @@ def main(page: ft.Page):
                 )
             page.update()
 
+        user_input = ft.TextField(
+            hint_text="Escribe tu mensaje aquí",
+            expand=True,
+            color=COLORES["texto"],
+            bgcolor=COLORES["secundario"],
+            border_color=COLORES["borde"],
+            focused_border_color=COLORES["primario"],
+            border_radius=15,
+            hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
+            max_length=500,
+            on_submit=send_message,
+        )
+        
+        send_button = ft.ElevatedButton(
+            text="Enviar", icon=ft.Icons.SEND,
+            bgcolor=COLORES["boton"], color=COLORES["accento"]
+        )
 
         # ---- Problem area ----
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
