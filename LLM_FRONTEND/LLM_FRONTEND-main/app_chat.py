@@ -361,6 +361,8 @@ def main(page: ft.Page):
                         alignment=ft.MainAxisAlignment.START,
                     )
                 )
+                chat_area.scroll_to(offset=1, duration=100)
+                chat_area.update()
             except Exception:
                 chat_area.controls.append(
                     ft.Row(
@@ -377,7 +379,7 @@ def main(page: ft.Page):
             page.update()
 
         user_input = ft.TextField(
-            hint_text="Escribe tu mensaje aquí",
+            hint_text="Presiona Enter para enviar tu mensaje",
             expand=True,
             bgcolor=COLORES["secundario"],
             border_color=COLORES["secundario"],
