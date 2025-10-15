@@ -387,11 +387,6 @@ def main(page: ft.Page):
             max_length=500,
             on_submit=send_message,
         )
-        
-        send_button = ft.ElevatedButton(
-            text="Enviar", icon=ft.Icons.SEND,
-            bgcolor=COLORES["boton"], color=COLORES["accento"]
-        )
 
         # ---- Problem area ----
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
@@ -425,10 +420,16 @@ def main(page: ft.Page):
 
         # Layout
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
-        main_row = ft.Row([ft.Column([chat_container, ft.Row([user_input, send_button], spacing=10)], spacing=10, expand=True), problemas_container], spacing=20, expand=True)
+        main_row = ft.Row([
+            ft.Column([
+                chat_container,
+                user_input
+            ], spacing=10, expand=True),
+            problemas_container
+        ], spacing=20, expand=True)
+        
         page.clean()
-        page.add(ft.Column([codigo_texto_visible, temporizador_text, main_row],
-                           spacing=20, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER))
+        page.add(ft.Column([codigo_texto_visible, temporizador_text, main_row], spacing=20, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER))
 
         # ---- Funciones internas ----
         def cargar_problema(id_problema: int):
@@ -438,7 +439,6 @@ def main(page: ft.Page):
             chat_area.controls.clear()
             # ✅ ensure buttons are re-enabled on each new problem
             siguiente_button.disabled = False
-            send_button.disabled = False
             page.update()
 
             page._is_loading_problem = True
@@ -493,7 +493,6 @@ def main(page: ft.Page):
             page._is_sending_response = True
             nonlocal problema_actual_id, stop_timer
             siguiente_button.disabled = True
-            send_button.disabled = True
             page.update()
 
             try:
@@ -504,7 +503,6 @@ def main(page: ft.Page):
                     feedback_text.value = "La respuesta no puede estar vacía."
                     feedback_text.color = COLORES["error"]
                     siguiente_button.disabled = False
-                    send_button.disabled = False
                     page.update()
                     return
 
@@ -535,7 +533,6 @@ def main(page: ft.Page):
                     feedback_text.value = "¡Has terminado todos los problemas!"
                     feedback_text.color = COLORES["exito"]
                     siguiente_button.disabled = True
-                    send_button.disabled = True
                     page.update()
 
                     # Give a small delay before showing the final survey
@@ -547,7 +544,6 @@ def main(page: ft.Page):
                 feedback_text.value = "Error al registrar o cargar el siguiente problema."
                 feedback_text.color = COLORES["error"]
                 siguiente_button.disabled = False
-                send_button.disabled = False
                 page.update()
             finally:
                 # ✅ Siempre desbloquear
@@ -555,7 +551,6 @@ def main(page: ft.Page):
         
         # ✅ attach button handlers after controls exist
         siguiente_button.on_click = enviar_respuesta
-        send_button.on_click = send_message
         # start
         cargar_problema(problema_actual_id)
         # Temporizador (120min)
@@ -583,7 +578,6 @@ def main(page: ft.Page):
                 if not stop_timer:
                     temporizador_text.value = "¡Tiempo terminado!"
                     siguiente_button.disabled = True
-                    send_button.disabled = True
                     page.update()
 
                     # ✅ Schedule UI change safely on main thread
