@@ -329,7 +329,7 @@ def main(page: ft.Page):
             chat_area.controls.append(
                 ft.Row(
                     [ft.Container(
-                        content=ft.Text(f"{msg}", color=COLORES["accento"]),
+                        content=ft.Text(f"{msg}", color=COLORES["texto"]),
                         bgcolor=COLORES["boton"],
                         padding=10, border_radius=10,
                         alignment=ft.alignment.center_right, width=200
@@ -379,12 +379,11 @@ def main(page: ft.Page):
         user_input = ft.TextField(
             hint_text="Escribe tu mensaje aquí",
             expand=True,
-            color=COLORES["texto"],
             bgcolor=COLORES["secundario"],
-            border_color=COLORES["borde"],
+            border_color=COLORES["secundario"],
             focused_border_color=COLORES["primario"],
             border_radius=15,
-            hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
+            hint_style=ft.TextStyle(color=COLORES["accento"]),
             max_length=500,
             on_submit=send_message,
         )
