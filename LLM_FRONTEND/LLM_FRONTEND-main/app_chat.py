@@ -75,15 +75,18 @@ def main(page: ft.Page):
 
     page.theme = ft.Theme(
         scrollbar_theme=ft.ScrollbarTheme(
-            thumb_color={"default": ft.colors.BLACK},
-            track_color={"default": ft.colors.BLACK12},
+            thumb_color={"default": COLORES["primario"]},
+            track_color={"default": COLORES["borde"]},
             thickness=10,
             radius=10,
         )
     )
 
     # Global snack (Saved)
-    save_snack = ft.SnackBar(content=ft.Text("Respuesta guardada"), open=False, duration=1000)
+    save_snack = ft.SnackBar(
+        content=ft.Text("Respuesta guardada", color=COLORES["accento"]),
+        bgcolor=COLORES["exito"], open=False, duration=1000
+    )
     page.overlay.append(save_snack)
 
     # =============== PANTALLA 1: CONSENTIMIENTO ===============
@@ -180,7 +183,7 @@ def main(page: ft.Page):
         )
 
         list_view = ft.ListView(controls=[titulo, ft.Divider(20), cuerpo, ft.Divider(30), ft.Row([boton_video], alignment=ft.MainAxisAlignment.CENTER), ft.Row([continuar], alignment=ft.MainAxisAlignment.CENTER)], expand=True, spacing=10, padding=20)
-        container = ft.Container(content=list_view, padding=0, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.GREY_400), width=600)
+        container = ft.Container(content=list_view, padding=0, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
         page.clean(); page.add(container)
 
     # =============== PANTALLA 3: ENCUESTA + CÓDIGO ===============
@@ -230,7 +233,7 @@ def main(page: ft.Page):
                 shape=ft.RoundedRectangleBorder(radius=8)
             ),
         )
-        iniciar_btn = ft.ElevatedButton("Iniciar problemas matemáticos", on_click=lambda e: pasar_a_problemas(), bgcolor=COLORES["boton"], color=ft.colors.WHITE, disabled=True)
+        iniciar_btn = ft.ElevatedButton("Iniciar problemas matemáticos", on_click=lambda e: pasar_a_problemas(), bgcolor=COLORES["boton"], color=COLORES["accento"], disabled=True)
         temporizador_text = ft.Text("05:00", size=24, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
 
         def iniciar_temporizador():
@@ -246,7 +249,7 @@ def main(page: ft.Page):
         iniciar_temporizador()
 
         layout = ft.Column([codigo_text, codigo_btn, ft.Divider(10), instruccion, ft.Divider(20), link_encuesta, ft.Divider(20), temporizador_text, iniciar_btn], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20)
-        container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.GREY_400), width=600)
+        container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
         page.clean(); page.add(container)
 
     def pasar_a_problemas():
@@ -293,7 +296,7 @@ def main(page: ft.Page):
         
         send_button = ft.ElevatedButton(
             text="Enviar", icon=ft.icons.SEND,
-            bgcolor=COLORES["boton"], color=ft.colors.WHITE
+            bgcolor=COLORES["boton"], color=COLORES["accento"]
         )
         
         def send_message(e):
@@ -350,8 +353,8 @@ def main(page: ft.Page):
                     ft.Row(
                         [ft.Container(
                             content=ft.Text("Error de conexión con el servidor."),
-                            bgcolor = COLORES["advertencia"] if leve else COLORES["error"],
-                            color = COLORES["texto"],
+                            bgcolor = COLORES["error"],
+                            color = COLORES["accento"],
                             padding=10,
                             border_radius=10
                         )],
@@ -365,8 +368,8 @@ def main(page: ft.Page):
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
         respuesta_container = ft.Column(spacing=10)
         feedback_text = ft.Text("", size=16, color=COLORES["exito"])
-        status_icon = ft.Icon(ft.icons.CHECK_CIRCLE_OUTLINE, color=ft.colors.GREEN_400, size=18, visible=False)
-        status_text = ft.Text("", size=12, color=ft.colors.GREEN_400)
+        status_icon = ft.Icon(ft.icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
+        status_text = ft.Text("", size=12, color=COLORES["exito"])
         status_row = ft.Row([status_icon, status_text], spacing=6, visible=False)
 
         siguiente_button = ft.ElevatedButton(
@@ -431,7 +434,7 @@ def main(page: ft.Page):
                         expand=True, multiline=True, min_lines=1, max_lines=6,
                         bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                         focused_border_color=COLORES["primario"], border_radius=15,
-                        hint_style=ft.TextStyle(color=ft.colors.WHITE),
+                        hint_style=ft.TextStyle(color=COLORES["accento"]),
                         on_submit=_submit_from_enter,
                         on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
                     )
@@ -610,7 +613,7 @@ def main(page: ft.Page):
         )
         
         layout = ft.Column([instruccion, ft.Divider(10), codigo_btn, ft.Divider(20), link_final, ft.Divider(30)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
-        container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.GREY_400), width=600)
+        container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
         page.clean(); page.add(container)
 
     # Boot
