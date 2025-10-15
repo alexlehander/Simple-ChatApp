@@ -525,7 +525,7 @@ def main(page: ft.Page):
 
                     # Give a small delay before showing the final survey
                     def go_final():
-                        page.invoke_later(lambda: mostrar_pantalla_encuesta_final())
+                        mostrar_pantalla_encuesta_final()
                     threading.Timer(2.0, go_final).start()
 
             except Exception:
