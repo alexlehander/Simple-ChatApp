@@ -203,7 +203,12 @@ def main(page: ft.Page):
 
         def copiar_codigo(e):
             page.set_clipboard(codigo_generado)
-            page.snack_bar = ft.SnackBar(ft.Text("Código copiado al portapapeles"), open=True)
+            page.snack_bar = save_snack
+            page.snack_bar.content = ft.Text(
+                "Código copiado al portapapeles", color=COLORES["accento"]
+            )
+            page.snack_bar.bgcolor = COLORES["exito"]
+            page.snack_bar.open = True
             page.update()
 
         codigo_btn = ft.TextButton(
@@ -511,12 +516,18 @@ def main(page: ft.Page):
                     save_k(page, STATE_KEYS["current_problem"], next_id)
                     cargar_problema(next_id)
                 else:
+                     # ✅ When no more problems exist, go to the final screen
                     feedback_text.value = "¡Has terminado todos los problemas!"
                     feedback_text.color = COLORES["exito"]
                     siguiente_button.disabled = True
                     send_button.disabled = True
                     page.update()
-                    threading.Timer(2.5, lambda: page.invoke_later(mostrar_pantalla_encuesta_final)).start()
+
+                    # Give a small delay before showing the final survey
+    def go_final():
+        page.invoke_later(lambda: mostrar_pantalla_encuesta_final())
+
+    threading.Timer(2.0, go_final).start()
 
             except Exception:
                 feedback_text.value = "Error al registrar o cargar el siguiente problema."
