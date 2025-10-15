@@ -288,7 +288,7 @@ def main(page: ft.Page):
         )
 
         user_input = ft.TextField(
-            hint_text="Escribe tu mensaje...",
+            hint_text="Escribe tu mensaje aquí",
             expand=True,
             color=COLORES["texto"],
             bgcolor=COLORES["secundario"],
@@ -297,6 +297,7 @@ def main(page: ft.Page):
             border_radius=15,
             hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
             max_length=500,
+            on_submit=send_message,
         )
         
         send_button = ft.ElevatedButton(
@@ -309,7 +310,7 @@ def main(page: ft.Page):
             if not msg:
                 chat_area.controls.append(
                     ft.Container(
-                        content=ft.Text("Por favor, escribe un mensaje.", color=COLORES["error"]),
+                        content=ft.Text("Por favor, escribe un mensaje", color=COLORES["error"]),
                         padding=10, bgcolor=ft.colors.RED_50, border_radius=5,
                         alignment=ft.alignment.center_right,
                     )
@@ -407,14 +408,6 @@ def main(page: ft.Page):
                            spacing=20, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER))
 
         # ---- Funciones internas ----
-        def _submit_from_enter(e):
-            val = (e.control.value or "").strip()
-            if val:
-                enviar_respuesta(None)
-            else:
-                feedback_text.value = "Escribe una respuesta antes de enviar."
-                feedback_text.color = COLORES["error"]; page.update()
-
         def cargar_problema(id_problema: int):
             nonlocal problema_actual_id
             problema_actual_id = id_problema
@@ -435,12 +428,11 @@ def main(page: ft.Page):
 
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
-                        hint_text="Escribe tu respuesta aqui",
+                        hint_text="Escribe tu respuesta aquí",
                         expand=True, multiline=True, min_lines=1, max_lines=15,
                         bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                         focused_border_color=COLORES["primario"], border_radius=15,
                         hint_style=ft.TextStyle(color=COLORES["accento"]),
-                        on_submit=_submit_from_enter,
                         on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
                     )
 
