@@ -6,16 +6,28 @@ import os
 
 # ========= Config / Colors =========
 COLORES = {
-    "fondo": "#f5f9ff",         # azul muy claro casi blanco
-    "primario": "#1d3557",      # azul marino
-    "secundario": "#a8dadc",    # celeste pastel
-    "accento": "#dbeafe",       # azul grisáceo para tarjetas
-    "texto": "#0b0c10",         # casi negro
-    "subtitulo": "#457b9d",
-    "boton": "#1d3557",
-    "borde": "#e0e7ff",
-    "error": "#e63946",
-    "exito": "#2a9d8f",
+    # Fondos y superficies
+    "fondo": "#F5F7FA",         # gris-azulado muy claro (base neutra)
+    "accento": "#E8F1FA",       # azul pastel para tarjetas / paneles
+
+    # Colores de texto
+    "texto": "#1E2A38",         # gris-azul oscuro, alto contraste
+    "subtitulo": "#4E5D6C",     # gris medio, ideal para instrucciones y detalles
+
+    # Colores principales de interacción
+    "primario": "#1A4E8A",      # azul profesional, más cálido que el marino puro
+    "secundario": "#5BA3D0",    # azul claro moderno para áreas intermedias
+    "boton": "#1A4E8A",         # igual que primario para consistencia
+    "borde": "#C8D6E5",         # gris azulado claro para contornos suaves
+
+    # Estados del sistema
+    "exito": "#2E8B57",         # verde esmeralda legible (feedback positivo)
+    "error": "#D64541",         # rojo coral (mejor contraste que #e63946)
+    "advertencia": "#E0A800",   # amarillo dorado para alertas suaves
+
+    # Acentos (para resaltar)
+    "acento": "#FFB400",        # dorado para llamar la atención sin saturar
+    "acento2": "#E25B50",       # coral suave (resaltar textos o etiquetas)
 }
 
 BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
@@ -59,6 +71,7 @@ def main(page: ft.Page):
     page.vertical_alignment = "center"
     page.padding = 20
     page.bgcolor = COLORES["fondo"]
+    page.theme_mode = ft.ThemeMode.LIGHT
 
     page.theme = ft.Theme(
         scrollbar_theme=ft.ScrollbarTheme(
@@ -77,38 +90,65 @@ def main(page: ft.Page):
     def mostrar_pantalla_consentimiento():
         save_k(page, STATE_KEYS["screen"], "consent")
         page.scroll = ft.ScrollMode.ALWAYS
-        title = ft.Text("¿Listo(a) para resolver la Práctica 4 de la clase de Análisis de Algoritmos con ayuda de un simple y sencillo prototipo de un ayudante inteligente?", size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
+
+        title = ft.Text(
+            "¿Listo(a) para resolver la Práctica 4 de la clase de Análisis de Algoritmos con ayuda de un simple y sencillo prototipo de un ayudante inteligente?",
+            size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER
+        )
         subtitle = ft.Text(
-            "Te recuerdo que puedes usar tus apuntes (texto o digital) así como realizar búsqueda en el navegador. Ten cuidado de no cerrar la ventana del tutor inteligente. Tienes prohibido usar chatbots y platicar con tus compañeros :)",
+            "Puedes usar tus apuntes (texto o digital) así como realizar búsqueda en el navegador. Ten cuidado de no cerrar la ventana del tutor inteligente. Tienes prohibido usar chatbots o platicar con tus compañeros :)",
             size=18, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
         details = ft.Text(
             "Se recabarán datos relacionados con la solución de la práctica, NO se recabarán datos personales.",
             size=16, color=COLORES["subtitulo"], text_align=ft.TextAlign.JUSTIFY,
         )
-        thanks = ft.Text("¡Gracias por tu participación!", size=16, color=COLORES["subtitulo"], text_align=ft.TextAlign.CENTER)
+        thanks = ft.Text(
+            "¡Gracias por tu participación!", size=16, color=COLORES["subtitulo"], text_align=ft.TextAlign.CENTER
+        )
 
-        aceptar_btn = ft.ElevatedButton("Aceptar y continuar", disabled=True, bgcolor=COLORES["boton"], color=ft.colors.WHITE, on_click=lambda e: mostrar_pantalla_instrucciones())
+        aceptar_btn = ft.ElevatedButton(
+            "Aceptar y continuar",
+            disabled=True,
+            bgcolor=COLORES["boton"],
+            color=COLORES["accento"],
+            on_click=lambda e: mostrar_pantalla_instrucciones()
+        )
 
         def on_check(e):
             aceptar_btn.disabled = not e.control.value
             page.update()
 
         checkbox = ft.Checkbox(
-            label="¡Vamos a resolver la práctica!", on_change=on_check,
-            active_color=ft.colors.BLACK, check_color=ft.colors.WHITE, fill_color=ft.colors.BLACK,
-            overlay_color=ft.colors.BLACK12, label_style=ft.TextStyle(color=COLORES["primario"])
+            label="¡Vamos a resolver la práctica!",
+            on_change=on_check,
+            active_color=COLORES["primario"],
+            check_color=COLORES["accento"],
+            fill_color=COLORES["borde"],
+            overlay_color=COLORES["accento2"],
+            label_style=ft.TextStyle(color=COLORES["primario"])
         )
 
         layout = ft.Column(
-            [title, ft.Divider(20), subtitle, ft.Divider(20), details, ft.Divider(20), checkbox, ft.Divider(20), thanks, ft.Divider(30), aceptar_btn],
-            alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20,
+            [title, ft.Divider(20), subtitle, ft.Divider(20),
+            details, ft.Divider(20), checkbox, ft.Divider(20),
+            thanks, ft.Divider(30), aceptar_btn],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=20,
         )
+
         container = ft.Container(
-            content=ft.Column([layout], scroll=ft.ScrollMode.ALWAYS, expand=True),
-            padding=20, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.GREY_400), width=600, expand=True,
+            content=layout,
+            padding=20,
+            bgcolor=COLORES["accento"],
+            border_radius=10,
+            shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
+            width=600,
+            expand=True,
         )
-        page.clean(); page.add(container)
+        page.clean()
+        page.add(container)
 
     # =============== PANTALLA 2: INSTRUCCIONES ===============
     def mostrar_pantalla_instrucciones():
@@ -122,10 +162,22 @@ def main(page: ft.Page):
             size=16, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY,
         )
         boton_video = ft.TextButton(
-            "Ir a video", url="https://drive.google.com/file/d/1QP8gERIQeL3u8Pnlehe9yrcN_upW_dWL/view?usp=sharing", url_target=ft.UrlTarget.BLANK,
-            style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=COLORES["boton"], padding=ft.padding.symmetric(20, 10), shape=ft.RoundedRectangleBorder(radius=8)),
+            "Ir a video",
+            url="https://drive.google.com/file/d/1QP8gERIQeL3u8Pnlehe9yrcN_upW_dWL/view?usp=sharing",
+            url_target=ft.UrlTarget.BLANK,
+            style=ft.ButtonStyle(
+                color=COLORES["accento"],
+                bgcolor=COLORES["boton"],
+                padding=ft.padding.symmetric(20, 10),
+                shape=ft.RoundedRectangleBorder(radius=8)
+            ),
         )
-        continuar = ft.ElevatedButton("Continuar", on_click=lambda e: mostrar_pantalla_encuesta(), bgcolor=COLORES["boton"], color=ft.colors.WHITE)
+        continuar = ft.ElevatedButton(
+            "Continuar",
+            on_click=lambda e: mostrar_pantalla_encuesta(),
+            bgcolor=COLORES["boton"],
+            color=COLORES["accento"],
+        )
 
         list_view = ft.ListView(controls=[titulo, ft.Divider(20), cuerpo, ft.Divider(30), ft.Row([boton_video], alignment=ft.MainAxisAlignment.CENTER), ft.Row([continuar], alignment=ft.MainAxisAlignment.CENTER)], expand=True, spacing=10, padding=20)
         container = ft.Container(content=list_view, padding=0, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.GREY_400), width=600)
@@ -152,9 +204,14 @@ def main(page: ft.Page):
             page.update()
 
         codigo_btn = ft.TextButton(
-            content=ft.Text(codigo_generado, size=26, weight="bold", color=ft.colors.BLACK, text_align=ft.TextAlign.CENTER),
+            content=ft.Text(codigo_generado, size=26, weight="bold", color=COLORES["texto"], text_align=ft.TextAlign.CENTER),
             on_click=copiar_codigo,
-            style=ft.ButtonStyle(padding=ft.padding.symmetric(20, 10), side=ft.BorderSide(1.5, COLORES["boton"]), shape=ft.RoundedRectangleBorder(radius=8), bgcolor=ft.colors.WHITE),
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(20, 10),
+                side=ft.BorderSide(1.5, COLORES["primario"]),
+                shape=ft.RoundedRectangleBorder(radius=8),
+                bgcolor=COLORES["accento"]
+            ),
         )
 
         instruccion = ft.Text(
@@ -162,7 +219,17 @@ def main(page: ft.Page):
             size=16, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY,
         )
 
-        link_encuesta = ft.TextButton("Encuesta Demográfica", url="https://docs.google.com/forms/d/e/1FAIpQLScHqD8lG-_kG1P9sJU-tHxP3KHO0bSEgXKMdcoILb8lvzi0Wg/viewform?usp=dialog", url_target=ft.UrlTarget.BLANK,style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=COLORES["boton"], padding=ft.padding.symmetric(20, 10), shape=ft.RoundedRectangleBorder(radius=8)))
+        link_encuesta = ft.TextButton(
+            "Encuesta Demográfica",
+            url="https://docs.google.com/forms/d/e/1FAIpQLScHqD8lG-_kG1P9sJU-tHxP3KHO0bSEgXKMdcoILb8lvzi0Wg/viewform?usp=dialog",
+            url_target=ft.UrlTarget.BLANK,
+            style=ft.ButtonStyle(
+                color=COLORES["accento"],
+                bgcolor=COLORES["boton"],
+                padding=ft.padding.symmetric(20, 10),
+                shape=ft.RoundedRectangleBorder(radius=8)
+            ),
+        )
         iniciar_btn = ft.ElevatedButton("Iniciar problemas matemáticos", on_click=lambda e: pasar_a_problemas(), bgcolor=COLORES["boton"], color=ft.colors.WHITE, disabled=True)
         temporizador_text = ft.Text("05:00", size=24, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
 
@@ -206,21 +273,29 @@ def main(page: ft.Page):
 
         # ---- Chat UI ----
         chat_area = ft.ListView(expand=True, spacing=10, auto_scroll=False, padding=10)
+        
         chat_container = ft.Container(
-            content=chat_area, padding=10, bgcolor=COLORES["secundario"],
+            content=chat_area, padding=10, bgcolor=COLORES["accento"],
             height=400, border_radius=8, expand=True
         )
+
         user_input = ft.TextField(
-            hint_text="Escribe tu mensaje...", expand=True,
-            color=ft.colors.WHITE, bgcolor=COLORES["secundario"],
-            border_color=COLORES["borde"], focused_border_color=COLORES["primario"],
-            border_radius=15, hint_style=ft.TextStyle(color=ft.colors.WHITE),
-            max_length=500
+            hint_text="Escribe tu mensaje...",
+            expand=True,
+            color=COLORES["texto"],
+            bgcolor=COLORES["secundario"],
+            border_color=COLORES["borde"],
+            focused_border_color=COLORES["primario"],
+            border_radius=15,
+            hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
+            max_length=500,
         )
+        
         send_button = ft.ElevatedButton(
             text="Enviar", icon=ft.icons.SEND,
             bgcolor=COLORES["boton"], color=ft.colors.WHITE
         )
+        
         def send_message(e):
             msg = (user_input.value or "").strip()
             if not msg:
@@ -238,8 +313,9 @@ def main(page: ft.Page):
             chat_area.controls.append(
                 ft.Row(
                     [ft.Container(
-                        content=ft.Text(f"Usuario: {msg}", color=ft.colors.WHITE),
-                        padding=10, bgcolor=COLORES["boton"], border_radius=10,
+                        content=ft.Text(f"Usuario: {msg}", color=COLORES["accento"]),
+                        bgcolor=COLORES["boton"],
+                        padding=10, border_radius=10,
                         alignment=ft.alignment.center_right, width=200
                     )],
                     alignment=ft.MainAxisAlignment.END,
@@ -259,9 +335,12 @@ def main(page: ft.Page):
                 chat_area.controls.append(
                     ft.Row(
                         [ft.Container(
-                            content=ft.Text(f"Agente: {data.get('response','Sin respuesta')}", color=ft.colors.BLACK),
-                            padding=10, bgcolor="#d4edda", border_radius=10,
-                            alignment=ft.alignment.center_left, width=400
+                            content = ft.Text(f"Agente: {data.get('response','Sin respuesta')}", color=COLORES["texto"]),
+                            bgcolor=COLORES["accento"],
+                            padding=10,
+                            border_radius=10,
+                            alignment=ft.alignment.center_left,
+                            width=400
                         )],
                         alignment=ft.MainAxisAlignment.START,
                     )
@@ -270,8 +349,11 @@ def main(page: ft.Page):
                 chat_area.controls.append(
                     ft.Row(
                         [ft.Container(
-                            content=ft.Text("Error de conexión con el servidor.", color=COLORES["error"]),
-                            padding=10, bgcolor=ft.colors.RED_100, border_radius=10
+                            content=ft.Text("Error de conexión con el servidor."),
+                            bgcolor = COLORES["advertencia"] if leve else COLORES["error"],
+                            color = COLORES["texto"],
+                            padding=10,
+                            border_radius=10
                         )],
                         alignment=ft.MainAxisAlignment.START,
                     )
@@ -287,8 +369,18 @@ def main(page: ft.Page):
         status_text = ft.Text("", size=12, color=ft.colors.GREEN_400)
         status_row = ft.Row([status_icon, status_text], spacing=6, visible=False)
 
-        siguiente_button = ft.ElevatedButton("Siguiente problema", icon=ft.icons.CHEVRON_RIGHT, bgcolor=COLORES["boton"], color=ft.colors.WHITE)
-        retroceder_button = ft.ElevatedButton("Retroceder", icon=ft.icons.ARROW_BACK, bgcolor=COLORES["boton"], color=ft.colors.WHITE)
+        siguiente_button = ft.ElevatedButton(
+            "Siguiente problema",
+            icon=ft.icons.CHEVRON_RIGHT,
+            bgcolor=COLORES["boton"],
+            color=COLORES["accento"],
+        )
+        retroceder_button = ft.ElevatedButton(
+            "Retroceder",
+            icon=ft.icons.ARROW_BACK,
+            bgcolor=COLORES["boton"],
+            color=COLORES["accento"],
+        )
 
         problemas_container = ft.Container(
             content=ft.Column(
@@ -492,12 +584,31 @@ def main(page: ft.Page):
             size=18, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.JUSTIFY,
         )
         codigo_btn = ft.TextButton(
-            content=ft.Text(page.client_storage.get("codigo_identificacion"), size=26, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER),
+            content=ft.Text(
+                page.client_storage.get("codigo_identificacion"),
+                size=26, weight="bold",
+                color=COLORES["texto"], text_align=ft.TextAlign.CENTER
+            ),
             on_click=copiar_codigo_final,
-            style=ft.ButtonStyle(padding=ft.padding.symmetric(20, 10), side=ft.BorderSide(1.5, COLORES["boton"]), shape=ft.RoundedRectangleBorder(radius=8), bgcolor=ft.colors.WHITE),
+            style=ft.ButtonStyle(
+                padding=ft.padding.symmetric(20, 10),
+                side=ft.BorderSide(1.5, COLORES["boton"]),
+                shape=ft.RoundedRectangleBorder(radius=8),
+                bgcolor=COLORES["accento"]
+            ),
         )
-        link_final = ft.TextButton("Cuestionario Final", url="https://docs.google.com/forms/d/e/1FAIpQLScX0lriSeCq6YdRYQnOjHVV12x6IQX52eULPGObiaC5LGmi8g/viewform?usp=dialog", url_target=ft.UrlTarget.BLANK, style=ft.ButtonStyle(color=ft.colors.BLACK, bgcolor="#2af721", padding=ft.padding.symmetric(20, 10), shape=ft.RoundedRectangleBorder(radius=8)))
-
+        link_final = ft.TextButton(
+            "Cuestionario Final",
+            url="https://docs.google.com/forms/d/e/1FAIpQLScX0lriSeCq6YdRYQnOjHVV12x6IQX52eULPGObiaC5LGmi8g/viewform?usp=dialog",
+            url_target=ft.UrlTarget.BLANK,
+            style=ft.ButtonStyle(
+                color=COLORES["accento"],
+                bgcolor=COLORES["exito"],
+                padding=ft.padding.symmetric(20, 10),
+                shape=ft.RoundedRectangleBorder(radius=8)
+            ),
+        )
+        
         layout = ft.Column([instruccion, ft.Divider(10), codigo_btn, ft.Divider(20), link_final, ft.Divider(30)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
         container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=ft.colors.GREY_400), width=600)
         page.clean(); page.add(container)
