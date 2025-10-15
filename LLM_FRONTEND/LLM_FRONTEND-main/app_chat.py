@@ -128,7 +128,7 @@ def main(page: ft.Page):
             active_color=COLORES["primario"],
             check_color=COLORES["accento"],
             fill_color=COLORES["borde"],
-            overlay_color=COLORES["accento2"],
+            overlay_color=COLORES["acento2"],
             label_style=ft.TextStyle(color=COLORES["primario"])
         )
 
