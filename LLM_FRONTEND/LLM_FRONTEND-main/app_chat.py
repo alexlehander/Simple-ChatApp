@@ -90,6 +90,13 @@ def update_map(page, key, problem_id, item):
         m.setdefault(pid, []).append(item)  # item is {"role": "...", "text": "..."}
     save_k(page, key, m)
 
+def reset_progress(page):# ---- Borra todo el progreso guardado para reiniciar la práctica ---- #
+    for key in STATE_KEYS.values():
+        try:
+            page.client_storage.remove(key)
+        except Exception:
+            pass
+
 def main(page: ft.Page):
     page.title = "Grow Together"
     page.horizontal_alignment = "center"
@@ -432,7 +439,38 @@ def main(page: ft.Page):
         ], spacing=20, expand=True)
         
         page.clean()
-        page.add(ft.Column([codigo_texto_visible, temporizador_text, main_row], spacing=20, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER))
+        
+        def reiniciar_practica(e):# ---- Volver a la primera pantalla ---- #
+            reset_progress(page)
+            mostrar_pantalla_consentimiento()
+        
+        reiniciar_button = ft.TextButton(
+            "🔄 Reiniciar práctica",
+            on_click=reiniciar_practica,
+            style=ft.ButtonStyle(
+                color=COLORES["accento"],
+                bgcolor=COLORES["error"],
+                padding=ft.padding.symmetric(10, 5),
+                shape=ft.RoundedRectangleBorder(radius=6),
+            )
+        )
+        
+        # Layout principal con el botón de reinicio en la esquina
+        header_row = ft.Row(
+            [codigo_texto_visible, reiniciar_button],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+        )
+
+        page.clean()
+        
+        page.add(
+            ft.Column(
+                [header_row, temporizador_text, main_row],
+                spacing=20,
+                expand=True,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+        )
 
         # ---- Funciones internas ----
         def cargar_problema(id_problema: int):
@@ -556,6 +594,7 @@ def main(page: ft.Page):
         siguiente_button.on_click = enviar_respuesta
         # start
         cargar_problema(problema_actual_id)
+        
         # Temporizador (120min)
         def iniciar_temporizador():
             nonlocal stop_timer
@@ -645,7 +684,28 @@ def main(page: ft.Page):
         
         layout = ft.Column([instruccion, ft.Divider(10), codigo_btn, ft.Divider(20), link_final, ft.Divider(30)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
         container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
-        page.clean(); page.add(container)
+        
+        reiniciar_button_final = ft.TextButton(
+            "🔄 Reiniciar práctica",
+            on_click=lambda e: (reset_progress(page), mostrar_pantalla_consentimiento()),
+            style=ft.ButtonStyle(
+                color=COLORES["accento"],
+                bgcolor=COLORES["error"],
+                padding=ft.padding.symmetric(10, 5),
+                shape=ft.RoundedRectangleBorder(radius=6),
+            ),
+        )
+
+        page.clean()
+        page.add(
+            ft.Column(
+                [container,
+                ft.Row([reiniciar_button_final], alignment=ft.MainAxisAlignment.END)],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=10,
+            )
+        )
 
     # Boot
     screen = load_k(page, STATE_KEYS["screen"], "consent")
