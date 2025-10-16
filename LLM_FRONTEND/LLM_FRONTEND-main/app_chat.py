@@ -90,18 +90,27 @@ def update_map(page, key, problem_id, item):
         m.setdefault(pid, []).append(item)  # item is {"role": "...", "text": "..."}
     save_k(page, key, m)
 
-def reset_progress(page):# ---- Borra todo el progreso guardado para reiniciar la práctica ---- #
-    for key in STATE_KEYS.values():
-        try:
-            page.client_storage.remove(key)
-        except Exception:
-            pass
-            
-    # ---- also remove all saved respuestas_X drafts ---- #
+def reset_progress(page):
+    # --- Borra todo el progreso, historial y datos en caché de la práctica ---
     try:
+        # --- Borra TODAS las claves de almacenamiento local ---
         for k in page.client_storage.get_keys():
-            if k.startswith("respuesta_"):
-                page.client_storage.remove(k)
+            page.client_storage.remove(k)
+    except Exception:
+        pass
+
+    # --- Limpia variables en memoria global (si existen) ---
+    if hasattr(page, "_is_loading_problem"):
+        delattr(page, "_is_loading_problem")
+
+    # --- Limpieza visual ---
+    page.clean()
+    page.update()
+
+    # --- Reinicia el estado de la app ---
+    try:
+        # Esto fuerza a recargar completamente la app desde cero
+        page.session.clear()  # Limpia la sesión actual si existe
     except Exception:
         pass
 
