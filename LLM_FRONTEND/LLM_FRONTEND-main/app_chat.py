@@ -109,26 +109,22 @@ def update_map(page, key, problem_id, item):
 
 def reset_progress(page):
     try:
-        # 1) Eliminar TODAS las claves guardadas por Flet
-        for k in list(page.client_storage.get_keys()):
+        keys = list(page.client_storage.get_keys(""))
+        print(f"🧹 Eliminando {len(keys)} claves del almacenamiento local...")
+        for k in keys:
             try:
                 page.client_storage.remove(k)
             except Exception as err:
                 print(f"⚠️ No se pudo borrar clave {k}: {err}")
-
-        # 2) Limpiar flags/vars internas
         if hasattr(page, "_is_loading_problem"):
             delattr(page, "_is_loading_problem")
-
-        # 3) Limpiar la UI
         page.clean()
         page.update()
-
-        # 4) Limpiar sesión (si existe)
         try:
             page.session.clear()
         except Exception:
             pass
+        print("✅ Limpieza interna de Flet completada.")
     except Exception as e:
         print("❌ Error durante reset_progress:", e)
 
@@ -479,7 +475,7 @@ def main(page: ft.Page):
             reset_progress(page)
             try:
                 page.launch_url(JS_CLEAR_STORAGE)
-            except Exception as _:
+            except Exception:
                 pass
             mostrar_pantalla_consentimiento()
             
