@@ -96,6 +96,14 @@ def reset_progress(page):# ---- Borra todo el progreso guardado para reiniciar l
             page.client_storage.remove(key)
         except Exception:
             pass
+            
+    # ---- also remove all saved respuestas_X drafts ---- #
+    try:
+        for k in page.client_storage.get_keys():
+            if k.startswith("respuesta_"):
+                page.client_storage.remove(k)
+    except Exception:
+        pass
 
 def main(page: ft.Page):
     page.title = "Grow Together"
