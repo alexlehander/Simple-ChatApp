@@ -31,28 +31,28 @@ import os
 #}
 
 COLORES = {
-    # Fondos y superficies
-    "fondo":     "#0F172A",  # slate-900-ish (muy oscuro, sin negro puro)
-    "accento":   "#111827",  # slate-800 para tarjetas/paneles
+    # Fondos y superficies (más neutros)
+    "fondo":     "#0B0F14",  # charcoal neutral (menos tinte azul que #0F172A)
+    "accento":   "#161A20",  # panel/cards (ligeramente más claro que fondo)
 
     # Texto
-    "texto":     "#E5E7EB",  # gris muy claro (mejor que blanco puro)
-    "subtitulo": "#A7B0BF",  # gris medio frío para secundarios
+    "texto":     "#E6E9EF",  # gris muy claro, no blanco puro
+    "subtitulo": "#AAB3C0",  # gris medio neutro
 
-    # Interacción
-    "primario":  "#93C5FD",  # azul claro (contrasta sobre fondos oscuros)
-    "secundario":"#60A5FA",  # azul medio para áreas intermedias/inputs
-    "boton":     "#1E3A8A",  # azul profundo para botones sólidos
-    "borde":     "#334155",  # slate-700 para contornos/sombras suaves
+    # Interacción (azules que destacan más sobre fondo neutro)
+    "primario":  "#8FB7FF",  # azul claro un poco más cálido (↑ contraste)
+    "secundario":"#5B96F7",  # azul medio para inputs/áreas intermedias
+    "boton":     "#1F3B86",  # azul profundo, suficiente separación del fondo
+    "borde":     "#2B323A",  # gris neutro para contornos/sombras suaves
 
     # Estados
-    "exito":     "#34D399",  # verde jade (legible en dark)
-    "error":     "#F87171",  # rojo suave visible sin deslumbrar
-    "advertencia":"#F59E0B", # ámbar accesible
+    "exito":     "#2ECC95",  # verde jade ligeramente más frío
+    "error":     "#F2797B",  # rojo suave legible en dark
+    "advertencia":"#F6A721", # ámbar accesible
 
     # Acentos
-    "acento":    "#FBBF24",  # dorado cálido (pequeños highlights)
-    "acento2":   "#FB7185",  # coral para etiquetas/pequeños énfasis
+    "acento":    "#F5BE3D",  # dorado cálido para highlights
+    "acento2":   "#F4788A",  # coral para etiquetas/pequeños énfasis
 }
 
 BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
