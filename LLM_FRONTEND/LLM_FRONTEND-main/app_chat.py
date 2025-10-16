@@ -55,6 +55,23 @@ COLORES = {
     "acento2":   "#F4788A",  # coral para etiquetas/pequeños énfasis
 }
 
+JS_CLEAR_STORAGE = (
+    "javascript:(() => {"
+    "  try {"
+    "    localStorage && localStorage.clear && localStorage.clear();"
+    "    sessionStorage && sessionStorage.clear && sessionStorage.clear();"
+    "    if (window.indexedDB) {"
+    "      if (indexedDB.databases) {"
+    "        indexedDB.databases().then(dbs => dbs.forEach(db => indexedDB.deleteDatabase(db.name)));"
+    "      } else {"
+    "        ['_flet', 'flet_client_storage'].forEach(n => { try { indexedDB.deleteDatabase(n); } catch(e){} });"
+    "      }"
+    "    }"
+    "  } catch(e) { console.error('Error clearing storage', e); }"
+    "  finally { location.reload(); }"
+    "})();"
+)
+
 BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 BACKEND_URL_GENERAR_CODIGO    = f"{BASE}/generar_codigo"
 BACKEND_URL_CHAT              = f"{BASE}/chat"
@@ -91,28 +108,29 @@ def update_map(page, key, problem_id, item):
     save_k(page, key, m)
 
 def reset_progress(page):
-    # --- Borra todo el progreso, historial y datos en caché de la práctica ---
     try:
-        # --- Borra TODAS las claves de almacenamiento local ---
-        for k in page.client_storage.get_keys():
-            page.client_storage.remove(k)
-    except Exception:
-        pass
+        # 1) Eliminar TODAS las claves guardadas por Flet
+        for k in list(page.client_storage.get_keys()):
+            try:
+                page.client_storage.remove(k)
+            except Exception as err:
+                print(f"⚠️ No se pudo borrar clave {k}: {err}")
 
-    # --- Limpia variables en memoria global (si existen) ---
-    if hasattr(page, "_is_loading_problem"):
-        delattr(page, "_is_loading_problem")
+        # 2) Limpiar flags/vars internas
+        if hasattr(page, "_is_loading_problem"):
+            delattr(page, "_is_loading_problem")
 
-    # --- Limpieza visual ---
-    page.clean()
-    page.update()
+        # 3) Limpiar la UI
+        page.clean()
+        page.update()
 
-    # --- Reinicia el estado de la app ---
-    try:
-        # Esto fuerza a recargar completamente la app desde cero
-        page.session.clear()  # Limpia la sesión actual si existe
-    except Exception:
-        pass
+        # 4) Limpiar sesión (si existe)
+        try:
+            page.session.clear()
+        except Exception:
+            pass
+    except Exception as e:
+        print("❌ Error durante reset_progress:", e)
 
 def main(page: ft.Page):
     page.title = "Grow Together"
@@ -457,10 +475,14 @@ def main(page: ft.Page):
         
         page.clean()
         
-        def reiniciar_practica(e):# ---- Volver a la primera pantalla ---- #
+        def reiniciar_practica(e):
             reset_progress(page)
+            try:
+                page.launch_url(JS_CLEAR_STORAGE)
+            except Exception as _:
+                pass
             mostrar_pantalla_consentimiento()
-        
+            
         reiniciar_button = ft.TextButton(
             "🔄 Reiniciar práctica",
             on_click=reiniciar_practica,
