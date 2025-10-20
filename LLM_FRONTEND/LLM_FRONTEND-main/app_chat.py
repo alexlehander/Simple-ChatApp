@@ -134,7 +134,7 @@ def main(page: ft.Page):
     page.vertical_alignment = "center"
     page.padding = 20
     page.bgcolor = COLORES["fondo"]
-    page.theme_mode = ft.ThemeMode.LIGHT
+    page.theme_mode = ft.ThemeMode.DARK #ft.ThemeMode.LIGHT
 
     page.theme = ft.Theme(
         scrollbar_theme=ft.ScrollbarTheme(
@@ -337,6 +337,74 @@ def main(page: ft.Page):
 
         stop_timer = False
         problema_actual_id = 1
+        
+        def get_total_problems():
+            try:
+                r = requests.get(f"{BASE}/contar_problemas", timeout=5)
+                total = int(r.json().get("total", 0))
+                if total > 0:
+                    return total
+            except Exception:
+                pass
+
+            # Fallback: probe sequentially until 404, max 200 problems
+            total = 0
+            for i in range(1, 201):
+                try:
+                    r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{i}", timeout=3)
+                    if r.status_code != 200:
+                        break
+                    total = i
+                except Exception:
+                    break
+            return max(total, 1)
+
+        NUM_PROBLEMAS = get_total_problems()
+
+        # --- Align completion flags length with current total ---
+        prev = load_k(page, "respuestas_enviadas", [])
+        if not isinstance(prev, list) or len(prev) != NUM_PROBLEMAS:
+            respuestas_enviadas = [False] * NUM_PROBLEMAS
+        else:
+            respuestas_enviadas = prev
+        save_k(page, "respuestas_enviadas", respuestas_enviadas)
+
+        def guardar_respuesta_actual():
+            """Guarda el texto actual antes de cambiar de problema."""
+            if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
+                texto = (respuesta_container.controls[0].value or "").strip()
+                save_k(page, f"respuesta_{problema_actual_id}", texto)
+
+        #def guardar_chat_actual():
+        #    """Guarda el chat actual asociado al problema."""
+        #    mensajes = []
+        #    for c in chat_area.controls:
+        #        if isinstance(c, ft.Row) and c.controls:
+        #            txts = c.controls[0].content
+        #            if isinstance(txts, ft.Text):
+        #                mensajes.append({"role": "assistant", "text": txts.value})
+        #    if mensajes:
+        #        update_map(page, STATE_KEYS["chat"], problema_actual_id, mensajes)
+
+        def cargar_chat_guardado(id_problema):
+            """Recupera el historial del chat de un problema."""
+            chat_area.controls.clear()
+            chats = load_k(page, STATE_KEYS["chat"], {})
+            for msg in chats.get(str(id_problema), []):
+                align = ft.MainAxisAlignment.END if msg["role"] == "user" else ft.MainAxisAlignment.START
+                bubble_color = COLORES["boton"] if msg["role"] == "user" else COLORES["accento"]
+                chat_area.controls.append(
+                    ft.Row([
+                        ft.Container(
+                            content=ft.Text(msg["text"], color=COLORES["texto"]),
+                            bgcolor=bubble_color,
+                            padding=10,
+                            border_radius=10,
+                            width=350
+                        )
+                    ], alignment=align)
+                )
+            chat_area.update()
 
         # 🔹 Restore last open problem
         saved_id = load_k(page, STATE_KEYS["current_problem"], 1)
@@ -377,6 +445,9 @@ def main(page: ft.Page):
             )
             user_input.value = ""
             page.update()
+            
+            update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "user", "text": msg})
+            save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))  # ensure persisted
 
             # Call backend
             try:
@@ -416,6 +487,9 @@ def main(page: ft.Page):
                     )
                 )
             page.update()
+            
+            update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": data.get('response','Sin respuesta')})
+            save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
 
         user_input = ft.TextField(
             hint_text="Presiona Enter para enviar tu mensaje",
@@ -437,26 +511,60 @@ def main(page: ft.Page):
         status_text = ft.Text("", size=12, color=COLORES["exito"])
         status_row = ft.Row([status_icon, status_text], spacing=6, visible=False)
 
-        siguiente_button = ft.ElevatedButton(
-            "Siguiente problema",
-            icon=ft.Icons.CHEVRON_RIGHT,
-            bgcolor=COLORES["boton"],
-            color=COLORES["accento"],
-        )
         retroceder_button = ft.ElevatedButton(
-            "Retroceder",
+            "⏪ Anterior",
             icon=ft.Icons.ARROW_BACK,
             bgcolor=COLORES["boton"],
             color=COLORES["accento"],
+            on_click=lambda e: ir_a_problema(-1)
         )
 
+        enviar_button = ft.ElevatedButton(
+            "Enviar",
+            icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
+            bgcolor=COLORES["exito"],
+            color=COLORES["accento"],
+            on_click=enviar_respuesta
+        )
+
+        siguiente_button = ft.ElevatedButton(
+            "Siguiente ⏩",
+            icon=ft.Icons.CHEVRON_RIGHT,
+            bgcolor=COLORES["boton"],
+            color=COLORES["accento"],
+            on_click=lambda e: ir_a_problema(+1)
+        )
+
+        botones_row = ft.Row(
+            [retroceder_button, enviar_button, siguiente_button],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=20
+        )
+
+        numero_text = ft.Text(
+            f"Problema {problema_actual_id} de {NUM_PROBLEMAS}",
+            color=COLORES["subtitulo"],
+            size=14
+        )
+        
         problemas_container = ft.Container(
             content=ft.Column(
-                [ejercicio_text, respuesta_container, ft.Row([siguiente_button], alignment=ft.MainAxisAlignment.CENTER),
-                 feedback_text, status_row],
-                spacing=20, expand=True
+                [
+                    numero_text,
+                    ejercicio_text,
+                    respuesta_container,
+                    botones_row,
+                    feedback_text,
+                    status_row,
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=20,
+                expand=True,
             ),
-            padding=20, bgcolor=COLORES["accento"], border_radius=10, expand=True,
+            padding=20,
+            bgcolor=COLORES["accento"],
+            border_radius=10,
+            expand=True,
         )
 
         # Layout
@@ -468,8 +576,6 @@ def main(page: ft.Page):
             ], spacing=10, expand=True),
             problemas_container
         ], spacing=20, expand=True)
-        
-        page.clean()
         
         def reiniciar_practica(e):
             reset_progress(page)
@@ -561,7 +667,16 @@ def main(page: ft.Page):
             finally:
                 # ✅ siempre liberar el flag y actualizar UI
                 page._is_loading_problem = False
+                cargar_chat_guardado(id_problema)
                 page.update()
+
+        def ir_a_problema(delta):
+            nonlocal problema_actual_id
+            guardar_respuesta_actual()
+            #guardar_chat_actual()
+            nuevo_id = problema_actual_id + delta
+            if 1 <= nuevo_id <= NUM_PROBLEMAS:
+                cargar_problema(nuevo_id)
 
         def enviar_respuesta(e):
             if getattr(page, "_is_sending_response", False):
@@ -590,6 +705,8 @@ def main(page: ft.Page):
 
                 # ✅ Guardar y avanzar de forma segura
                 save_k(page, f"respuesta_{problema_actual_id}", val)
+                respuestas_enviadas[problema_actual_id - 1] = True
+                save_k(page, "respuestas_enviadas", respuestas_enviadas)
                 feedback_text.value = ""
                 save_snack.open = True
                 status_icon.visible = True
@@ -625,8 +742,6 @@ def main(page: ft.Page):
                 # ✅ Siempre desbloquear
                 page._is_sending_response = False
         
-        # ✅ attach button handlers after controls exist
-        siguiente_button.on_click = enviar_respuesta
         # start
         cargar_problema(problema_actual_id)
         
@@ -639,7 +754,7 @@ def main(page: ft.Page):
                 start_epoch = now
                 save_k(page, STATE_KEYS["timer_start"], start_epoch)
 
-            TOTAL_SECONDS = 1200 * 60
+            TOTAL_SECONDS = 120 * 60
             elapsed = max(0, now - int(start_epoch))
             remaining = max(0, TOTAL_SECONDS - elapsed)
 

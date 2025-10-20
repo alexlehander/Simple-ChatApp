@@ -327,6 +327,9 @@ def chat(problema_id: int):
         save_chat_turn(usuario, codigo_identificacion or None, problema_id, "assistant", assistant_text)
         return jsonify({"response": assistant_text})
 
+@app.route("/contar_problemas", methods=["GET"])
+def contar_problemas():
+    return jsonify({"total": len(PROBLEMAS)})
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------
