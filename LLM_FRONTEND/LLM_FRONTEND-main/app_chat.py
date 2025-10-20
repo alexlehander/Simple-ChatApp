@@ -410,6 +410,135 @@ def main(page: ft.Page):
         saved_id = load_k(page, STATE_KEYS["current_problem"], 1)
         problema_actual_id = int(saved_id)
 
+        # ---- Funciones internas ----
+        def cargar_problema(id_problema: int):
+            nonlocal problema_actual_id
+            problema_actual_id = id_problema
+            save_k(page, STATE_KEYS["current_problem"], problema_actual_id)
+            chat_area.controls.clear()
+            # ✅ ensure buttons are re-enabled on each new problem
+            siguiente_button.disabled = False
+            page.update()
+
+            page._is_loading_problem = True
+            try:
+                r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{id_problema}")
+                if r.status_code == 200:
+                    p = r.json()
+                    ejercicio_text.value = f"Problema {p.get('id', id_problema)}\n\n{p.get('enunciado', '')}"
+                    ejercicio_text.text_align = ft.TextAlign.CENTER
+
+                    respuesta_container.controls.clear()
+                    tf = ft.TextField(
+                        hint_text="Escribe tu respuesta aquí",
+                        expand=True, multiline=True, min_lines=1, max_lines=15,
+                        bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
+                        focused_border_color=COLORES["primario"], border_radius=15,
+                        hint_style=ft.TextStyle(color=COLORES["accento"]),
+                        on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
+                    )
+
+                    # 🟢 Restore saved draft
+                    draft = page.client_storage.get(f"respuesta_{id_problema}")
+                    if draft:
+                        tf.value = draft
+
+                    respuesta_container.controls.append(tf)
+                    feedback_text.value = ""
+                    status_row.visible = False
+
+                    # (opcional) si antes hubo error de backend, limpia el flag
+                    if getattr(page, "_backend_error_reported", False):
+                        page._backend_error_reported = False
+                else:
+                    feedback_text.value = "Error al cargar el problema."
+                    feedback_text.color = COLORES["error"]
+
+            except Exception as e:
+                if not getattr(page, "_backend_error_reported", False):
+                    feedback_text.value = "Error de conexión con el servidor."
+                    feedback_text.color = COLORES["error"]
+                    page._backend_error_reported = True  # evita spam de errores
+                print(f"[WARN] Connection error: {type(e).__name__}")
+
+            finally:
+                # ✅ siempre liberar el flag y actualizar UI
+                page._is_loading_problem = False
+                cargar_chat_guardado(id_problema)
+                page.update()
+
+        def ir_a_problema(delta):
+            nonlocal problema_actual_id
+            guardar_respuesta_actual()
+            #guardar_chat_actual()
+            nuevo_id = problema_actual_id + delta
+            if 1 <= nuevo_id <= NUM_PROBLEMAS:
+                cargar_problema(nuevo_id)
+
+        def enviar_respuesta(e):
+            if getattr(page, "_is_sending_response", False):
+                return
+            page._is_sending_response = True
+            nonlocal problema_actual_id, stop_timer
+            siguiente_button.disabled = True
+            page.update()
+
+            try:
+                val = ""
+                if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
+                    val = (respuesta_container.controls[0].value or "").strip()
+                if not val:
+                    feedback_text.value = "La respuesta no puede estar vacía."
+                    feedback_text.color = COLORES["error"]
+                    siguiente_button.disabled = False
+                    page.update()
+                    return
+
+                resp = requests.post(
+                    f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
+                    json={"respuesta": val, "codigo_identificacion": codigo},
+                )
+                resp.raise_for_status()
+
+                # ✅ Guardar y avanzar de forma segura
+                save_k(page, f"respuesta_{problema_actual_id}", val)
+                respuestas_enviadas[problema_actual_id - 1] = True
+                save_k(page, "respuestas_enviadas", respuestas_enviadas)
+                feedback_text.value = ""
+                save_snack.open = True
+                status_icon.visible = True
+                status_text.value = "Guardado"
+                status_row.visible = True
+                page.update()
+                threading.Timer(1.2, lambda: (setattr(status_row, "visible", False), page.update())).start()
+
+                # --- Verificar existencia del siguiente problema ---
+                next_id = problema_actual_id + 1
+                r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{next_id}", timeout=10)
+                if r.status_code == 200:
+                    save_k(page, STATE_KEYS["current_problem"], next_id)
+                    cargar_problema(next_id)
+                else:
+                     # ✅ When no more problems exist, go to the final screen
+                    feedback_text.value = "¡Has terminado todos los problemas!"
+                    feedback_text.color = COLORES["exito"]
+                    siguiente_button.disabled = True
+                    page.update()
+
+                    # Give a small delay before showing the final survey
+                    def go_final():
+                        mostrar_pantalla_encuesta_final()
+                    threading.Timer(2.0, go_final).start()
+
+            except Exception:
+                feedback_text.value = "Error al registrar o cargar el siguiente problema."
+                feedback_text.color = COLORES["error"]
+                siguiente_button.disabled = False
+                page.update()
+            finally:
+                # ✅ Siempre desbloquear
+                page._is_sending_response = False
+
         # ---- Chat UI ----
         chat_area = ft.ListView(expand=True, spacing=10, auto_scroll=False, padding=10)
         
@@ -612,135 +741,6 @@ def main(page: ft.Page):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             )
         )
-
-        # ---- Funciones internas ----
-        def cargar_problema(id_problema: int):
-            nonlocal problema_actual_id
-            problema_actual_id = id_problema
-            save_k(page, STATE_KEYS["current_problem"], problema_actual_id)
-            chat_area.controls.clear()
-            # ✅ ensure buttons are re-enabled on each new problem
-            siguiente_button.disabled = False
-            page.update()
-
-            page._is_loading_problem = True
-            try:
-                r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{id_problema}")
-                if r.status_code == 200:
-                    p = r.json()
-                    ejercicio_text.value = f"Problema {p.get('id', id_problema)}\n\n{p.get('enunciado', '')}"
-                    ejercicio_text.text_align = ft.TextAlign.CENTER
-
-                    respuesta_container.controls.clear()
-                    tf = ft.TextField(
-                        hint_text="Escribe tu respuesta aquí",
-                        expand=True, multiline=True, min_lines=1, max_lines=15,
-                        bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
-                        focused_border_color=COLORES["primario"], border_radius=15,
-                        hint_style=ft.TextStyle(color=COLORES["accento"]),
-                        on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
-                    )
-
-                    # 🟢 Restore saved draft
-                    draft = page.client_storage.get(f"respuesta_{id_problema}")
-                    if draft:
-                        tf.value = draft
-
-                    respuesta_container.controls.append(tf)
-                    feedback_text.value = ""
-                    status_row.visible = False
-
-                    # (opcional) si antes hubo error de backend, limpia el flag
-                    if getattr(page, "_backend_error_reported", False):
-                        page._backend_error_reported = False
-                else:
-                    feedback_text.value = "Error al cargar el problema."
-                    feedback_text.color = COLORES["error"]
-
-            except Exception as e:
-                if not getattr(page, "_backend_error_reported", False):
-                    feedback_text.value = "Error de conexión con el servidor."
-                    feedback_text.color = COLORES["error"]
-                    page._backend_error_reported = True  # evita spam de errores
-                print(f"[WARN] Connection error: {type(e).__name__}")
-
-            finally:
-                # ✅ siempre liberar el flag y actualizar UI
-                page._is_loading_problem = False
-                cargar_chat_guardado(id_problema)
-                page.update()
-
-        def ir_a_problema(delta):
-            nonlocal problema_actual_id
-            guardar_respuesta_actual()
-            #guardar_chat_actual()
-            nuevo_id = problema_actual_id + delta
-            if 1 <= nuevo_id <= NUM_PROBLEMAS:
-                cargar_problema(nuevo_id)
-
-        def enviar_respuesta(e):
-            if getattr(page, "_is_sending_response", False):
-                return
-            page._is_sending_response = True
-            nonlocal problema_actual_id, stop_timer
-            siguiente_button.disabled = True
-            page.update()
-
-            try:
-                val = ""
-                if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
-                    val = (respuesta_container.controls[0].value or "").strip()
-                if not val:
-                    feedback_text.value = "La respuesta no puede estar vacía."
-                    feedback_text.color = COLORES["error"]
-                    siguiente_button.disabled = False
-                    page.update()
-                    return
-
-                resp = requests.post(
-                    f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
-                    json={"respuesta": val, "codigo_identificacion": codigo},
-                )
-                resp.raise_for_status()
-
-                # ✅ Guardar y avanzar de forma segura
-                save_k(page, f"respuesta_{problema_actual_id}", val)
-                respuestas_enviadas[problema_actual_id - 1] = True
-                save_k(page, "respuestas_enviadas", respuestas_enviadas)
-                feedback_text.value = ""
-                save_snack.open = True
-                status_icon.visible = True
-                status_text.value = "Guardado"
-                status_row.visible = True
-                page.update()
-                threading.Timer(1.2, lambda: (setattr(status_row, "visible", False), page.update())).start()
-
-                # --- Verificar existencia del siguiente problema ---
-                next_id = problema_actual_id + 1
-                r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{next_id}", timeout=10)
-                if r.status_code == 200:
-                    save_k(page, STATE_KEYS["current_problem"], next_id)
-                    cargar_problema(next_id)
-                else:
-                     # ✅ When no more problems exist, go to the final screen
-                    feedback_text.value = "¡Has terminado todos los problemas!"
-                    feedback_text.color = COLORES["exito"]
-                    siguiente_button.disabled = True
-                    page.update()
-
-                    # Give a small delay before showing the final survey
-                    def go_final():
-                        mostrar_pantalla_encuesta_final()
-                    threading.Timer(2.0, go_final).start()
-
-            except Exception:
-                feedback_text.value = "Error al registrar o cargar el siguiente problema."
-                feedback_text.color = COLORES["error"]
-                siguiente_button.disabled = False
-                page.update()
-            finally:
-                # ✅ Siempre desbloquear
-                page._is_sending_response = False
         
         # start
         cargar_problema(problema_actual_id)
