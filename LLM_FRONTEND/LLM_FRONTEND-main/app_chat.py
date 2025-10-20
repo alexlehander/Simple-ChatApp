@@ -465,6 +465,7 @@ def main(page: ft.Page):
                 # ✅ siempre liberar el flag y actualizar UI
                 page._is_loading_problem = False
                 cargar_chat_guardado(id_problema)
+                numero_text.value = f"Problema {id_problema} de {NUM_PROBLEMAS}"
                 page.update()
 
         def ir_a_problema(delta):
@@ -519,16 +520,19 @@ def main(page: ft.Page):
                     save_k(page, STATE_KEYS["current_problem"], next_id)
                     cargar_problema(next_id)
                 else:
-                     # ✅ When no more problems exist, go to the final screen
-                    feedback_text.value = "¡Has terminado todos los problemas!"
-                    feedback_text.color = COLORES["exito"]
-                    siguiente_button.disabled = True
-                    page.update()
-
-                    # Give a small delay before showing the final survey
-                    def go_final():
-                        mostrar_pantalla_encuesta_final()
-                    threading.Timer(2.0, go_final).start()
+                    if all(respuestas_enviadas):
+                        feedback_text.value = "¡Has terminado todos los problemas!"
+                        feedback_text.color = COLORES["exito"]
+                        siguiente_button.disabled = True
+                        page.update()
+                        def go_final():
+                            mostrar_pantalla_encuesta_final()
+                        threading.Timer(2.0, go_final).start()
+                    else:
+                        feedback_text.value = "Aún tienes problemas pendientes por enviar."
+                        feedback_text.color = COLORES["error"]
+                        siguiente_button.disabled = False
+                        page.update()
 
             except Exception:
                 feedback_text.value = "Error al registrar o cargar el siguiente problema."
