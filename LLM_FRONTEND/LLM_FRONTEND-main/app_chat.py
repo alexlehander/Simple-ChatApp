@@ -466,15 +466,35 @@ def main(page: ft.Page):
                 page._is_loading_problem = False
                 cargar_chat_guardado(id_problema)
                 numero_text.value = f"Problema {id_problema} de {NUM_PROBLEMAS}"
+                estado = "✅ Entregado" if respuestas_enviadas[id_problema - 1] else "⏳ Pendiente"
+                estado_text.value = f"Estado: {estado}"
+                entregados = sum(1 for x in respuestas_enviadas if x)
+                progreso_text.value = f"Entregados {entregados} de {NUM_PROBLEMAS}"
                 page.update()
 
         def ir_a_problema(delta):
             nonlocal problema_actual_id
             guardar_respuesta_actual()
-            #guardar_chat_actual()
             nuevo_id = problema_actual_id + delta
-            if 1 <= nuevo_id <= NUM_PROBLEMAS:
-                cargar_problema(nuevo_id)
+
+            # ⛔ Si intenta ir antes del primer problema, no hagas nada (o muestra aviso)
+            if nuevo_id < 1:
+                feedback_text.value = "Estás en el primer problema."
+                feedback_text.color = COLORES["advertencia"]
+                page.update()
+                return
+
+            # ✅ Si intenta pasar MÁS ALLÁ del último:
+            if nuevo_id > NUM_PROBLEMAS:
+                if all(respuestas_enviadas):
+                    mostrar_pantalla_encuesta_final()
+                else:
+                    feedback_text.value = "Aún tienes problemas pendientes por enviar antes de finalizar."
+                    feedback_text.color = COLORES["error"]
+                    page.update()
+                return
+
+            cargar_problema(nuevo_id)
 
         def enviar_respuesta(e):
             if getattr(page, "_is_sending_response", False):
@@ -505,6 +525,10 @@ def main(page: ft.Page):
                 save_k(page, f"respuesta_{problema_actual_id}", val)
                 respuestas_enviadas[problema_actual_id - 1] = True
                 save_k(page, "respuestas_enviadas", respuestas_enviadas)
+                # 🔄 Refrescar rótulos de Estado / Progreso
+                estado_text.value = "Estado: ✅ Entregado"
+                entregados = sum(1 for x in respuestas_enviadas if x)
+                progreso_text.value = f"Entregados {entregados} de {NUM_PROBLEMAS}"
                 feedback_text.value = ""
                 save_snack.open = True
                 status_icon.visible = True
@@ -520,19 +544,11 @@ def main(page: ft.Page):
                     save_k(page, STATE_KEYS["current_problem"], next_id)
                     cargar_problema(next_id)
                 else:
-                    if all(respuestas_enviadas):
-                        feedback_text.value = "¡Has terminado todos los problemas!"
-                        feedback_text.color = COLORES["exito"]
-                        siguiente_button.disabled = True
-                        page.update()
-                        def go_final():
-                            mostrar_pantalla_encuesta_final()
-                        threading.Timer(2.0, go_final).start()
-                    else:
-                        feedback_text.value = "Aún tienes problemas pendientes por enviar."
-                        feedback_text.color = COLORES["error"]
-                        siguiente_button.disabled = False
-                        page.update()
+                    # No navegamos a la encuesta final desde "Enviar", Solo informamos que no hay más problemas para cargar.
+                    feedback_text.value = "Este fue el último problema disponible. Usa «Siguiente» para finalizar si ya entregaste todos."
+                    feedback_text.color = COLORES["advertencia"]
+                    siguiente_button.disabled = False
+                    page.update()
 
             except Exception:
                 feedback_text.value = "Error al registrar o cargar el siguiente problema."
@@ -581,6 +597,8 @@ def main(page: ft.Page):
             
             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "user", "text": msg})
             save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))  # ensure persisted
+            # ✅ Define un default para evitar NameError si hay excepción
+            data = {"response": "Sin respuesta"}
 
             # Call backend
             try:
@@ -680,10 +698,28 @@ def main(page: ft.Page):
             size=14
         )
         
+        estado_text = ft.Text(
+            "",
+            size=14,
+            color=COLORES["subtitulo"]
+        )
+        
+        progreso_text = ft.Text(
+            "",
+            size=14,
+            color=COLORES["subtitulo"]
+        )
+        
+        # (opcional) pre-inicializar antes del primer cargar_problema:
+        estado_text.value = "Estado: ⏳ Pendiente"
+        progreso_text.value = f"Entregados {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
+        
         problemas_container = ft.Container(
             content=ft.Column(
                 [
                     numero_text,
+                    estado_text,
+                    progreso_text,
                     ejercicio_text,
                     respuesta_container,
                     botones_row,
@@ -691,7 +727,7 @@ def main(page: ft.Page):
                     status_row,
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
-                spacing=20,
+                spacing=15,
                 expand=True,
             ),
             padding=20,
