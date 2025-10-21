@@ -246,7 +246,6 @@ def main(page: ft.Page):
             controls=[
                 titulo, ft.Divider(20),
                 cuerpo, ft.Divider(20),
-                ft.Row([boton_video], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Row([continuar], alignment=ft.MainAxisAlignment.CENTER),
             ],
             expand=True,
