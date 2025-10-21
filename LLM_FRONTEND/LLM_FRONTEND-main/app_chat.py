@@ -170,14 +170,15 @@ def main(page: ft.Page):
             size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
         thanks = ft.Text(
-            "¡Gracias por tu participación!", size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER
+            "¡Gracias por tu participación!",
+            size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER
         )
 
         aceptar_btn = ft.ElevatedButton(
             "Aceptar y continuar",
             disabled=True,
             bgcolor=COLORES["boton"],
-            color=COLORES["accento"],
+            color=COLORES["texto"],
             on_click=lambda e: mostrar_pantalla_instrucciones()
         )
 
@@ -195,9 +196,12 @@ def main(page: ft.Page):
         )
 
         layout = ft.Column(
-            [title, ft.Divider(20), subtitle, ft.Divider(20),
-            details, ft.Divider(20), checkbox, ft.Divider(20),
-            thanks, ft.Divider(30), aceptar_btn],
+            [title, ft.Divider(20),
+            subtitle, ft.Divider(20),
+            details, ft.Divider(20),
+            checkbox, ft.Divider(20),
+            thanks, ft.Divider(20),
+            aceptar_btn],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=20,
