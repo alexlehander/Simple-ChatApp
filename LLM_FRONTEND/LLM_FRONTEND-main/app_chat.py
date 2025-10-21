@@ -721,7 +721,7 @@ def main(page: ft.Page):
                     feedback_text,
                     status_row,
                 ],
-                alignment=ft.MainAxisAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.START,
                 spacing=15,
                 expand=True,
             ),
@@ -773,9 +773,11 @@ def main(page: ft.Page):
                 [header_row, temporizador_text, main_row],
                 spacing=20,
                 expand=True,
+                alignment=ft.MainAxisAlignment.START,  # 👈 prevents vertical centering
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             )
         )
+
         
         # start
         cargar_problema(problema_actual_id)
