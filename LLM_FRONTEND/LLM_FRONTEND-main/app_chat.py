@@ -73,7 +73,6 @@ JS_CLEAR_STORAGE = (
 )
 
 BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
-BACKEND_URL_GENERAR_CODIGO    = f"{BASE}/generar_codigo"
 BACKEND_URL_CHAT              = f"{BASE}/chat"
 BACKEND_URL_VERIFICAR         = f"{BASE}/verificar_respuesta"
 BACKEND_URL_OBTENER_PROBLEMA  = f"{BASE}/obtener_problema"
@@ -81,7 +80,7 @@ BACKEND_URL_OBTENER_PROBLEMA  = f"{BASE}/obtener_problema"
 # ---- Persistence helpers (top of file) ----
 STATE_KEYS = {
     "screen": "ui_screen",                     # "consent", "instructions", "survey", "problems", "final"
-    "code": "codigo_identificacion",           # you already use this key
+    "code": "correo_identificacion",           # you already use this key
     "current_problem": "current_problem_id",   # int
     "answers": "answers_map",                  # dict: {problem_id: "answer text"}
     "chat": "chat_map",                        # dict: {problem_id: [{"role":"user|agent","text":"..."}]}
@@ -152,28 +151,31 @@ def main(page: ft.Page):
     )
     page.overlay.append(save_snack)
 
-    # =============== PANTALLA 1: CONSENTIMIENTO ===============
+    # =============== PANTALLA 1: CONSENTIMIENTO =============== 
     def mostrar_pantalla_consentimiento():
         save_k(page, STATE_KEYS["screen"], "consent")
         page.scroll = ft.ScrollMode.ALWAYS
-
+        
         title = ft.Text(
             "¿Listo(a) para resolver la Práctica 4 de la clase de Análisis de Algoritmos con ayuda de un simple y sencillo prototipo de un ayudante inteligente?",
             size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER,
         )
+        
         subtitle = ft.Text(
             "Puedes usar tus apuntes (texto o digital) así como realizar búsqueda en el navegador. Ten cuidado de no cerrar la ventana del tutor inteligente. Tienes prohibido usar chatbots o platicar con tus compañeros :)",
             size=20, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
+        
         details = ft.Text(
             "Se recabarán datos relacionados con la solución de la práctica, NO se recabarán datos personales.",
             size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
+        
         thanks = ft.Text(
             "¡Gracias por tu participación!",
             size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
-
+        
         aceptar_btn = ft.ElevatedButton(
             "Aceptar y continuar",
             disabled=True,
@@ -181,7 +183,7 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             on_click=lambda e: mostrar_pantalla_instrucciones(),
         )
-
+        
         def on_check(e):
             aceptar_btn.disabled = not e.control.value
             page.update()
@@ -194,7 +196,7 @@ def main(page: ft.Page):
             overlay_color=COLORES["acento2"],
             label_style=ft.TextStyle(color=COLORES["primario"]),
         )
-
+        
         layout = ft.Column(
             [title, ft.Divider(20),
             subtitle, ft.Divider(20),
@@ -206,7 +208,7 @@ def main(page: ft.Page):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=20,
         )
-
+        
         container = ft.Container(
             content=layout,
             padding=20,
@@ -216,15 +218,16 @@ def main(page: ft.Page):
             width=600,
             expand=True,
         )
+        
         page.clean()
         page.add(container)
-
-    # =============== PANTALLA 2: INSTRUCCIONES ===============
+        
+    # =============== PANTALLA 2: INSTRUCCIONES =============== 
     def mostrar_pantalla_instrucciones():
         save_k(page, STATE_KEYS["screen"], "instructions")
         page.vertical_alignment = ft.CrossAxisAlignment.START
         page.scroll = ft.ScrollMode.ALWAYS
-
+        
         titulo = ft.Text(
             "Instrucciones",
             size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER,
@@ -241,7 +244,7 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             on_click=lambda e: mostrar_pantalla_encuesta(),
         )
-
+        
         list_view = ft.ListView(
             controls=[
                 titulo, ft.Divider(20),
@@ -252,6 +255,7 @@ def main(page: ft.Page):
             spacing=20,
             padding=20
         )
+        
         container = ft.Container(
             content=list_view,
             padding=0,
@@ -262,77 +266,54 @@ def main(page: ft.Page):
         )
         
         page.clean(); page.add(container)
-
-    # =============== PANTALLA 3: ENCUESTA + CÓDIGO ===============
+        
+    # =============== PANTALLA 3: ENCUESTA + CÓDIGO =============== 
     def mostrar_pantalla_encuesta():
         save_k(page, STATE_KEYS["screen"], "survey")
-        # obtiene/genera código
-        codigo_generado = "ERROR"
-        try:
-            r = requests.get(BACKEND_URL_GENERAR_CODIGO)
-            if r.status_code == 200:
-                codigo_generado = r.json().get("codigo", "ERROR")
-                page.client_storage.set("codigo_identificacion", codigo_generado)
-        except Exception:
-            pass
 
-        codigo_text = ft.Text("Utiliza el siguiente código de identificación para ingresar al cuestionario:", size=18, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
-
-        def copiar_codigo(e):
-            page.set_clipboard(codigo_generado)
-            page.snack_bar = save_snack
-            page.snack_bar.content = ft.Text(
-                "Código copiado al portapapeles", color=COLORES["accento"]
-            )
-            page.snack_bar.bgcolor = COLORES["exito"]
-            page.snack_bar.open = True
-            page.update()
-
-        codigo_btn = ft.TextButton(
-            content=ft.Text(codigo_generado, size=26, weight="bold", color=COLORES["texto"], text_align=ft.TextAlign.CENTER),
-            on_click=copiar_codigo,
-            style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(20, 10),
-                side=ft.BorderSide(1.5, COLORES["primario"]),
-                shape=ft.RoundedRectangleBorder(radius=8),
-                bgcolor=COLORES["accento"]
-            ),
+        email_input = ft.TextField(
+            label="Correo institucional (Google)",
+            hint_text="nombre@uabc.edu.mx",
+            width=400,
+            text_align=ft.TextAlign.CENTER,
+            color=COLORES["texto"],
+            bgcolor=COLORES["accento"],
+            border_color=COLORES["borde"],
         )
 
-        instruccion = ft.Text(
-            "Por favor, copia y pega este código identificador en todos los formularios que aparecerán posteriormente. Al terminar de contestar el cuestionario regresa al sistema para iniciar los problemas matemáticos. Como apoyo en la resolución de los problemas, puedes usar tanto la calculadora de tu computadora como el agente.",
-            size=16, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY,
+        def guardar_email(e):
+            correo = email_input.value.strip()
+            if "@" not in correo:
+                page.snack_bar = ft.SnackBar(
+                    content=ft.Text("Ingresa un correo válido", color=COLORES["accento"]),
+                    bgcolor=COLORES["error"], open=True, duration=2000
+                )
+                page.update()
+                return
+            page.client_storage.set("correo_identificacion", correo)
+            mostrar_pantalla_intervencion()
+
+        continuar_btn = ft.ElevatedButton(
+            "Continuar",
+            bgcolor=COLORES["boton"],
+            color=COLORES["accento"],
+            on_click=guardar_email,
         )
 
-        link_encuesta = ft.TextButton(
-            "Encuesta Demográfica",
-            url="https://docs.google.com/forms/d/e/1FAIpQLScHqD8lG-_kG1P9sJU-tHxP3KHO0bSEgXKMdcoILb8lvzi0Wg/viewform?usp=dialog",
-            url_target=ft.UrlTarget.BLANK,
-            style=ft.ButtonStyle(
-                color=COLORES["accento"],
-                bgcolor=COLORES["boton"],
-                padding=ft.padding.symmetric(20, 10),
-                shape=ft.RoundedRectangleBorder(radius=8)
-            ),
+        layout = ft.Column(
+            [
+                ft.Text("Inicia sesión con tu correo Google institucional", size=22, weight="bold", color=COLORES["primario"]),
+                email_input,
+                continuar_btn,
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=20,
         )
-        iniciar_btn = ft.ElevatedButton("Iniciar problemas matemáticos", on_click=lambda e: pasar_a_problemas(), bgcolor=COLORES["boton"], color=COLORES["accento"], disabled=True)
-        temporizador_text = ft.Text("05:00", size=24, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
 
-        def iniciar_temporizador():
-            def cuenta():
-                t = 5  # seg (ajustable)
-                while t > 0:
-                    m, s = divmod(t, 60)
-                    temporizador_text.value = f"{m:02}:{s:02}"
-                    page.update(); time.sleep(1); t -= 1
-                iniciar_btn.disabled = False
-                temporizador_text.value = "¡Tiempo terminado!"; page.update()
-            threading.Thread(target=cuenta, daemon=True).start()
-        iniciar_temporizador()
+        page.clean()
+        page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))
 
-        layout = ft.Column([codigo_text, codigo_btn, ft.Divider(10), instruccion, ft.Divider(20), link_encuesta, ft.Divider(20), temporizador_text, iniciar_btn], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20)
-        container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
-        page.clean(); page.add(container)
 
     def pasar_a_problemas():
         mostrar_pantalla_intervencion()
@@ -342,9 +323,9 @@ def main(page: ft.Page):
         save_k(page, STATE_KEYS["screen"], "problems")
 
         # Código visible
-        codigo = page.client_storage.get("codigo_identificacion") or "No disponible"
-        codigo_texto_visible = ft.Text(
-            f"Código de identificación: {codigo}",
+        correo = page.client_storage.get("correo_identificacion") or "No disponible"
+        correo_texto_visible = ft.Text(
+            f"Correo: {correo}",
             size=22, weight="bold", color=COLORES["primario"],
             text_align=ft.TextAlign.CENTER
         )
@@ -531,7 +512,7 @@ def main(page: ft.Page):
 
                 resp = requests.post(
                     f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
-                    json={"respuesta": val, "codigo_identificacion": codigo},
+                    json={"respuesta": val, "correo_identificacion": correo},
                 )
                 resp.raise_for_status()
 
@@ -618,7 +599,7 @@ def main(page: ft.Page):
             try:
                 r = requests.post(
                     f"{BACKEND_URL_CHAT}/{problema_actual_id}",
-                    json={"message": msg, "codigo_identificacion": codigo},
+                    json={"message": msg, "correo_identificacion": correo},
                     timeout=30,
                 )
                 data = r.json() if r.ok else {"response": "Sin respuesta"}
@@ -781,7 +762,7 @@ def main(page: ft.Page):
         
         # Layout principal con el botón de reinicio en la esquina
         header_row = ft.Row(
-            [codigo_texto_visible, reiniciar_button],
+            [correo_texto_visible, reiniciar_button],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN
         )
 
@@ -845,12 +826,12 @@ def main(page: ft.Page):
         save_k(page, STATE_KEYS["screen"], "final")
         def copiar_codigo_final(e):
             # Retrieve the identification code from persistent storage
-            codigo_guardado = page.client_storage.get("codigo_identificacion") or "No disponible"
+            correo_guardado = page.client_storage.get("correo_identificacion") or "No disponible"
             # Copy to clipboard
-            page.set_clipboard(codigo_guardado)
+            page.set_clipboard(correo_guardado)
             # Reuse the same snackbar pattern as the working function
             page.snack_bar = save_snack
-            page.snack_bar.content = ft.Text("Código copiado al portapapeles", color=COLORES["accento"])
+            page.snack_bar.content = ft.Text("Correo copiado al portapapeles", color=COLORES["accento"])
             page.snack_bar.bgcolor = COLORES["exito"]
             page.snack_bar.open = True
             # Refresh the UI
@@ -862,7 +843,7 @@ def main(page: ft.Page):
         )
         codigo_btn = ft.TextButton(
             content=ft.Text(
-                page.client_storage.get("codigo_identificacion"),
+                page.client_storage.get("correo_identificacion"),
                 size=26, weight="bold",
                 color=COLORES["texto"], text_align=ft.TextAlign.CENTER
             ),

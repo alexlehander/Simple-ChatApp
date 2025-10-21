@@ -62,14 +62,14 @@ MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 class Usuario(db.Model):
     __tablename__ = "railway_usuario"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    codigo_identificacion = db.Column(db.String(32), unique=True, nullable=True)
+    correo_identificacion = db.Column(db.String(128), unique=True, nullable=False)
 
 class RespuestaUsuario(db.Model):
     __tablename__ = "railway_respuesta_usuario"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("railway_usuario.id"), nullable=True)
     problema_id = db.Column(db.Integer, nullable=False)
-    codigo_identificacion = db.Column(db.String(32), nullable=True)
+    correo_identificacion = db.Column(db.String(128), nullable=True)
     respuesta = db.Column(db.Text, nullable=True)   # changed from String(255) to Text
     correcta = db.Column(db.Boolean, nullable=True)
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
@@ -78,7 +78,7 @@ class ChatLog(db.Model):
     __tablename__ = "railway_chat_log"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("railway_usuario.id"), nullable=True)
-    codigo_identificacion = db.Column(db.String(32), nullable=True)
+    correo_identificacion = db.Column(db.String(128), nullable=True)
     problema_id = db.Column(db.Integer, nullable=False)
     role = db.Column(db.String(16), nullable=False)  # "user" or "assistant" or "system"
     content = db.Column(db.Text, nullable=False)
@@ -132,6 +132,37 @@ with app.app_context():
     except Exception as e:
         db.session.rollback()
         print("⚠️ Skipping correcta NULL migration:", e)
+
+    # --- Auto-migrate: rename codigo_identificacion → correo_identificacion (run only once) ---
+    try:
+        for table in ["railway_usuario", "railway_respuesta_usuario", "railway_chat_log"]:
+            old_col_exists = db.session.execute(db.text(f"""
+                SELECT COUNT(*)
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = '{table}'
+                AND COLUMN_NAME = 'codigo_identificacion'
+            """)).scalar()
+            new_col_exists = db.session.execute(db.text(f"""
+                SELECT COUNT(*)
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = '{table}'
+                AND COLUMN_NAME = 'correo_identificacion'
+            """)).scalar()
+            if old_col_exists and not new_col_exists:
+                print(f"⚙️ Renaming codigo_identificacion → correo_identificacion in {table}...")
+                db.session.execute(db.text(f"""
+                    ALTER TABLE {table}
+                    CHANGE codigo_identificacion correo_identificacion VARCHAR(128) NULL
+                """))
+                db.session.commit()
+                print(f"✔ {table}: renamed successfully")
+            else:
+                print(f"↪ {table}: already migrated, skipping")
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ Skipping rename migration: {e}")
 
 # ------------------------------------------------------------------------------------
 # Problem bank (18 open-ended problems; replace texts with yours if needed)
@@ -193,25 +224,24 @@ DEFAULT_SYSTEM_PROMPT = (
 # ------------------------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------------------------
-def get_or_create_user(codigo_identificacion: str | None) -> Usuario:
-    if not codigo_identificacion:
-        # anonymous row still allowed (nullable)
-        u = Usuario(codigo_identificacion=None)
+def get_or_create_user(correo_identificacion: str | None) -> Usuario:
+    if not correo_identificacion:
+        # still allow an anonymous row, but with NULL email
+        u = Usuario(correo_identificacion=None)
         db.session.add(u)
         db.session.commit()
         return u
-    u = Usuario.query.filter_by(codigo_identificacion=codigo_identificacion).first()
+    u = Usuario.query.filter_by(correo_identificacion=correo_identificacion).first()
     if u:
         return u
-    u = Usuario(codigo_identificacion=codigo_identificacion)
+    u = Usuario(correo_identificacion=correo_identificacion)
     db.session.add(u)
     db.session.commit()
     return u
 
-def history_for_chat(codigo_identificacion: str | None, problema_id: int) -> List[Dict]:
-    """Return chat history as OpenAI-style messages [{role, content}, ...]."""
+def history_for_chat(correo_identificacion: str | None, problema_id: int) -> List[Dict]:
     logs = (ChatLog.query
-            .filter_by(codigo_identificacion=codigo_identificacion, problema_id=problema_id)
+            .filter_by(correo_identificacion=correo_identificacion, problema_id=problema_id)
             .order_by(ChatLog.created_at.asc())
             .all())
     messages = []
@@ -223,13 +253,13 @@ def history_for_chat(codigo_identificacion: str | None, problema_id: int) -> Lis
         messages.append({"role": role, "content": row.content})
     return messages
 
-def save_chat_turn(user: Usuario | None, codigo: str | None, problema_id: int, role: str, content: str):
+def save_chat_turn(user: Usuario | None, correo: str | None, problema_id: int, role: str, content: str):
     log = ChatLog(
         user_id=user.id if user else None,
-        codigo_identificacion=codigo,
+        correo_identificacion=correo,
         problema_id=problema_id,
         role=role,
-        content=content
+        content=content,
     )
     db.session.add(log)
     db.session.commit()
@@ -240,12 +270,6 @@ def save_chat_turn(user: Usuario | None, codigo: str | None, problema_id: int, r
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"ok": True})
-
-@app.route("/generar_codigo", methods=["GET"])
-def generar_codigo():
-    """Return a simple 3-char code (single condition; no A/B)."""
-    codigo_generado = ''.join(random.choices(string.ascii_uppercase + string.digits, k=3))
-    return jsonify({"codigo": codigo_generado})
 
 @app.route("/obtener_problema/<int:problema_id>", methods=["GET"])
 def obtener_problema(problema_id: int):
@@ -264,19 +288,19 @@ def obtener_problema(problema_id: int):
 def verificar_respuesta(problema_id):
     data = request.get_json()
     respuesta = data.get("respuesta")
-    codigo = data.get("codigo_identificacion")
+    correo = data.get("correo_identificacion")
 
-    if not respuesta or not codigo:
+    if not respuesta or not correo:
         return jsonify({"error": "Datos incompletos"}), 400
 
-    usuario = get_or_create_user(codigo)
+    usuario = get_or_create_user(correo)
 
     nueva_respuesta = RespuestaUsuario(
         user_id=usuario.id,
         problema_id=problema_id,
-        codigo_identificacion=codigo,
+        correo_identificacion=correo,
         respuesta=respuesta,
-        correcta=False
+        correcta=False,
     )
     db.session.add(nueva_respuesta)
     db.session.commit()
