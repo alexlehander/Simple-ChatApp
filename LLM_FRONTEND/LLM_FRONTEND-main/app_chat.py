@@ -159,7 +159,7 @@ def main(page: ft.Page):
 
         title = ft.Text(
             "¿Listo(a) para resolver la Práctica 4 de la clase de Análisis de Algoritmos con ayuda de un simple y sencillo prototipo de un ayudante inteligente?",
-            size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER
+            size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER,
         )
         subtitle = ft.Text(
             "Puedes usar tus apuntes (texto o digital) así como realizar búsqueda en el navegador. Ten cuidado de no cerrar la ventana del tutor inteligente. Tienes prohibido usar chatbots o platicar con tus compañeros :)",
@@ -171,7 +171,7 @@ def main(page: ft.Page):
         )
         thanks = ft.Text(
             "¡Gracias por tu participación!",
-            size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER
+            size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
 
         aceptar_btn = ft.ElevatedButton(
@@ -179,7 +179,7 @@ def main(page: ft.Page):
             disabled=True,
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
-            on_click=lambda e: mostrar_pantalla_instrucciones()
+            on_click=lambda e: mostrar_pantalla_instrucciones(),
         )
 
         def on_check(e):
@@ -192,7 +192,7 @@ def main(page: ft.Page):
             active_color=COLORES["primario"],
             check_color=COLORES["accento"],
             overlay_color=COLORES["acento2"],
-            label_style=ft.TextStyle(color=COLORES["primario"])
+            label_style=ft.TextStyle(color=COLORES["primario"]),
         )
 
         layout = ft.Column(
@@ -225,31 +225,43 @@ def main(page: ft.Page):
         page.vertical_alignment = ft.CrossAxisAlignment.START
         page.scroll = ft.ScrollMode.ALWAYS
 
-        titulo = ft.Text("Instrucciones", size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
+        titulo = ft.Text(
+            "Instrucciones",
+            size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER,
+        )
+        
         cuerpo = ft.Text(
             "Si deseas consultar un instructivo audiovisual sobre la interfaz de usuario de esta práctica, puedes ver este video (OJO no representa la intervención experimental actual).",
-            size=16, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY,
+            size=20, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
-        boton_video = ft.TextButton(
-            "Ir a video",
-            url="https://drive.google.com/file/d/1QP8gERIQeL3u8Pnlehe9yrcN_upW_dWL/view?usp=sharing",
-            url_target=ft.UrlTarget.BLANK,
-            style=ft.ButtonStyle(
-                color=COLORES["accento"],
-                bgcolor=COLORES["boton"],
-                padding=ft.padding.symmetric(20, 10),
-                shape=ft.RoundedRectangleBorder(radius=8)
-            ),
-        )
+        
         continuar = ft.ElevatedButton(
             "Continuar",
-            on_click=lambda e: mostrar_pantalla_encuesta(),
             bgcolor=COLORES["boton"],
-            color=COLORES["accento"],
+            color=COLORES["texto"],
+            on_click=lambda e: mostrar_pantalla_encuesta(),
         )
 
-        list_view = ft.ListView(controls=[titulo, ft.Divider(20), cuerpo, ft.Divider(30), ft.Row([boton_video], alignment=ft.MainAxisAlignment.CENTER), ft.Row([continuar], alignment=ft.MainAxisAlignment.CENTER)], expand=True, spacing=10, padding=20)
-        container = ft.Container(content=list_view, padding=0, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
+        list_view = ft.ListView(
+            controls=[
+                titulo, ft.Divider(20),
+                cuerpo, ft.Divider(20),
+                ft.Row([boton_video], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([continuar], alignment=ft.MainAxisAlignment.CENTER),
+            ],
+            expand=True,
+            spacing=20,
+            padding=20
+        )
+        container = ft.Container(
+            content=list_view,
+            padding=0,
+            bgcolor=COLORES["accento"],
+            border_radius=10,
+            shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
+            width=600,
+        )
+        
         page.clean(); page.add(container)
 
     # =============== PANTALLA 3: ENCUESTA + CÓDIGO ===============
