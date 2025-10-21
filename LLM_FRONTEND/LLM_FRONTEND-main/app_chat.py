@@ -172,15 +172,6 @@ def main(page: ft.Page):
         thanks = ft.Text(
             "¡Gracias por tu participación!", size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER
         )
-        
-        checkbox = ft.Checkbox(
-            label="¡Vamos a resolver la práctica!",
-            on_change=on_check,
-            active_color=COLORES["primario"],
-            check_color=COLORES["accento"],
-            overlay_color=COLORES["acento2"],
-            label_style=ft.TextStyle(color=COLORES["primario"])
-        )
 
         aceptar_btn = ft.ElevatedButton(
             "Aceptar y continuar",
@@ -193,6 +184,15 @@ def main(page: ft.Page):
         def on_check(e):
             aceptar_btn.disabled = not e.control.value
             page.update()
+        
+        checkbox = ft.Checkbox(
+            label="¡Vamos a resolver la práctica!",
+            on_change=on_check,
+            active_color=COLORES["primario"],
+            check_color=COLORES["accento"],
+            overlay_color=COLORES["acento2"],
+            label_style=ft.TextStyle(color=COLORES["primario"])
+        )
 
         layout = ft.Column(
             [title, ft.Divider(20), subtitle, ft.Divider(20),
