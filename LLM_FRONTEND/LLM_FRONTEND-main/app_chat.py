@@ -163,14 +163,23 @@ def main(page: ft.Page):
         )
         subtitle = ft.Text(
             "Puedes usar tus apuntes (texto o digital) así como realizar búsqueda en el navegador. Ten cuidado de no cerrar la ventana del tutor inteligente. Tienes prohibido usar chatbots o platicar con tus compañeros :)",
-            size=18, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
+            size=20, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
         details = ft.Text(
             "Se recabarán datos relacionados con la solución de la práctica, NO se recabarán datos personales.",
-            size=16, color=COLORES["subtitulo"], text_align=ft.TextAlign.JUSTIFY,
+            size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
         thanks = ft.Text(
-            "¡Gracias por tu participación!", size=16, color=COLORES["subtitulo"], text_align=ft.TextAlign.CENTER
+            "¡Gracias por tu participación!", size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER
+        )
+        
+        checkbox = ft.Checkbox(
+            label="¡Vamos a resolver la práctica!",
+            on_change=on_check,
+            active_color=COLORES["primario"],
+            check_color=COLORES["accento"],
+            overlay_color=COLORES["acento2"],
+            label_style=ft.TextStyle(color=COLORES["primario"])
         )
 
         aceptar_btn = ft.ElevatedButton(
@@ -184,16 +193,6 @@ def main(page: ft.Page):
         def on_check(e):
             aceptar_btn.disabled = not e.control.value
             page.update()
-
-        checkbox = ft.Checkbox(
-            label="¡Vamos a resolver la práctica!",
-            on_change=on_check,
-            active_color=COLORES["primario"],
-            check_color=COLORES["accento"],
-            fill_color=COLORES["borde"],
-            overlay_color=COLORES["acento2"],
-            label_style=ft.TextStyle(color=COLORES["primario"])
-        )
 
         layout = ft.Column(
             [title, ft.Divider(20), subtitle, ft.Divider(20),
