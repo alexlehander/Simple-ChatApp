@@ -157,27 +157,22 @@ def main(page: ft.Page):
         page.scroll = ft.ScrollMode.ALWAYS
         
         title = ft.Text(
-            "¿Listo(a) para resolver la Práctica 4 de la clase de Análisis de Algoritmos con ayuda de un simple y sencillo prototipo de un ayudante inteligente?",
+            "¿Listo(a) para resolver la Práctica 4 de la clase de Análisis de Algoritmos con ayuda de un simple y sencillo prototipo de un tutor inteligente?",
             size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER,
         )
         
         subtitle = ft.Text(
-            "Puedes usar tus apuntes (texto o digital) así como realizar búsqueda en el navegador. Ten cuidado de no cerrar la ventana del tutor inteligente. Tienes prohibido usar chatbots o platicar con tus compañeros :)",
+            "Puedes usar tus apuntes (texto o digital) así como realizar búsqueda en el navegador. Ten cuidado de no cerrar la ventana del tutor inteligente. Tienes prohibido usar chatbots (ChatGPT, LLaMa, etc.) o platicar con tus compañeros.",
             size=20, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
         
         details = ft.Text(
-            "Se recabarán datos relacionados con la solución de la práctica, NO se recabarán datos personales.",
-            size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
-        )
-        
-        thanks = ft.Text(
-            "¡Gracias por tu participación!",
+            "Se van a recolectar datos relacionados con tu solución de la práctica, NO se va a recolectar información personal.",
             size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
         
         aceptar_btn = ft.ElevatedButton(
-            "Aceptar y continuar",
+            "Aceptar y Continuar",
             disabled=True,
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
@@ -189,7 +184,7 @@ def main(page: ft.Page):
             page.update()
         
         checkbox = ft.Checkbox(
-            label="¡Vamos a resolver la práctica!",
+            label="Doy mi consentimiento informado",
             on_change=on_check,
             active_color=COLORES["primario"],
             check_color=COLORES["accento"],
@@ -207,7 +202,6 @@ def main(page: ft.Page):
             subtitle, ft.Divider(20),
             details, ft.Divider(20),
             checkbox_centered,
-            thanks, ft.Divider(20),
             aceptar_btn],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
