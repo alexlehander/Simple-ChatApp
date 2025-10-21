@@ -197,11 +197,16 @@ def main(page: ft.Page):
             label_style=ft.TextStyle(color=COLORES["primario"]),
         )
         
+        checkbox_centered = ft.Row(
+            [checkbox],
+            alignment=ft.MainAxisAlignment.CENTER,
+        )
+        
         layout = ft.Column(
             [title, ft.Divider(20),
             subtitle, ft.Divider(20),
             details, ft.Divider(20),
-            checkbox, ft.Divider(20),
+            checkbox_centered,
             thanks, ft.Divider(20),
             aceptar_btn],
             alignment=ft.MainAxisAlignment.CENTER,
