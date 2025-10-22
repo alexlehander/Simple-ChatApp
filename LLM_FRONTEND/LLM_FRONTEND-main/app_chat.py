@@ -646,20 +646,16 @@ def main(page: ft.Page):
         chat_container = ft.Container(
             content=ft.Column(
                 [
-                    ft.ListView(
-                        controls=chat_area.controls,  # or your chat messages list
-                        expand=True,
-                        #auto_scroll=True,  # keeps focus on the latest message
-                    ),
-                    user_input,  # your input text field stays anchored at bottom
+                    chat_area,   # ✅ directly use the one you defined earlier
+                    user_input,  # stays fixed at bottom
                 ],
                 spacing=10,
-                expand=True,  # makes column take all vertical space
+                expand=True,
             ),
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            expand=True,  # fills vertical space below timer
+            expand=True,
         )
 
         # ---- Problem area ----
