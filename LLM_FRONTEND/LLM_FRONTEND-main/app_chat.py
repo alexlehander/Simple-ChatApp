@@ -726,25 +726,39 @@ def main(page: ft.Page):
             expand=True
         )
         
-        problemas_container = ft.Container(
-            content=problemas_area,
-            padding=20,
-            bgcolor=COLORES["accento"],
-            shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
-            border_radius=10,
-            height=500
-        )
+        #problemas_container = ft.Container(
+        #    content=problemas_area,
+        #    padding=20,
+        #    bgcolor=COLORES["accento"],
+        #    shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
+        #    border_radius=10,
+        #    height=500
+        #)
 
         # Layout
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
-        main_row = ft.Row([
-            ft.Column([
-                chat_container,
-                user_input
-            ], spacing=10, expand=True),
-            problemas_container
-        ], spacing=10, expand=True)
+        main_row = ft.Row(
+            [
+                ft.Column(
+                    [chat_container, user_input],
+                    spacing=10,
+                    # ❌ remove expand, use fixed width instead
+                    width=600
+                ),
+                ft.Container(
+                    content=problemas_area,
+                    padding=20,
+                    bgcolor=COLORES["accento"],
+                    border_radius=10,
+                    shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
+                    height=500,
+                    width=600,  # ✅ give fixed width instead of expand
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=30,
+        )
         
         def reiniciar_practica(e):
             reset_progress(page)
