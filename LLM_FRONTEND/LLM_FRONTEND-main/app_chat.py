@@ -470,20 +470,20 @@ def main(page: ft.Page):
             guardar_respuesta_actual()
             nuevo_id = problema_actual_id + delta
 
-            # ⛔ Si intenta ir antes del primer problema, no hagas nada (o muestra aviso)
+            # ⛔ Si intenta ir antes del primer problema
             if nuevo_id < 1:
-                feedback_text.value = "Estás en el primer problema."
+                feedback_text.value = "¡Estás en el primer problema!"
                 feedback_text.color = COLORES["advertencia"]
                 page.update()
                 return
 
-            # ✅ Si intenta pasar MÁS ALLÁ del último:
+            # ⛔ Si intenta ir después del último problema
             if nuevo_id > NUM_PROBLEMAS:
                 if all(respuestas_enviadas):
                     mostrar_pantalla_encuesta_final()
                 else:
-                    feedback_text.value = "Aún tienes problemas pendientes por enviar antes de finalizar."
-                    feedback_text.color = COLORES["error"]
+                    feedback_text.value = "¡Aún tienes problemas pendientes por contestar antes de finalizar!"
+                    feedback_text.color = COLORES["advertencia"]
                     page.update()
                 return
 
