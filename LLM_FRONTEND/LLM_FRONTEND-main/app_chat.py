@@ -719,14 +719,13 @@ def main(page: ft.Page):
                     feedback_text,
                     status_row,
                 ],
-                alignment=ft.MainAxisAlignment.START,
-                spacing=15,
-                expand=True,
+                spacing=10,
+                expand=True
             ),
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            expand=True,
+            height=500
         )
 
         # Layout
