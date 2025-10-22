@@ -560,7 +560,7 @@ def main(page: ft.Page):
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            height=500
+            expand=True
         )
 
         def send_message(e):
@@ -721,12 +721,13 @@ def main(page: ft.Page):
                 ],
                 alignment=ft.MainAxisAlignment.START,
                 spacing=10,
-                scroll=ft.ScrollMode.AUTO
+                scroll=ft.ScrollMode.AUTO,
+                expand=True
             ),
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            height=500
+            expand=True
         )
 
         # Layout
@@ -739,11 +740,13 @@ def main(page: ft.Page):
                         chat_container,
                         user_input
                     ],
-                    spacing=10
+                    spacing=10,
+                    expand=True
                 ),
                 problemas_container
             ],
-            spacing=10
+            spacing=10,
+            expand=True
         )
         
         def reiniciar_practica(e):
