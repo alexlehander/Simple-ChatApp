@@ -555,6 +555,18 @@ def main(page: ft.Page):
         # ---- Chat UI ----
         chat_area = ft.ListView(expand=True, spacing=10, auto_scroll=False, padding=10)
         
+        user_input = ft.TextField(
+            hint_text="Presiona «Enter» para enviar tu mensaje",
+            expand=True,
+            bgcolor=COLORES["secundario"],
+            border_color=COLORES["secundario"],
+            focused_border_color=COLORES["primario"],
+            border_radius=15,
+            hint_style=ft.TextStyle(color=COLORES["accento"]),
+            max_length=500,
+            on_submit=send_message,
+        )
+        
         chat_container = ft.Container(
             content=ft.Column(
                 [
@@ -650,18 +662,6 @@ def main(page: ft.Page):
             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": data.get('response','Sin respuesta')})
             save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
 
-        user_input = ft.TextField(
-            hint_text="Presiona «Enter» para enviar tu mensaje",
-            expand=True,
-            bgcolor=COLORES["secundario"],
-            border_color=COLORES["secundario"],
-            focused_border_color=COLORES["primario"],
-            border_radius=15,
-            hint_style=ft.TextStyle(color=COLORES["accento"]),
-            max_length=500,
-            on_submit=send_message,
-        )
-
         # ---- Problem area ----
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
         respuesta_container = ft.Column(spacing=10)
@@ -744,13 +744,17 @@ def main(page: ft.Page):
         # Layout
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
-        main_row = ft.Row([
-            ft.Column([
-                chat_container,
-                user_input
-            ], spacing=10, expand=True),
-            problemas_container
-        ], spacing=10, expand=True)
+        main_row = ft.Row(
+            [
+                ft.Container(
+                    content=chat_container,
+                    expand=True,
+                ),
+                problemas_container,
+            ],
+            spacing=10,
+            expand=True,
+        )
         
         def reiniciar_practica(e):
             reset_progress(page)
