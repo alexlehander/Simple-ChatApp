@@ -378,7 +378,13 @@ def main(page: ft.Page):
                 text_color = COLORES["error"] if msg["role"] == "user" else COLORES["texto"]
                 chat_area.controls.append(
                     ft.Row(
-                        [ft.Text(msg["text"], color=text_color, size=16, selectable=True)],
+                        [
+                            ft.Container(
+                                content=ft.Text(msg["text"], color=text_color, size=16, selectable=True),
+                                width=400,   # ✅ limit line width
+                                alignment=ft.alignment.top_right if msg["role"] == "user" else ft.alignment.top_left,
+                            )
+                        ],
                         alignment=align,
                     )
                 )
@@ -570,7 +576,13 @@ def main(page: ft.Page):
             # Show user bubble
             chat_area.controls.append(
                 ft.Row(
-                    [ft.Text(msg, color=COLORES["error"], size=16, selectable=True)],
+                    [
+                        ft.Container(
+                            content=ft.Text(msg, color=COLORES["error"], size=16, selectable=True),
+                            width=400,   # ✅ same width constraint
+                            alignment=ft.alignment.top_right,
+                        )
+                    ],
                     alignment=ft.MainAxisAlignment.END,
                 )
             )
@@ -592,7 +604,13 @@ def main(page: ft.Page):
                 data = r.json() if r.ok else {"response": "Sin respuesta"}
                 chat_area.controls.append(
                     ft.Row(
-                        [ft.Text(data.get("response", "Sin respuesta"), color=COLORES["texto"], size=16, selectable=True)],
+                        [
+                            ft.Container(
+                                content=ft.Text(data.get("response", "Sin respuesta"), color=COLORES["texto"], size=16, selectable=True),
+                                width=400,   # ✅ same wrapping limit
+                                alignment=ft.alignment.top_left,
+                            )
+                        ],
                         alignment=ft.MainAxisAlignment.START,
                     )
                 )
