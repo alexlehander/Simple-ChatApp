@@ -558,9 +558,8 @@ def main(page: ft.Page):
         
         chat_container = ft.Container(
             content=chat_area,
-            padding=20,
+            padding=10,
             bgcolor=COLORES["accento"],
-            shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
             border_radius=10,
             height=500
         )
@@ -738,24 +737,23 @@ def main(page: ft.Page):
         
         left_panel = ft.Container(
             content=ft.Column([chat_container, user_input], spacing=10),
-            expand=1,   # ← takes half the row
+            expand=1,
         )
         
         right_panel = ft.Container(
-            content=ft.Container(  # keep your styling here
+            content=ft.Container(
                 content=problemas_area,
                 padding=10,
                 bgcolor=COLORES["accento"],
                 border_radius=10,
-                shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
                 height=560,
             ),
-            expand=1,  # ← takes the other half
+            expand=1,
         )
         
         main_row = ft.Row(
             [left_panel, right_panel],
-            spacing=20,
+            spacing=10,
             expand=True,
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
