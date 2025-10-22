@@ -560,7 +560,7 @@ def main(page: ft.Page):
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            height=600
+            height=500
         )
 
         def send_message(e):
