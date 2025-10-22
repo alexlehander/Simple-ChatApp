@@ -707,26 +707,29 @@ def main(page: ft.Page):
         estado_text.value = "Estado: ⏳ Pendiente"
         progreso_text.value = f"Entregados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
         
+        problemas_area = ft.ListView(
+            controls=[
+                numero_text,
+                estado_text,
+                progreso_text,
+                ejercicio_text,
+                respuesta_container,
+                botones_row,
+                feedback_text,
+                status_row,
+            ],
+            spacing=10,
+            padding=0,
+            auto_scroll=False,
+            expand=True,   # fills the 500px box; scrolling happens inside
+        )
+        
         problemas_container = ft.Container(
-            content=ft.Column(
-                [
-                    numero_text,
-                    estado_text,
-                    progreso_text,
-                    ejercicio_text,
-                    respuesta_container,
-                    botones_row,
-                    feedback_text,
-                    status_row,
-                ],
-                alignment=ft.MainAxisAlignment.START,
-                spacing=15,
-                expand=True,
-            ),
+            content=problemas_area,
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            expand=True,
+            height=500,     # 👈 same fixed height as chat
         )
 
         # Layout
