@@ -636,7 +636,7 @@ def main(page: ft.Page):
             save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
 
         user_input = ft.TextField(
-            hint_text="Presiona Enter para enviar tu mensaje",
+            hint_text="Presiona 'Enter' para enviar tu mensaje",
             expand=True,
             bgcolor=COLORES["secundario"],
             border_color=COLORES["secundario"],
@@ -745,7 +745,7 @@ def main(page: ft.Page):
             mostrar_pantalla_consentimiento()
             
         reiniciar_button = ft.TextButton(
-            "🔄 Reiniciar práctica",
+            "🔄 Reiniciar Práctica",
             on_click=reiniciar_practica,
             style=ft.ButtonStyle(
                 color=COLORES["accento"],
@@ -868,7 +868,7 @@ def main(page: ft.Page):
         container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
         
         reiniciar_button_final = ft.TextButton(
-            "🔄 Reiniciar práctica",
+            "🔄 Reiniciar Práctica",
             on_click=lambda e: (reset_progress(page), mostrar_pantalla_consentimiento()),
             style=ft.ButtonStyle(
                 color=COLORES["accento"],

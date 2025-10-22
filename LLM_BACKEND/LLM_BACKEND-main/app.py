@@ -71,7 +71,6 @@ class RespuestaUsuario(db.Model):
     problema_id = db.Column(db.Integer, nullable=False)
     correo_identificacion = db.Column(db.String(128), nullable=True)
     respuesta = db.Column(db.Text, nullable=True)   # changed from String(255) to Text
-    correcta = db.Column(db.Boolean, nullable=True)
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
 
 class ChatLog(db.Model):
@@ -110,28 +109,25 @@ with app.app_context():
         db.session.rollback()
         print("⚠️ Skipping respuesta TEXT migration:", e)
 
-    # --- Auto-migrate: correcta -> NULLABLE (run only once) ---
+    # --- Auto-migrate: drop obsolete 'correcta' column ---
     try:
-        is_nullable = db.session.execute(db.text(
-            "SELECT IS_NULLABLE "
-            "FROM information_schema.COLUMNS "
-            "WHERE TABLE_SCHEMA = DATABASE() "
-            "AND TABLE_NAME = 'railway_respuesta_usuario' "
-            "AND COLUMN_NAME = 'correcta'"
-        )).scalar()
+        exists = db.session.execute(db.text("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'railway_respuesta_usuario'
+              AND COLUMN_NAME = 'correcta'
+        """)).scalar()
 
-        if is_nullable == "NO":
-            db.session.execute(db.text(
-                "ALTER TABLE railway_respuesta_usuario "
-                "MODIFY COLUMN correcta TINYINT(1) NULL"
-            ))
+        if exists:
+            print("⚙️ Dropping obsolete column 'correcta' ...")
+            db.session.execute(db.text("ALTER TABLE railway_respuesta_usuario DROP COLUMN correcta"))
             db.session.commit()
-            print("✔ Made railway_respuesta_usuario.correcta NULLable")
+            print("✔ Column 'correcta' dropped successfully")
         else:
-            print("↪ correcta already NULLable, skipping")
+            print("↪ Column 'correcta' already absent, skipping")
     except Exception as e:
         db.session.rollback()
-        print("⚠️ Skipping correcta NULL migration:", e)
+        print(f"⚠️ Skipping drop 'correcta': {e}")
 
     # --- Auto-migrate: rename codigo_identificacion → correo_identificacion (run only once) ---
     try:
@@ -300,7 +296,6 @@ def verificar_respuesta(problema_id):
         problema_id=problema_id,
         correo_identificacion=correo,
         respuesta=respuesta,
-        correcta=False,
     )
     db.session.add(nueva_respuesta)
     db.session.commit()
