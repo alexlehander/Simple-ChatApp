@@ -225,7 +225,7 @@ def main(page: ft.Page):
     # =============== PANTALLA 2: INSTRUCCIONES =============== 
     def mostrar_pantalla_instrucciones():
         save_k(page, STATE_KEYS["screen"], "instructions")
-        page.vertical_alignment = ft.CrossAxisAlignment.START
+        page.vertical_alignment = ft.MainAxisAlignment.START
         page.scroll = ft.ScrollMode.ALWAYS
         
         titulo = ft.Text(
