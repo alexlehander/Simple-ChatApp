@@ -553,11 +553,14 @@ def main(page: ft.Page):
                 page._is_sending_response = False
 
         # ---- Chat UI ----
-        chat_area = ft.ListView(height=800, spacing=10, auto_scroll=False, padding=10)
+        chat_area = ft.ListView(expand=True, spacing=10, auto_scroll=False, padding=10)
         
         chat_container = ft.Container(
-            content=chat_area, padding=20, bgcolor=COLORES["accento"],
-            border_radius=10, expand=True
+            content=chat_area,
+            padding=20,
+            bgcolor=COLORES["accento"],
+            border_radius=10,
+            height=700
         )
 
         def send_message(e):
