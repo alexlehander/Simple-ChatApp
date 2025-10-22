@@ -663,8 +663,7 @@ def main(page: ft.Page):
         )
 
         enviar_button = ft.ElevatedButton(
-            "Enviar",
-            icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
+            "Guardar ✅ Respuesta",
             bgcolor=COLORES["exito"],
             color=COLORES["accento"],
             on_click=enviar_respuesta
