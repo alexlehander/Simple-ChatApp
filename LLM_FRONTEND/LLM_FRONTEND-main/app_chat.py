@@ -556,12 +556,19 @@ def main(page: ft.Page):
         chat_area = ft.ListView(expand=True, spacing=10, auto_scroll=False, padding=10)
         
         chat_container = ft.Container(
-            content=chat_area, padding=20, bgcolor=COLORES["accento"],
-            border_radius=10, expand=True
+            content=ft.Column(
+                [chat_area],          # you can add more items later if you want
+                spacing=0,
+                expand=True,          # make inner content fill vertical space
+            ),
+            padding=20,               # match right panel
+            bgcolor=COLORES["accento"],
+            border_radius=10,
         )
 
         def send_message(e):
             msg = (user_input.value or "").strip()
+            
             if not msg:
                 chat_area.controls.append(
                     ft.Container(
