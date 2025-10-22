@@ -547,8 +547,8 @@ def main(page: ft.Page):
         chat_area = ft.ListView(
             spacing=20,
             padding=20,
-            auto_scroll=True,
             height=500,
+            auto_scroll=True,
         )
 
         chat_container = ft.Container(
@@ -652,7 +652,7 @@ def main(page: ft.Page):
         feedback_text = ft.Text("", size=16, color=COLORES["exito"])
         status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
         status_text = ft.Text("", size=12, color=COLORES["exito"])
-        status_row = ft.Row([status_icon, status_text], spacing=20, visible=False)
+        status_row = ft.Row([status_icon, status_text], spacing=10, visible=False)
 
         retroceder_button = ft.ElevatedButton(
             "⏪ Anterior",
@@ -723,7 +723,7 @@ def main(page: ft.Page):
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
         left_panel = ft.Container(
-            content=ft.Column([chat_container, user_input], spacing=10, expand=True),
+            content=ft.Column([chat_container, user_input], spacing=20, expand=True),
             expand=1,
         )
         
