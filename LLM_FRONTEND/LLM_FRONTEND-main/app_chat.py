@@ -732,7 +732,7 @@ def main(page: ft.Page):
             ft.Column([
                 chat_container,
                 user_input
-            ], spacing=10, expand=True),
+            ], spacing=15, expand=True),
             problemas_container
         ], spacing=20, expand=True)
         
