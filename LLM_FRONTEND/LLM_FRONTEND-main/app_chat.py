@@ -732,13 +732,19 @@ def main(page: ft.Page):
         # Layout
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
-        main_row = ft.Row([
-            ft.Column([
-                chat_container,
-                user_input
-            ], spacing=10, expand=True),
-            problemas_container
-        ], spacing=10, expand=True)
+        main_row = ft.Row(
+            [
+                ft.Column(
+                    [
+                        chat_container,
+                        user_input
+                    ],
+                    spacing=10
+                ),
+                problemas_container
+            ],
+            spacing=10
+        )
         
         def reiniciar_practica(e):
             reset_progress(page)
@@ -772,8 +778,8 @@ def main(page: ft.Page):
                 [header_row, temporizador_text, main_row],
                 spacing=20,
                 expand=True,
-                alignment=ft.MainAxisAlignment.START,  # 👈 prevents vertical centering
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.START,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
             )
         )
 
