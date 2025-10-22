@@ -128,9 +128,8 @@ def reset_progress(page):
 
 def main(page: ft.Page):
     page.title = "Grow Together"
-    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER  # center horizontally
-    page.vertical_alignment   = ft.MainAxisAlignment.START    # pin content to top
-    page.scroll               = ft.ScrollMode.ALWAYS          # allow scrolling when needed
+    page.horizontal_alignment = "center"
+    page.vertical_alignment = "center"
     page.padding = 20
     page.bgcolor = COLORES["fondo"]
     page.theme_mode = ft.ThemeMode.DARK #ft.ThemeMode.LIGHT
@@ -708,49 +707,38 @@ def main(page: ft.Page):
         estado_text.value = "Estado: ⏳ Pendiente"
         progreso_text.value = f"Entregados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
         
-        problemas_list = ft.ListView(
-            controls=[
-                numero_text,
-                estado_text,
-                progreso_text,
-                ejercicio_text,
-                respuesta_container,
-                botones_row,
-                feedback_text,
-                status_row,
-            ],
-            expand=True,
-            spacing=15,
-            padding=0,
-            auto_scroll=False,
-        )
-        
         problemas_container = ft.Container(
-            content=problemas_list,
+            content=ft.Column(
+                [
+                    numero_text,
+                    estado_text,
+                    progreso_text,
+                    ejercicio_text,
+                    respuesta_container,
+                    botones_row,
+                    feedback_text,
+                    status_row,
+                ],
+                alignment=ft.MainAxisAlignment.START,
+                spacing=15,
+                expand=True,
+            ),
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            height=500,
+            expand=True,
         )
 
         # Layout
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
-        main_row = ft.Row(
-            [
-                ft.Column(
-                    [chat_container, user_input],
-                    spacing=10,
-                    expand=True,  # left column expands horizontally
-                ),
-                ft.Container(
-                    content=problemas_container,
-                    alignment=ft.alignment.top_center,
-                ),
-            ],
-            spacing=20,
-            alignment=ft.MainAxisAlignment.START,  # 👈 keeps everything at top
-        )
+        main_row = ft.Row([
+            ft.Column([
+                chat_container,
+                user_input
+            ], spacing=10, expand=True),
+            problemas_container
+        ], spacing=10, expand=True)
         
         def reiniciar_practica(e):
             reset_progress(page)
@@ -783,6 +771,7 @@ def main(page: ft.Page):
             ft.Column(
                 [header_row, temporizador_text, main_row],
                 spacing=20,
+                expand=True,
                 alignment=ft.MainAxisAlignment.START,  # 👈 prevents vertical centering
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             )
