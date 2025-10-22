@@ -538,7 +538,7 @@ def main(page: ft.Page):
                     cargar_problema(next_id)
                 else:
                     # No navegamos a la encuesta final desde "Enviar", Solo informamos que no hay más problemas para cargar.
-                    feedback_text.value = "Este fue el último problema disponible. Usa «Siguiente» para finalizar si ya entregaste todos."
+                    feedback_text.value = "¡Este fue el último problema disponible, presiona «Siguiente» para finalizar si ya entregaste todo!"
                     feedback_text.color = COLORES["advertencia"]
                     siguiente_button.disabled = False
                     page.update()
@@ -636,7 +636,7 @@ def main(page: ft.Page):
             save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
 
         user_input = ft.TextField(
-            hint_text="Presiona 'Enter' para enviar tu mensaje",
+            hint_text="Presiona «Enter» para enviar tu mensaje",
             expand=True,
             bgcolor=COLORES["secundario"],
             border_color=COLORES["secundario"],
