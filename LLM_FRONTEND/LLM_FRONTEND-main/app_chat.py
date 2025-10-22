@@ -720,13 +720,13 @@ def main(page: ft.Page):
                     status_row,
                 ],
                 alignment=ft.MainAxisAlignment.START,
-                spacing=15,
-                expand=True,
+                spacing=10,
+                scroll=ft.ScrollMode.AUTO
             ),
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            expand=True,
+            height=500
         )
 
         # Layout
