@@ -736,25 +736,28 @@ def main(page: ft.Page):
         # Layout
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
+        left_panel = ft.Container(
+            content=ft.Column([chat_container, user_input], spacing=10),
+            expand=1,   # ← takes half the row
+        )
+        
+        right_panel = ft.Container(
+            content=ft.Container(  # keep your styling here
+                content=problemas_area,
+                padding=10,
+                bgcolor=COLORES["accento"],
+                border_radius=10,
+                shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
+                height=560,
+            ),
+            expand=1,  # ← takes the other half
+        )
+        
         main_row = ft.Row(
-            [
-                ft.Column(
-                    [chat_container, user_input],
-                    spacing=10,
-                    width=600
-                ),
-                ft.Container(
-                    content=problemas_area,
-                    padding=10,
-                    bgcolor=COLORES["accento"],
-                    border_radius=10,
-                    shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
-                    height=570,
-                    width=600,  # ✅ give fixed width instead of expand
-                ),
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            spacing=10,
+            [left_panel, right_panel],
+            spacing=20,
+            expand=True,
+            vertical_alignment=ft.CrossAxisAlignment.START,
         )
         
         def reiniciar_practica(e):
