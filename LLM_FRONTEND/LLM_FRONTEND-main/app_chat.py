@@ -425,7 +425,7 @@ def main(page: ft.Page):
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
                         hint_text="Escribe tu respuesta aquí, utilizando el «Enter» para realizar salto de línea",
-                        expand=True, multiline=True, min_lines=1, max_lines=15,
+                        expand=True, multiline=True, min_lines=1, max_lines=10,
                         bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                         focused_border_color=COLORES["primario"], border_radius=15,
                         hint_style=ft.TextStyle(color=COLORES["accento"]),
@@ -554,14 +554,20 @@ def main(page: ft.Page):
                 page._is_sending_response = False
 
         # ---- Chat UI ----
-        chat_area = ft.ListView(spacing=10, padding=10, auto_scroll=False, expand=True)
+        chat_area = ft.ListView(
+            spacing=10,
+            padding=10,
+            auto_scroll=True,      # automatically scroll to the newest message
+            height=500,            # fixed visible height (same as before)
+        )
 
         chat_container = ft.Container(
             content=chat_area,
             padding=10,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            expand=True,          # ⬅️ fill vertical space (was height=500)
+            height=500,            # keeps it visually consistent
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,  # ensures no overflow blur
         )
 
         def send_message(e):
@@ -648,7 +654,7 @@ def main(page: ft.Page):
             hint_style=ft.TextStyle(color=COLORES["accento"]),
             max_length=500,
             on_submit=send_message,
-        )  # no expand: keep this at its natural height
+        )
 
         # ---- Problem area ----
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
@@ -720,24 +726,15 @@ def main(page: ft.Page):
             ],
             spacing=10,
             scroll=ft.ScrollMode.AUTO,
-            expand=True,          # ⬅️ let content grow; scroll if overflow
+            expand=True,
         )
-        
-        #problemas_container = ft.Container(
-        #    content=problemas_area,
-        #    padding=20,
-        #    bgcolor=COLORES["accento"],
-        #    shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
-        #    border_radius=10,
-        #    height=500
-        #)
 
         # Layout
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
         left_panel = ft.Container(
             content=ft.Column([chat_container, user_input], spacing=10, expand=True),
-            expand=1,             # ⬅️ 50% width AND full row height
+            expand=1,
         )
         
         right_panel = ft.Container(
@@ -746,15 +743,15 @@ def main(page: ft.Page):
                 padding=10,
                 bgcolor=COLORES["accento"],
                 border_radius=10,
-                expand=True,      # ⬅️ card fills row height
+                expand=True,
             ),
-            expand=1,             # ⬅️ 50% width AND full row height
+            expand=1,
         )
         
         main_row = ft.Row(
             [left_panel, right_panel],
             spacing=10,
-            expand=True,          # ⬅️ row fills remaining page height
+            expand=True,
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
         
