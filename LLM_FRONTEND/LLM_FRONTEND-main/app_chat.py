@@ -423,7 +423,7 @@ def main(page: ft.Page):
 
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
-                        hint_text="Escribe tu respuesta aquí",
+                        hint_text="Escribe tu respuesta aquí, utilizando el «Enter» para realizar salto de línea",
                         expand=True, multiline=True, min_lines=1, max_lines=15,
                         bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                         focused_border_color=COLORES["primario"], border_radius=15,
@@ -556,8 +556,8 @@ def main(page: ft.Page):
         chat_area = ft.ListView(expand=True, spacing=10, auto_scroll=False, padding=10)
         
         chat_container = ft.Container(
-            content=chat_area, padding=10, bgcolor=COLORES["accento"],
-            height=400, border_radius=8, expand=True
+            content=chat_area, padding=20, bgcolor=COLORES["accento"],
+            border_radius=10, expand=True
         )
 
         def send_message(e):
@@ -728,13 +728,14 @@ def main(page: ft.Page):
 
         # Layout
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
+        
         main_row = ft.Row([
             ft.Column([
                 chat_container,
                 user_input
-            ], spacing=15, expand=True),
+            ], spacing=10, expand=True),
             problemas_container
-        ], spacing=20, expand=True)
+        ], spacing=10, expand=True)
         
         def reiniciar_practica(e):
             reset_progress(page)
