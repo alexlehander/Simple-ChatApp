@@ -172,7 +172,7 @@ def main(page: ft.Page):
         )
         
         aceptar_btn = ft.ElevatedButton(
-            "Aceptar y Continuar",
+            "Continuar",
             disabled=True,
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
@@ -271,7 +271,10 @@ def main(page: ft.Page):
         save_k(page, STATE_KEYS["screen"], "survey")
 
         email_input = ft.TextField(
-            label="Correo institucional (Google)",
+            label=ft.Container(
+                content=ft.Text("Correo institucional (Google)", text_align=ft.TextAlign.CENTER),
+                alignment=ft.alignment.center
+            ),
             hint_text="nombre@uabc.edu.mx",
             width=400,
             text_align=ft.TextAlign.CENTER,
@@ -295,7 +298,7 @@ def main(page: ft.Page):
         continuar_btn = ft.ElevatedButton(
             "Continuar",
             bgcolor=COLORES["boton"],
-            color=COLORES["accento"],
+            color=COLORES["texto"],
             on_click=guardar_email,
         )
 
