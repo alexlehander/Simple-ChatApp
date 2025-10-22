@@ -128,8 +128,9 @@ def reset_progress(page):
 
 def main(page: ft.Page):
     page.title = "Grow Together"
-    page.horizontal_alignment = "center"
-    page.vertical_alignment = "center"
+    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER  # center horizontally
+    page.vertical_alignment   = ft.MainAxisAlignment.START    # pin content to top
+    page.scroll               = ft.ScrollMode.ALWAYS          # allow scrolling when needed
     page.padding = 20
     page.bgcolor = COLORES["fondo"]
     page.theme_mode = ft.ThemeMode.DARK #ft.ThemeMode.LIGHT
@@ -777,9 +778,6 @@ def main(page: ft.Page):
         )
 
         page.clean()
-        
-        page.vertical_alignment = ft.MainAxisAlignment.START
-        page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
         
         page.add(
             ft.Column(
