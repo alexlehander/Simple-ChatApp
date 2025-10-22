@@ -418,7 +418,7 @@ def main(page: ft.Page):
                 r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{id_problema}")
                 if r.status_code == 200:
                     p = r.json()
-                    ejercicio_text.value = f"Problema {p.get('id', id_problema)}\n\n{p.get('enunciado', '')}"
+                    ejercicio_text.value = p.get("enunciado", "")
                     ejercicio_text.text_align = ft.TextAlign.CENTER
 
                     respuesta_container.controls.clear()
@@ -745,7 +745,7 @@ def main(page: ft.Page):
             mostrar_pantalla_consentimiento()
             
         reiniciar_button = ft.TextButton(
-            "🔄 Reiniciar Práctica",
+            "Reiniciar 🔄 Práctica",
             on_click=reiniciar_practica,
             style=ft.ButtonStyle(
                 color=COLORES["accento"],
@@ -868,7 +868,7 @@ def main(page: ft.Page):
         container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
         
         reiniciar_button_final = ft.TextButton(
-            "🔄 Reiniciar Práctica",
+            "Reiniciar 🔄 Práctica",
             on_click=lambda e: (reset_progress(page), mostrar_pantalla_consentimiento()),
             style=ft.ButtonStyle(
                 color=COLORES["accento"],
