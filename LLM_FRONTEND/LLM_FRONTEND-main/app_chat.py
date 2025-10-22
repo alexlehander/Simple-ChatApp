@@ -128,8 +128,9 @@ def reset_progress(page):
 
 def main(page: ft.Page):
     page.title = "Grow Together"
-    page.horizontal_alignment = "center"
-    page.vertical_alignment = "center"
+    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+    page.vertical_alignment = ft.MainAxisAlignment.START  # 👈 pin everything to the top
+    page.scroll = ft.ScrollMode.ALWAYS
     page.padding = 20
     page.bgcolor = COLORES["fondo"]
     page.theme_mode = ft.ThemeMode.DARK #ft.ThemeMode.LIGHT
@@ -553,7 +554,7 @@ def main(page: ft.Page):
                 page._is_sending_response = False
 
         # ---- Chat UI ----
-        chat_area = ft.ListView(expand=True, spacing=10, auto_scroll=False, padding=10)
+        chat_area = ft.ListView(spacing=10, padding=10, auto_scroll=False, expand=True)
         
         chat_container = ft.Container(
             content=chat_area,
@@ -719,9 +720,9 @@ def main(page: ft.Page):
                 status_row,
             ],
             spacing=10,
-            padding=0,
+            padding=10,
             auto_scroll=False,
-            expand=True,   # fills the 500px box; scrolling happens inside
+            expand=True
         )
         
         problemas_container = ft.Container(
@@ -729,7 +730,7 @@ def main(page: ft.Page):
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            height=500,     # 👈 same fixed height as chat
+            height=500
         )
 
         # Layout
