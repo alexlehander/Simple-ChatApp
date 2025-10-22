@@ -778,6 +778,9 @@ def main(page: ft.Page):
 
         page.clean()
         
+        page.vertical_alignment = ft.MainAxisAlignment.START
+        page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+        
         page.add(
             ft.Column(
                 [header_row, temporizador_text, main_row],
