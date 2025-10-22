@@ -707,26 +707,29 @@ def main(page: ft.Page):
         estado_text.value = "Estado: ⏳ Pendiente"
         progreso_text.value = f"Entregados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
         
+        problemas_list = ft.ListView(
+            controls=[
+                numero_text,
+                estado_text,
+                progreso_text,
+                ejercicio_text,
+                respuesta_container,
+                botones_row,
+                feedback_text,
+                status_row,
+            ],
+            expand=True,
+            spacing=15,
+            padding=0,
+            auto_scroll=False,
+        )
+        
         problemas_container = ft.Container(
-            content=ft.Column(
-                [
-                    numero_text,
-                    estado_text,
-                    progreso_text,
-                    ejercicio_text,
-                    respuesta_container,
-                    botones_row,
-                    feedback_text,
-                    status_row,
-                ],
-                alignment=ft.MainAxisAlignment.START,
-                spacing=15,
-                expand=True,
-            ),
+            content=problemas_list,
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            expand=True,
+            height=500,
         )
 
         # Layout
