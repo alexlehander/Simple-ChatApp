@@ -555,37 +555,6 @@ def main(page: ft.Page):
         # ---- Chat UI ----
         chat_area = ft.ListView(expand=True, spacing=10, auto_scroll=False, padding=10)
         
-        user_input = ft.TextField(
-            hint_text="Presiona «Enter» para enviar tu mensaje",
-            expand=True,
-            bgcolor=COLORES["secundario"],
-            border_color=COLORES["secundario"],
-            focused_border_color=COLORES["primario"],
-            border_radius=15,
-            hint_style=ft.TextStyle(color=COLORES["accento"]),
-            max_length=500,
-            on_submit=send_message,
-        )
-        
-        chat_container = ft.Container(
-            content=ft.Column(
-                [
-                    ft.ListView(
-                        controls=chat_area.controls,  # or your chat messages list
-                        expand=True,
-                        #auto_scroll=True,  # keeps focus on the latest message
-                    ),
-                    user_input,  # your input text field stays anchored at bottom
-                ],
-                spacing=10,
-                expand=True,  # makes column take all vertical space
-            ),
-            padding=20,
-            bgcolor=COLORES["accento"],
-            border_radius=10,
-            expand=True,  # fills vertical space below timer
-        )
-
         def send_message(e):
             msg = (user_input.value or "").strip()
             
@@ -661,6 +630,37 @@ def main(page: ft.Page):
             
             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": data.get('response','Sin respuesta')})
             save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
+        
+        user_input = ft.TextField(
+            hint_text="Presiona «Enter» para enviar tu mensaje",
+            expand=True,
+            bgcolor=COLORES["secundario"],
+            border_color=COLORES["secundario"],
+            focused_border_color=COLORES["primario"],
+            border_radius=15,
+            hint_style=ft.TextStyle(color=COLORES["accento"]),
+            max_length=500,
+            on_submit=send_message,
+        )
+        
+        chat_container = ft.Container(
+            content=ft.Column(
+                [
+                    ft.ListView(
+                        controls=chat_area.controls,  # or your chat messages list
+                        expand=True,
+                        #auto_scroll=True,  # keeps focus on the latest message
+                    ),
+                    user_input,  # your input text field stays anchored at bottom
+                ],
+                spacing=10,
+                expand=True,  # makes column take all vertical space
+            ),
+            padding=20,
+            bgcolor=COLORES["accento"],
+            border_radius=10,
+            expand=True,  # fills vertical space below timer
+        )
 
         # ---- Problem area ----
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
