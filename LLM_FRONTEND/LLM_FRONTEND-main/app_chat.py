@@ -324,7 +324,7 @@ def main(page: ft.Page):
         correo = page.client_storage.get("correo_identificacion") or "No disponible"
         correo_texto_visible = ft.Text(
             f"Correo: {correo}",
-            size=22, weight="bold", color=COLORES["primario"],
+            size=22, weight="bold", color=COLORES["subtitulo"],
             text_align=ft.TextAlign.CENTER
         )
 
@@ -363,7 +363,7 @@ def main(page: ft.Page):
         save_k(page, "respuestas_enviadas", respuestas_enviadas)
 
         def guardar_respuesta_actual():
-            """Guarda el texto actual antes de cambiar de problema."""
+            #Guarda el texto actual antes de cambiar de problema.
             if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
                 texto = (respuesta_container.controls[0].value or "").strip()
                 save_k(page, f"respuesta_{problema_actual_id}", texto)
@@ -380,7 +380,7 @@ def main(page: ft.Page):
         #        update_map(page, STATE_KEYS["chat"], problema_actual_id, mensajes)
 
         def cargar_chat_guardado(id_problema):
-            """Recupera el historial del chat de un problema."""
+            #Recupera el historial del chat de un problema.
             chat_area.controls.clear()
             chats = load_k(page, STATE_KEYS["chat"], {})
             for msg in chats.get(str(id_problema), []):
@@ -418,8 +418,6 @@ def main(page: ft.Page):
                 r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{id_problema}")
                 if r.status_code == 200:
                     p = r.json()
-                    ejercicio_text.value = f"Problema {p.get('id', id_problema)}\n\n{p.get('enunciado', '')}"
-                    ejercicio_text.text_align = ft.TextAlign.CENTER
 
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
@@ -648,7 +646,6 @@ def main(page: ft.Page):
         )
 
         # ---- Problem area ----
-        ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
         respuesta_container = ft.Column(spacing=10)
         feedback_text = ft.Text("", size=16, color=COLORES["exito"])
         status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
@@ -710,7 +707,6 @@ def main(page: ft.Page):
                     numero_text,
                     estado_text,
                     progreso_text,
-                    ejercicio_text,
                     respuesta_container,
                     botones_row,
                     feedback_text,
