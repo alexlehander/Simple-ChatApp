@@ -545,15 +545,15 @@ def main(page: ft.Page):
 
         # ---- Chat UI ----
         chat_area = ft.ListView(
-            spacing=10,
-            padding=10,
+            spacing=20,
+            padding=20,
             auto_scroll=True,
             height=500,
         )
 
         chat_container = ft.Container(
             content=chat_area,
-            padding=10,
+            padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
             height=500,
@@ -566,7 +566,7 @@ def main(page: ft.Page):
                 chat_area.controls.append(
                     ft.Container(
                         content=ft.Text("Por favor, escribe un mensaje", color=COLORES["error"], size=16),
-                        padding=10, bgcolor=ft.colors.RED_50, border_radius=5,
+                        padding=20, bgcolor=ft.colors.RED_50, border_radius=5,
                         alignment=ft.alignment.center_right,
                     )
                 )
@@ -624,7 +624,7 @@ def main(page: ft.Page):
                             content=ft.Text("Error de conexión con el servidor."),
                             bgcolor = COLORES["error"],
                             color = COLORES["accento"],
-                            padding=10,
+                            padding=20,
                             border_radius=10
                         )],
                         alignment=ft.MainAxisAlignment.START,
@@ -648,11 +648,11 @@ def main(page: ft.Page):
 
         # ---- Problem area ----
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
-        respuesta_container = ft.Column(spacing=10)
+        respuesta_container = ft.Column(spacing=20)
         feedback_text = ft.Text("", size=16, color=COLORES["exito"])
         status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
         status_text = ft.Text("", size=12, color=COLORES["exito"])
-        status_row = ft.Row([status_icon, status_text], spacing=6, visible=False)
+        status_row = ft.Row([status_icon, status_text], spacing=20, visible=False)
 
         retroceder_button = ft.ElevatedButton(
             "⏪ Anterior",
@@ -714,7 +714,7 @@ def main(page: ft.Page):
                 feedback_text,
                 status_row,
             ],
-            spacing=10,
+            spacing=20,
             scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
@@ -730,7 +730,7 @@ def main(page: ft.Page):
         right_panel = ft.Container(
             content=ft.Container(
                 content=problemas_area,
-                padding=10,
+                padding=20,
                 bgcolor=COLORES["accento"],
                 border_radius=10,
                 expand=True,
@@ -740,7 +740,7 @@ def main(page: ft.Page):
         
         main_row = ft.Row(
             [left_panel, right_panel],
-            spacing=10,
+            spacing=20,
             expand=True,
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
@@ -760,7 +760,7 @@ def main(page: ft.Page):
                 color=COLORES["accento"],
                 bgcolor=COLORES["error"],
                 padding=ft.padding.symmetric(10, 5),
-                shape=ft.RoundedRectangleBorder(radius=6),
+                shape=ft.RoundedRectangleBorder(radius=10),
             )
         )
         
