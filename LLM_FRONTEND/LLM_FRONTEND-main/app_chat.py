@@ -709,8 +709,8 @@ def main(page: ft.Page):
         estado_text.value = "Estado: ⏳ Pendiente"
         progreso_text.value = f"Entregados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
         
-        problemas_area = ft.ListView(
-            controls=[
+        problemas_area = ft.Column(
+            [
                 numero_text,
                 estado_text,
                 progreso_text,
@@ -721,8 +721,7 @@ def main(page: ft.Page):
                 status_row,
             ],
             spacing=10,
-            padding=10,
-            auto_scroll=False
+            scroll=ft.ScrollMode.AUTO,
         )
         
         #problemas_container = ft.Container(
