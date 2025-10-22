@@ -555,13 +555,13 @@ def main(page: ft.Page):
 
         # ---- Chat UI ----
         chat_area = ft.ListView(spacing=10, padding=10, auto_scroll=False, expand=True)
-        
+
         chat_container = ft.Container(
             content=chat_area,
             padding=10,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            height=500
+            expand=True,          # ⬅️ fill vertical space (was height=500)
         )
 
         def send_message(e):
@@ -641,7 +641,6 @@ def main(page: ft.Page):
 
         user_input = ft.TextField(
             hint_text="Presiona «Enter» para enviar tu mensaje",
-            expand=True,
             bgcolor=COLORES["secundario"],
             border_color=COLORES["secundario"],
             focused_border_color=COLORES["primario"],
@@ -649,7 +648,7 @@ def main(page: ft.Page):
             hint_style=ft.TextStyle(color=COLORES["accento"]),
             max_length=500,
             on_submit=send_message,
-        )
+        )  # no expand: keep this at its natural height
 
         # ---- Problem area ----
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
@@ -721,6 +720,7 @@ def main(page: ft.Page):
             ],
             spacing=10,
             scroll=ft.ScrollMode.AUTO,
+            expand=True,          # ⬅️ let content grow; scroll if overflow
         )
         
         #problemas_container = ft.Container(
@@ -736,8 +736,8 @@ def main(page: ft.Page):
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
         left_panel = ft.Container(
-            content=ft.Column([chat_container, user_input], spacing=10),
-            expand=1,
+            content=ft.Column([chat_container, user_input], spacing=10, expand=True),
+            expand=1,             # ⬅️ 50% width AND full row height
         )
         
         right_panel = ft.Container(
@@ -746,15 +746,15 @@ def main(page: ft.Page):
                 padding=10,
                 bgcolor=COLORES["accento"],
                 border_radius=10,
-                height=560,
+                expand=True,      # ⬅️ card fills row height
             ),
-            expand=1,
+            expand=1,             # ⬅️ 50% width AND full row height
         )
         
         main_row = ft.Row(
             [left_panel, right_panel],
             spacing=10,
-            expand=True,
+            expand=True,          # ⬅️ row fills remaining page height
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
         
