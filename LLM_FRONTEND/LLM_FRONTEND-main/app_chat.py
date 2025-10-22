@@ -741,21 +741,20 @@ def main(page: ft.Page):
                 ft.Column(
                     [chat_container, user_input],
                     spacing=10,
-                    # ❌ remove expand, use fixed width instead
                     width=600
                 ),
                 ft.Container(
                     content=problemas_area,
-                    padding=20,
+                    padding=10,
                     bgcolor=COLORES["accento"],
                     border_radius=10,
                     shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
-                    height=500,
+                    height=570,
                     width=600,  # ✅ give fixed width instead of expand
                 ),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
-            spacing=30,
+            spacing=10,
         )
         
         def reiniciar_practica(e):
