@@ -369,34 +369,18 @@ def main(page: ft.Page):
                 texto = (respuesta_container.controls[0].value or "").strip()
                 save_k(page, f"respuesta_{problema_actual_id}", texto)
 
-        #def guardar_chat_actual():
-        #    """Guarda el chat actual asociado al problema."""
-        #    mensajes = []
-        #    for c in chat_area.controls:
-        #        if isinstance(c, ft.Row) and c.controls:
-        #            txts = c.controls[0].content
-        #            if isinstance(txts, ft.Text):
-        #                mensajes.append({"role": "assistant", "text": txts.value})
-        #    if mensajes:
-        #        update_map(page, STATE_KEYS["chat"], problema_actual_id, mensajes)
-
         def cargar_chat_guardado(id_problema):
             #Recupera el historial del chat de un problema.
             chat_area.controls.clear()
             chats = load_k(page, STATE_KEYS["chat"], {})
             for msg in chats.get(str(id_problema), []):
                 align = ft.MainAxisAlignment.END if msg["role"] == "user" else ft.MainAxisAlignment.START
-                bubble_color = COLORES["boton"] if msg["role"] == "user" else COLORES["accento"]
+                text_color = COLORES["error"] if msg["role"] == "user" else COLORES["texto"]
                 chat_area.controls.append(
-                    ft.Row([
-                        ft.Container(
-                            content=ft.Text(msg["text"], color=COLORES["texto"], size=16),
-                            bgcolor=bubble_color,
-                            padding=10,
-                            border_radius=10,
-                            width=350
-                        )
-                    ], alignment=align)
+                    ft.Row(
+                        [ft.Text(msg["text"], color=text_color, size=16, selectable=True)],
+                        alignment=align,
+                    )
                 )
             chat_area.update()
 
@@ -425,7 +409,7 @@ def main(page: ft.Page):
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
                         hint_text="Escribe tu respuesta aquí, utilizando el «Enter» para realizar salto de línea",
-                        expand=True, multiline=True, min_lines=1, max_lines=10,
+                        expand=True, multiline=True, min_lines=1, max_lines=5,
                         bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                         focused_border_color=COLORES["primario"], border_radius=15,
                         hint_style=ft.TextStyle(color=COLORES["accento"]),
@@ -557,8 +541,8 @@ def main(page: ft.Page):
         chat_area = ft.ListView(
             spacing=10,
             padding=10,
-            auto_scroll=True,      # automatically scroll to the newest message
-            height=500,            # fixed visible height (same as before)
+            auto_scroll=True,
+            height=500,
         )
 
         chat_container = ft.Container(
@@ -566,8 +550,8 @@ def main(page: ft.Page):
             padding=10,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            height=500,            # keeps it visually consistent
-            clip_behavior=ft.ClipBehavior.HARD_EDGE,  # ensures no overflow blur
+            height=500,
+            clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
 
         def send_message(e):
@@ -586,12 +570,7 @@ def main(page: ft.Page):
             # Show user bubble
             chat_area.controls.append(
                 ft.Row(
-                    [ft.Container(
-                        content=ft.Text(f"{msg}", color=COLORES["texto"], size=16),
-                        bgcolor=COLORES["boton"],
-                        padding=10, border_radius=10,
-                        alignment=ft.alignment.center_right, width=200
-                    )],
+                    [ft.Text(msg, color=COLORES["error"], size=16, selectable=True)],
                     alignment=ft.MainAxisAlignment.END,
                 )
             )
@@ -613,14 +592,7 @@ def main(page: ft.Page):
                 data = r.json() if r.ok else {"response": "Sin respuesta"}
                 chat_area.controls.append(
                     ft.Row(
-                        [ft.Container(
-                            content = ft.Text(f"{data.get('response','Sin respuesta')}", color=COLORES["texto"], size=16),
-                            bgcolor=COLORES["accento"],
-                            padding=10,
-                            border_radius=10,
-                            alignment=ft.alignment.center_left,
-                            width=400
-                        )],
+                        [ft.Text(data.get("response", "Sin respuesta"), color=COLORES["texto"], size=16, selectable=True)],
                         alignment=ft.MainAxisAlignment.START,
                     )
                 )
