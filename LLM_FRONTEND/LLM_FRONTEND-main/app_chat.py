@@ -4,7 +4,6 @@ import time
 import threading
 import os
 
-# ========= Config / Colors =========
 #COLORES = {
 #    # Fondos y superficies
 #    "fondo": "#F5F7FA",         # gris-azulado muy claro (base neutra)
@@ -134,7 +133,7 @@ def main(page: ft.Page):
     page.padding = 20
     page.bgcolor = COLORES["fondo"]
     page.theme_mode = ft.ThemeMode.DARK #ft.ThemeMode.LIGHT
-
+    
     page.theme = ft.Theme(
         scrollbar_theme=ft.ScrollbarTheme(
             thumb_color={"default": COLORES["primario"]},
@@ -143,14 +142,15 @@ def main(page: ft.Page):
             radius=10,
         )
     )
-
+    
     # Global snack (Saved)
     save_snack = ft.SnackBar(
         content=ft.Text("Respuesta guardada", color=COLORES["accento"]),
         bgcolor=COLORES["exito"], open=False, duration=1000
     )
+    
     page.overlay.append(save_snack)
-
+    
     # =============== PANTALLA 1: CONSENTIMIENTO =============== 
     def mostrar_pantalla_consentimiento():
         save_k(page, STATE_KEYS["screen"], "consent")
@@ -269,7 +269,7 @@ def main(page: ft.Page):
     # =============== PANTALLA 3: ENCUESTA + CÓDIGO =============== 
     def mostrar_pantalla_encuesta():
         save_k(page, STATE_KEYS["screen"], "survey")
-
+        
         email_input = ft.TextField(
             label=ft.Container(
                 content=ft.Text("Correo institucional (Google)", text_align=ft.TextAlign.CENTER),
@@ -282,7 +282,7 @@ def main(page: ft.Page):
             bgcolor=COLORES["accento"],
             border_color=COLORES["borde"],
         )
-
+        
         def guardar_email(e):
             correo = email_input.value.strip()
             if "@" not in correo:
@@ -294,14 +294,14 @@ def main(page: ft.Page):
                 return
             page.client_storage.set("correo_identificacion", correo)
             mostrar_pantalla_intervencion()
-
+            
         continuar_btn = ft.ElevatedButton(
             "Continuar",
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
             on_click=guardar_email,
         )
-
+        
         layout = ft.Column(
             [
                 ft.Text("Inicia sesión con tu correo Google institucional", size=22, weight="bold", color=COLORES["primario"]),
@@ -312,14 +312,10 @@ def main(page: ft.Page):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=20,
         )
-
+        
         page.clean()
         page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))
-
-
-    def pasar_a_problemas():
-        mostrar_pantalla_intervencion()
-
+        
         # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
     def mostrar_pantalla_intervencion():
         save_k(page, STATE_KEYS["screen"], "problems")
@@ -462,11 +458,11 @@ def main(page: ft.Page):
                 # ✅ siempre liberar el flag y actualizar UI
                 page._is_loading_problem = False
                 cargar_chat_guardado(id_problema)
-                numero_text.value = f"Problema {id_problema} de {NUM_PROBLEMAS}"
+                numero_text.value = f"Problema: {id_problema} de {NUM_PROBLEMAS}"
                 estado = "✅ Entregado" if respuestas_enviadas[id_problema - 1] else "⏳ Pendiente"
                 estado_text.value = f"Estado: {estado}"
                 entregados = sum(1 for x in respuestas_enviadas if x)
-                progreso_text.value = f"Entregados {entregados} de {NUM_PROBLEMAS}"
+                progreso_text.value = f"Entregados: {entregados} de {NUM_PROBLEMAS}"
                 page.update()
 
         def ir_a_problema(delta):
@@ -525,7 +521,7 @@ def main(page: ft.Page):
                 # 🔄 Refrescar rótulos de Estado / Progreso
                 estado_text.value = "Estado: ✅ Entregado"
                 entregados = sum(1 for x in respuestas_enviadas if x)
-                progreso_text.value = f"Entregados {entregados} de {NUM_PROBLEMAS}"
+                progreso_text.value = f"Entregados: {entregados} de {NUM_PROBLEMAS}"
                 feedback_text.value = ""
                 save_snack.open = True
                 status_icon.visible = True
@@ -661,9 +657,8 @@ def main(page: ft.Page):
 
         retroceder_button = ft.ElevatedButton(
             "⏪ Anterior",
-            icon=ft.Icons.ARROW_BACK,
             bgcolor=COLORES["boton"],
-            color=COLORES["accento"],
+            color=COLORES["texto"],
             on_click=lambda e: ir_a_problema(-1)
         )
 
@@ -677,9 +672,8 @@ def main(page: ft.Page):
 
         siguiente_button = ft.ElevatedButton(
             "Siguiente ⏩",
-            icon=ft.Icons.CHEVRON_RIGHT,
             bgcolor=COLORES["boton"],
-            color=COLORES["accento"],
+            color=COLORES["texto"],
             on_click=lambda e: ir_a_problema(+1)
         )
 
@@ -690,7 +684,7 @@ def main(page: ft.Page):
         )
 
         numero_text = ft.Text(
-            f"Problema {problema_actual_id} de {NUM_PROBLEMAS}",
+            f"Problema: {problema_actual_id} de {NUM_PROBLEMAS}",
             color=COLORES["subtitulo"],
             size=14
         )
@@ -709,7 +703,7 @@ def main(page: ft.Page):
         
         # (opcional) pre-inicializar antes del primer cargar_problema:
         estado_text.value = "Estado: ⏳ Pendiente"
-        progreso_text.value = f"Entregados {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
+        progreso_text.value = f"Entregados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
         
         problemas_container = ft.Container(
             content=ft.Column(
