@@ -32,7 +32,7 @@ import os
 COLORES = {
     # Fondos y superficies (más neutros)
     "fondo":     "#0B0F14",  # charcoal neutral (menos tinte azul que #0F172A)
-    "accento":   "#1E2633",  # panel/cards (ligeramente más claro que fondo)
+    "accento":   "#161A20",  # panel/cards (ligeramente más claro que fondo)
 
     # Texto
     "texto":     "#E6E9EF",  # gris muy claro, no blanco puro
@@ -42,7 +42,7 @@ COLORES = {
     "primario":  "#8FB7FF",  # azul claro un poco más cálido (↑ contraste)
     "secundario":"#5B96F7",  # azul medio para inputs/áreas intermedias
     "boton":     "#1F3B86",  # azul profundo, suficiente separación del fondo
-    "borde":     "#2F3B4C",  # gris neutro para contornos/sombras suaves
+    "borde":     "#2B323A",  # gris neutro para contornos/sombras suaves
 
     # Estados
     "exito":     "#2ECC95",  # verde jade ligeramente más frío
@@ -722,8 +722,7 @@ def main(page: ft.Page):
             ],
             spacing=10,
             padding=10,
-            auto_scroll=False,
-            expand=True
+            auto_scroll=False
         )
         
         #problemas_container = ft.Container(
