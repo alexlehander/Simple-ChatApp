@@ -719,8 +719,9 @@ def main(page: ft.Page):
                     feedback_text,
                     status_row,
                 ],
+                alignment=ft.MainAxisAlignment.START,
                 spacing=10,
-                expand=True
+                expand=True,
             ),
             padding=20,
             bgcolor=COLORES["accento"],
