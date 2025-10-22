@@ -424,7 +424,7 @@ def main(page: ft.Page):
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
                         hint_text="Escribe tu respuesta aquí, utilizando el «Enter» para realizar salto de línea",
-                        expand=True, multiline=True, min_lines=1, max_lines=10,
+                        expand=True, multiline=True, min_lines=1, max_lines=15,
                         bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                         focused_border_color=COLORES["primario"], border_radius=15,
                         hint_style=ft.TextStyle(color=COLORES["accento"]),
@@ -555,9 +555,13 @@ def main(page: ft.Page):
         # ---- Chat UI ----
         chat_area = ft.ListView(expand=True, spacing=10, auto_scroll=False, padding=10)
         
+        chat_container = ft.Container(
+            content=chat_area, padding=20, bgcolor=COLORES["accento"],
+            border_radius=10, expand=True
+        )
+
         def send_message(e):
             msg = (user_input.value or "").strip()
-            
             if not msg:
                 chat_area.controls.append(
                     ft.Container(
@@ -630,7 +634,7 @@ def main(page: ft.Page):
             
             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": data.get('response','Sin respuesta')})
             save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
-        
+
         user_input = ft.TextField(
             hint_text="Presiona «Enter» para enviar tu mensaje",
             expand=True,
@@ -641,21 +645,6 @@ def main(page: ft.Page):
             hint_style=ft.TextStyle(color=COLORES["accento"]),
             max_length=500,
             on_submit=send_message,
-        )
-        
-        chat_container = ft.Container(
-            content=ft.Column(
-                [
-                    chat_area,   # ✅ directly use the one you defined earlier
-                    user_input,  # stays fixed at bottom
-                ],
-                spacing=10,
-                expand=True,
-            ),
-            padding=20,
-            bgcolor=COLORES["accento"],
-            border_radius=10,
-            expand=True,
         )
 
         # ---- Problem area ----
@@ -740,17 +729,13 @@ def main(page: ft.Page):
         # Layout
         temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
-        main_row = ft.Row(
-            [
-                ft.Container(
-                    content=chat_container,
-                    expand=True,
-                ),
-                problemas_container,
-            ],
-            spacing=10,
-            expand=True,
-        )
+        main_row = ft.Row([
+            ft.Column([
+                chat_container,
+                user_input
+            ], spacing=10, expand=True),
+            problemas_container
+        ], spacing=10, expand=True)
         
         def reiniciar_practica(e):
             reset_progress(page)
