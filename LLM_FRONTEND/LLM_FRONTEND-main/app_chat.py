@@ -424,7 +424,7 @@ def main(page: ft.Page):
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
                         hint_text="Escribe tu respuesta aquí, utilizando el «Enter» para realizar salto de línea",
-                        expand=True, multiline=True, min_lines=1, max_lines=15,
+                        expand=True, multiline=True, min_lines=1, max_lines=10,
                         bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                         focused_border_color=COLORES["primario"], border_radius=15,
                         hint_style=ft.TextStyle(color=COLORES["accento"]),
@@ -557,13 +557,21 @@ def main(page: ft.Page):
         
         chat_container = ft.Container(
             content=ft.Column(
-                [chat_area],          # you can add more items later if you want
-                spacing=0,
-                expand=True,          # make inner content fill vertical space
+                [
+                    ft.ListView(
+                        controls=chat_area.controls,  # or your chat messages list
+                        expand=True,
+                        #auto_scroll=True,  # keeps focus on the latest message
+                    ),
+                    user_input,  # your input text field stays anchored at bottom
+                ],
+                spacing=10,
+                expand=True,  # makes column take all vertical space
             ),
-            padding=20,               # match right panel
+            padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
+            expand=True,  # fills vertical space below timer
         )
 
         def send_message(e):
