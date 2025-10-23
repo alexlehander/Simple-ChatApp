@@ -475,7 +475,7 @@ def main(page: ft.Page):
                 if all(respuestas_enviadas):
                     mostrar_pantalla_encuesta_final()
                 else:
-                    feedback_text.value = "¡Aún tienes problemas pendientes por contestar antes de finalizar!"
+                    feedback_text.value = "¡Aún tienes problemas pendientes por contestar!"
                     feedback_text.color = COLORES["advertencia"]
                     page.update()
                 return
@@ -533,7 +533,7 @@ def main(page: ft.Page):
                     # No navegamos a la encuesta final desde "Enviar", Solo informamos que no hay más problemas para cargar.
                     feedback_text.value = "¡Este fue el último problema disponible, presiona «Siguiente» para finalizar si ya entregaste todo!"
                     feedback_text.color = COLORES["advertencia"]
-                    siguiente_button.disabled = False
+                    enviar_button.disabled = False
                     page.update()
 
             except Exception:
@@ -569,7 +569,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Text("Por favor, escribe un mensaje", color=COLORES["error"], size=16),
                         padding=20, bgcolor=ft.colors.RED_50, border_radius=10,
-                        alignment=ft.alignment.center_right,
+                        alignment = ft.alignment.center,
                     )
                 )
                 page.update()
