@@ -484,7 +484,7 @@ def main(page: ft.Page):
                 estado = "✅ Entregado" if respuestas_enviadas[id_problema - 1] else "⏳ Pendiente"
                 estado_text.value = f"Estado: {estado}"
                 entregados = sum(1 for x in respuestas_enviadas if x)
-                progreso_text.value = f"Entregados: {entregados} de {NUM_PROBLEMAS}"
+                progreso_text.value = f"Completados: {entregados} de {NUM_PROBLEMAS}"
                 # 🔄 refresh bar colors
                 barra_progreso.controls.clear()
                 barra_progreso.controls.extend(construir_barra_progreso().controls)
@@ -546,7 +546,7 @@ def main(page: ft.Page):
                 # 🔄 Refrescar rótulos de Estado / Progreso
                 estado_text.value = "Estado: ✅ Entregado"
                 entregados = sum(1 for x in respuestas_enviadas if x)
-                progreso_text.value = f"Entregados: {entregados} de {NUM_PROBLEMAS}"
+                progreso_text.value = f"Completados: {entregados} de {NUM_PROBLEMAS}"
                 feedback_text.value = ""
                 save_snack.open = True
                 status_icon.visible = True
@@ -686,7 +686,7 @@ def main(page: ft.Page):
         # ---- Problem area ----
         ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
         respuesta_container = ft.Column(spacing=20)
-        feedback_text = ft.Text("", size=16, color=COLORES["exito"])
+        feedback_text = ft.Text("", size=16, color=COLORES["exito"], text_align=ft.TextAlign.CENTER)
         status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
         status_text = ft.Text("", size=12, color=COLORES["exito"])
         status_row = ft.Row([status_icon, status_text], spacing=10, visible=False)
@@ -738,7 +738,7 @@ def main(page: ft.Page):
         
         # (opcional) pre-inicializar antes del primer cargar_problema:
         estado_text.value = "Estado: ⏳ Pendiente"
-        progreso_text.value = f"Entregados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
+        progreso_text.value = f"Completados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
         
         problemas_area = ft.Column(
             [
