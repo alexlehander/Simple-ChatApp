@@ -3,6 +3,9 @@ import requests
 import time
 import threading
 import os
+import json
+
+EXERCISES_PATH = "exercises"
 
 #COLORES = {
 #    # Fondos y superficies
@@ -74,7 +77,6 @@ JS_CLEAR_STORAGE = (
 BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 BACKEND_URL_CHAT              = f"{BASE}/chat"
 BACKEND_URL_VERIFICAR         = f"{BASE}/verificar_respuesta"
-BACKEND_URL_OBTENER_PROBLEMA  = f"{BASE}/obtener_problema"
 
 # ---- Persistence helpers (top of file) ----
 STATE_KEYS = {
@@ -85,6 +87,23 @@ STATE_KEYS = {
     "chat": "chat_map",                        # dict: {problem_id: [{"role":"user|agent","text":"..."}]}
     "timer_start": "timer_start_epoch",        # int epoch seconds when 120min started
 }
+
+def listar_sesiones():
+    #Returns a list of available session files
+    try:
+        return [f for f in os.listdir(EXERCISES_PATH) if f.endswith(".json")]
+    except FileNotFoundError:
+        return []
+
+def cargar_sesion(nombre_archivo):
+    #Loads a specific session file (list of problems)
+    try:
+        with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("title", nombre_archivo), data.get("problemas", [])
+    except Exception as e:
+        print(f"⚠️ Error al cargar sesión {nombre_archivo}: {e}")
+        return nombre_archivo, []
 
 def save_k(page, k, v):
     page.client_storage.set(k, v)
@@ -177,7 +196,7 @@ def main(page: ft.Page):
             disabled=True,
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
-            on_click=lambda e: mostrar_pantalla_instrucciones(),
+            on_click=lambda e: mostrar_pantalla_seleccion_sesion(),
         )
         
         def on_check(e):
@@ -223,50 +242,50 @@ def main(page: ft.Page):
         page.add(container)
         
     # =============== PANTALLA 2: INSTRUCCIONES =============== 
-    def mostrar_pantalla_instrucciones():
-        save_k(page, STATE_KEYS["screen"], "instructions")
-        page.vertical_alignment = ft.MainAxisAlignment.START
-        page.scroll = ft.ScrollMode.ALWAYS
+    def mostrar_pantalla_seleccion_sesion():
         
-        titulo = ft.Text(
-            "Instrucciones",
-            size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER,
+        page.clean()
+        archivos = listar_sesiones()
+        
+        if not archivos:
+            page.add(ft.Text("No hay sesiones disponibles en la carpeta 'exercises/'.", color=ft.colors.RED))
+            return
+            
+        opciones = [ft.dropdown.Option(a) for a in archivos]
+        
+        sesion_dropdown = ft.Dropdown(
+            label="Selecciona una sesión de ejercicios",
+            options=opciones,
+            width=400
         )
         
-        cuerpo = ft.Text(
-            "Si deseas consultar un instructivo audiovisual sobre la interfaz de usuario de esta práctica, puedes ver este video (OJO no representa la intervención experimental actual).",
-            size=20, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
+        iniciar_button = ft.ElevatedButton(
+            "Iniciar sesión",
+            icon=ft.icons.PLAY_ARROW,
+            on_click=lambda e: iniciar_sesion(e, sesion_dropdown.value)
         )
         
-        continuar = ft.ElevatedButton(
-            "Continuar",
-            bgcolor=COLORES["boton"],
-            color=COLORES["texto"],
-            on_click=lambda e: mostrar_pantalla_encuesta(),
+        page.add(
+            ft.Column([
+                ft.Text("Selecciona la práctica que deseas resolver", size=20, weight="bold"),
+                sesion_dropdown,
+                iniciar_button
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         )
         
-        list_view = ft.ListView(
-            controls=[
-                titulo, ft.Divider(20),
-                cuerpo, ft.Divider(20),
-                ft.Row([continuar], alignment=ft.MainAxisAlignment.CENTER),
-            ],
-            expand=True,
-            spacing=20,
-            padding=20
-        )
-        
-        container = ft.Container(
-            content=list_view,
-            padding=0,
-            bgcolor=COLORES["accento"],
-            border_radius=10,
-            shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
-            width=600,
-        )
-        
-        page.clean(); page.add(container)
-        
+        def iniciar_sesion(e, nombre_archivo):
+            if not nombre_archivo:
+                page.snack_bar = ft.SnackBar(ft.Text("Por favor selecciona una sesión."))
+                page.snack_bar.open = True
+                page.update()
+                return
+                
+            titulo, problemas = cargar_sesion(nombre_archivo)
+            # persist selection for later steps
+            save_k(page, "selected_session_title", titulo)
+            save_k(page, "selected_session_problems", problemas)
+            mostrar_pantalla_encuesta()  # <- go to email screen next
+            
     # =============== PANTALLA 3: ENCUESTA + CÓDIGO =============== 
     def mostrar_pantalla_encuesta():
         save_k(page, STATE_KEYS["screen"], "survey")
@@ -294,7 +313,10 @@ def main(page: ft.Page):
                 page.update()
                 return
             page.client_storage.set("correo_identificacion", correo)
-            mostrar_pantalla_intervencion()
+            # pull the chosen session and continue
+            titulo = load_k(page, "selected_session_title", "Sesión")
+            problemas = load_k(page, "selected_session_problems", [])
+            mostrar_pantalla_intervencion(titulo, problemas)
             
         continuar_btn = ft.ElevatedButton(
             "Continuar",
@@ -317,8 +339,8 @@ def main(page: ft.Page):
         page.clean()
         page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))
         
-        # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
-    def mostrar_pantalla_intervencion():
+    # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
+    def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
         save_k(page, STATE_KEYS["screen"], "problems")
 
         # Código visible
@@ -331,29 +353,7 @@ def main(page: ft.Page):
 
         stop_timer = False
         problema_actual_id = 1
-        
-        def get_total_problems():
-            try:
-                r = requests.get(f"{BASE}/contar_problemas", timeout=5)
-                total = int(r.json().get("total", 0))
-                if total > 0:
-                    return total
-            except Exception:
-                pass
-
-            # Fallback: probe sequentially until 404, max 200 problems
-            total = 0
-            for i in range(1, 201):
-                try:
-                    r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{i}", timeout=3)
-                    if r.status_code != 200:
-                        break
-                    total = i
-                except Exception:
-                    break
-            return max(total, 1)
-
-        NUM_PROBLEMAS = get_total_problems()
+        NUM_PROBLEMAS = len(PROBLEMAS)
 
         # --- Align completion flags length with current total ---
         prev = load_k(page, "respuestas_enviadas", [])
@@ -433,50 +433,45 @@ def main(page: ft.Page):
             retroceder_button.disabled = False
             page.update()
 
-            # 🧩 set the flag once
             if getattr(page, "_is_loading_problem", False):
-                return  # ignore concurrent clicks
+                return
 
             page._is_loading_problem = True
             try:
-                r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{id_problema}")
-                if r.status_code == 200:
-                    p = r.json()
-                    ejercicio_text.value = p.get("enunciado", "")
-                    ejercicio_text.text_align = ft.TextAlign.CENTER
-
-                    # ✅ clean + load new TextField safely
-                    respuesta_container.controls.clear()
-                    page.update()
-
-                    tf = ft.TextField(
-                        hint_text="Escribe tu respuesta aquí, presionando «Enter» para realizar salto de línea",
-                        expand=True, multiline=True, min_lines=1, max_lines=5,
-                        bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
-                        focused_border_color=COLORES["primario"], border_radius=15,
-                        hint_style=ft.TextStyle(color=COLORES["accento"]),
-                        on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
-                    )
-
-                    draft = page.client_storage.get(f"respuesta_{id_problema}")
-                    if draft:
-                        tf.value = draft
-
-                    respuesta_container.controls.append(tf)
-                    feedback_text.value = ""
-                    status_row.visible = False
-
-                else:
-                    feedback_text.value = "Error al cargar el problema."
+                p = next((pr for pr in PROBLEMAS if pr.get("id") == id_problema), None)
+                if not p:
+                    feedback_text.value = "No se encontró el problema en la sesión seleccionada."
                     feedback_text.color = COLORES["error"]
+                    page.update()
+                    return
+
+                # ✅ Cargar enunciado localmente
+                ejercicio_text.value = p.get("enunciado", "")
+                ejercicio_text.text_align = ft.TextAlign.CENTER
+
+                # ✅ Crear campo de respuesta
+                respuesta_container.controls.clear()
+                tf = ft.TextField(
+                    hint_text="Escribe tu respuesta aquí, presionando «Enter» para salto de línea",
+                    expand=True, multiline=True, min_lines=1, max_lines=5,
+                    bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
+                    focused_border_color=COLORES["primario"], border_radius=15,
+                    hint_style=ft.TextStyle(color=COLORES["accento"]),
+                    on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
+                )
+
+                draft = page.client_storage.get(f"respuesta_{id_problema}")
+                if draft:
+                    tf.value = draft
+                respuesta_container.controls.append(tf)
+
+                feedback_text.value = ""
+                status_row.visible = False
 
             except Exception as e:
-                if not getattr(page, "_backend_error_reported", False):
-                    feedback_text.value = "Error de conexión con el servidor."
-                    feedback_text.color = COLORES["error"]
-                    page._backend_error_reported = True
-                print(f"[WARN] Connection error: {type(e).__name__}")
-
+                feedback_text.value = "Error al cargar el problema."
+                feedback_text.color = COLORES["error"]
+                print(f"[WARN] Error cargando problema {id_problema}: {e}")
             finally:
                 page._is_loading_problem = False
                 cargar_chat_guardado(id_problema)
@@ -485,7 +480,6 @@ def main(page: ft.Page):
                 estado_text.value = f"Estado: {estado}"
                 entregados = sum(1 for x in respuestas_enviadas if x)
                 progreso_text.value = f"Completados: {entregados} de {NUM_PROBLEMAS}"
-                # 🔄 refresh bar colors
                 barra_progreso.controls.clear()
                 barra_progreso.controls.extend(construir_barra_progreso().controls)
                 page.update()
@@ -560,12 +554,10 @@ def main(page: ft.Page):
 
                 # --- Verificar existencia del siguiente problema ---
                 next_id = problema_actual_id + 1
-                r = requests.get(f"{BACKEND_URL_OBTENER_PROBLEMA}/{next_id}", timeout=10)
-                if r.status_code == 200:
+                if next_id <= NUM_PROBLEMAS:
                     save_k(page, STATE_KEYS["current_problem"], next_id)
                     cargar_problema(next_id)
                 else:
-                    # No navegamos a la encuesta final desde "Enviar", Solo informamos que no hay más problemas para cargar.
                     feedback_text.value = "¡Este fue el último problema disponible, presiona «Siguiente» para finalizar si ya entregaste todo!"
                     feedback_text.color = COLORES["advertencia"]
                     enviar_button.disabled = False
@@ -736,6 +728,11 @@ def main(page: ft.Page):
             color=COLORES["subtitulo"]
         )
         
+        titulo_label = ft.Text(
+            f"Sesión: {titulo_sesion}",
+            size=20, color=COLORES["primario"], weight="bold",
+        )
+        
         # (opcional) pre-inicializar antes del primer cargar_problema:
         estado_text.value = "Estado: ⏳ Pendiente"
         progreso_text.value = f"Completados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
@@ -803,10 +800,8 @@ def main(page: ft.Page):
         
         # Layout principal con el botón de reinicio en la esquina
         header_row = ft.Column([
-            ft.Row(
-                [correo_texto_visible, reiniciar_button],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-            ),
+            ft.Row([correo_texto_visible, reiniciar_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            titulo_label,
             barra_progreso
         ], spacing=10)
 
@@ -949,11 +944,16 @@ def main(page: ft.Page):
     # Boot
     screen = load_k(page, STATE_KEYS["screen"], "consent")
     if screen == "instructions":
-        mostrar_pantalla_instrucciones()
+        mostrar_pantalla_seleccion_sesion()
     elif screen == "survey":
         mostrar_pantalla_encuesta()
     elif screen == "problems":
-        mostrar_pantalla_intervencion()
+        titulo = load_k(page, "selected_session_title", "Sesión")
+        problemas = load_k(page, "selected_session_problems", [])
+        if problemas:
+            mostrar_pantalla_intervencion(titulo, problemas)
+        else:
+            mostrar_pantalla_seleccion_sesion()
     elif screen == "final":
         mostrar_pantalla_encuesta_final()
     else:
