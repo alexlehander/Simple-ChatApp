@@ -261,7 +261,7 @@ def main(page: ft.Page):
         
         iniciar_button = ft.ElevatedButton(
             "Iniciar sesión",
-            icon=ft.icons.PLAY_ARROW,
+            icon=ft.Icons.PLAY_ARROW,
             on_click=lambda e: iniciar_sesion(e, sesion_dropdown.value)
         )
         
@@ -343,14 +343,7 @@ def main(page: ft.Page):
     def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
         save_k(page, STATE_KEYS["screen"], "problems")
 
-        # Código visible
         correo = page.client_storage.get("correo_identificacion") or "No disponible"
-        correo_texto_visible = ft.Text(
-            f"Correo: {correo}",
-            size=22, weight="bold", color=COLORES["subtitulo"],
-            text_align=ft.TextAlign.CENTER
-        )
-
         stop_timer = False
         problema_actual_id = 1
         NUM_PROBLEMAS = len(PROBLEMAS)
@@ -730,7 +723,7 @@ def main(page: ft.Page):
         
         titulo_label = ft.Text(
             f"Sesión: {titulo_sesion}",
-            size=20, color=COLORES["primario"], weight="bold",
+            size=20, color=COLORES["subtitulo"], weight="bold",
         )
         
         # (opcional) pre-inicializar antes del primer cargar_problema:
@@ -800,8 +793,7 @@ def main(page: ft.Page):
         
         # Layout principal con el botón de reinicio en la esquina
         header_row = ft.Column([
-            ft.Row([correo_texto_visible, reiniciar_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            titulo_label,
+            ft.Row([titulo_label, reiniciar_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             barra_progreso
         ], spacing=10)
 
