@@ -363,6 +363,30 @@ def main(page: ft.Page):
             respuestas_enviadas = prev
         save_k(page, "respuestas_enviadas", respuestas_enviadas)
 
+        # === PROGRESS BAR OF PROBLEMS ===
+        def construir_barra_progreso():
+            progress_squares = []
+            for i in range(1, NUM_PROBLEMAS + 1):
+                color = COLORES["primario"] if i == problema_actual_id else (
+                    COLORES["exito"] if respuestas_enviadas[i - 1] else COLORES["advertencia"]
+                )
+                square = ft.Container(
+                    width=25,
+                    height=25,
+                    bgcolor=color,
+                    ink=True,  # enables hover ink ripple
+                    border=ft.border.all(1, COLORES["borde"]),
+                    border_radius=5,
+                    alignment=ft.alignment.center,
+                    content=ft.Text(str(i), size=12, color=COLORES["fondo"], weight="bold"),
+                    tooltip=f"Problema {i}: {'Entregado' if respuestas_enviadas[i - 1] else 'Pendiente'}",
+                    on_click=lambda e, pid=i: cargar_problema(pid),
+                )
+                progress_squares.append(square)
+            return ft.Row(progress_squares, spacing=5, alignment=ft.MainAxisAlignment.CENTER)
+
+        barra_progreso = construir_barra_progreso()
+
         def guardar_respuesta_actual():
             #Guarda el texto actual antes de cambiar de problema.
             if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
@@ -456,6 +480,9 @@ def main(page: ft.Page):
                 estado_text.value = f"Estado: {estado}"
                 entregados = sum(1 for x in respuestas_enviadas if x)
                 progreso_text.value = f"Entregados: {entregados} de {NUM_PROBLEMAS}"
+                # 🔄 Refresh progress bar colors
+                barra_progreso.controls.clear()
+                barra_progreso.controls.extend(construir_barra_progreso().controls)
                 page.update()
 
         def ir_a_problema(delta):
@@ -520,6 +547,9 @@ def main(page: ft.Page):
                 status_icon.visible = True
                 status_text.value = "Guardado"
                 status_row.visible = True
+                # 🔄 Refresh progress bar colors
+                barra_progreso.controls.clear()
+                barra_progreso.controls.extend(construir_barra_progreso().controls)
                 page.update()
                 threading.Timer(1.2, lambda: (setattr(status_row, "visible", False), page.update())).start()
 
@@ -767,10 +797,13 @@ def main(page: ft.Page):
         )
         
         # Layout principal con el botón de reinicio en la esquina
-        header_row = ft.Row(
-            [correo_texto_visible, reiniciar_button],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-        )
+        header_row = ft.Column([
+            ft.Row(
+                [correo_texto_visible, reiniciar_button],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+            ),
+            barra_progreso
+        ], spacing=10)
 
         page.clean()
         
