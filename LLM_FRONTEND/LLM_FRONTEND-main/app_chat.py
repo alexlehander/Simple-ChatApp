@@ -402,6 +402,8 @@ def main(page: ft.Page):
             chat_area.controls.clear()
             # ✅ ensure buttons are re-enabled on each new problem
             siguiente_button.disabled = False
+            enviar_button.disabled = False
+            retroceder_button.disabled = False
             page.update()
 
             page._is_loading_problem = True
@@ -485,7 +487,7 @@ def main(page: ft.Page):
                 return
             page._is_sending_response = True
             nonlocal problema_actual_id, stop_timer
-            siguiente_button.disabled = True
+            enviar_button.disabled = True
             page.update()
 
             try:
@@ -495,7 +497,7 @@ def main(page: ft.Page):
                 if not val:
                     feedback_text.value = "La respuesta no puede estar vacía."
                     feedback_text.color = COLORES["error"]
-                    siguiente_button.disabled = False
+                    enviar_button.disabled = False
                     page.update()
                     return
 
@@ -537,7 +539,7 @@ def main(page: ft.Page):
             except Exception:
                 feedback_text.value = "Error al registrar o cargar el siguiente problema."
                 feedback_text.color = COLORES["error"]
-                siguiente_button.disabled = False
+                enviar_button.disabled = False
                 page.update()
             finally:
                 # ✅ Siempre desbloquear
@@ -807,7 +809,7 @@ def main(page: ft.Page):
                     percent = t / TOTAL_SECONDS
                     if percent > 0.5:
                         temporizador_text.color = COLORES["exito"]      # verde
-                    elif percent > 0.2:
+                    elif percent > 0.25:
                         temporizador_text.color = COLORES["advertencia"]  # amarillo
                     else:
                         temporizador_text.color = COLORES["error"]       # rojo
@@ -817,6 +819,8 @@ def main(page: ft.Page):
                     t -= 1
                 if not stop_timer:
                     temporizador_text.value = "¡Tiempo terminado!"
+                    retroceder_button.disabled = True
+                    enviar_button.disabled = True
                     siguiente_button.disabled = True
                     page.update()
 
