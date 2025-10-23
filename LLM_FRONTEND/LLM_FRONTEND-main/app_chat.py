@@ -380,7 +380,10 @@ def main(page: ft.Page):
                     alignment=ft.alignment.center,
                     content=ft.Text(str(i), size=12, color=COLORES["fondo"], weight="bold"),
                     tooltip=f"Problema {i}: {'Entregado' if respuestas_enviadas[i - 1] else 'Pendiente'}",
-                    on_click=lambda e, pid=i: cargar_problema(pid),
+                    on_click=lambda e, pid=i: (
+                        None if getattr(page, "_is_loading_problem", False)
+                        else cargar_problema(pid)
+                    )
                 )
                 progress_squares.append(square)
             return ft.Row(progress_squares, spacing=5, alignment=ft.MainAxisAlignment.CENTER)
@@ -438,25 +441,30 @@ def main(page: ft.Page):
                     ejercicio_text.value = p.get("enunciado", "")
                     ejercicio_text.text_align = ft.TextAlign.CENTER
 
-                    respuesta_container.controls.clear()
-                    tf = ft.TextField(
-                        hint_text="Escribe tu respuesta aquí, presionando «Enter» para realizar salto de línea",
-                        expand=True, multiline=True, min_lines=1, max_lines=5,
-                        bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
-                        focused_border_color=COLORES["primario"], border_radius=15,
-                        hint_style=ft.TextStyle(color=COLORES["accento"]),
-                        on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
-                    )
-
-                    # 🟢 Restore saved draft
-                    draft = page.client_storage.get(f"respuesta_{id_problema}")
-                    if draft:
-                        tf.value = draft
-
-                    respuesta_container.controls.append(tf)
-                    feedback_text.value = ""
-                    status_row.visible = False
-
+                    # 🧹 Prevent duplicate answer boxes
+                    if getattr(page, "_is_loading_problem", False):
+                        return  # another load already in progress
+                    page._is_loading_problem = True
+                    try:
+                        respuesta_container.controls.clear()  # ensure previous TextField removed
+                        page.update()
+                        tf = ft.TextField(
+                            hint_text="Escribe tu respuesta aquí, presionando «Enter» para realizar salto de línea",
+                            expand=True, multiline=True, min_lines=1, max_lines=5,
+                            bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
+                            focused_border_color=COLORES["primario"], border_radius=15,
+                            hint_style=ft.TextStyle(color=COLORES["accento"]),
+                            on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
+                        )
+                        # 🟢 Restore saved draft safely
+                        draft = page.client_storage.get(f"respuesta_{id_problema}")
+                        if draft:
+                            tf.value = draft
+                        respuesta_container.controls.append(tf)
+                        feedback_text.value = ""
+                        status_row.visible = False
+                    finally:
+                        page._is_loading_problem = False
                     # (opcional) si antes hubo error de backend, limpia el flag
                     if getattr(page, "_backend_error_reported", False):
                         page._backend_error_reported = False
@@ -579,7 +587,7 @@ def main(page: ft.Page):
         chat_area = ft.ListView(
             spacing=20,
             padding=20,
-            height=500,
+            height=475,
             auto_scroll=True,
         )
 
@@ -588,7 +596,7 @@ def main(page: ft.Page):
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            height=500,
+            height=475,
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
 
@@ -674,7 +682,7 @@ def main(page: ft.Page):
             focused_border_color=COLORES["primario"],
             border_radius=10,
             hint_style=ft.TextStyle(color=COLORES["accento"]),
-            max_length=500,
+            max_length=1000,
             on_submit=send_message,
         )
 
