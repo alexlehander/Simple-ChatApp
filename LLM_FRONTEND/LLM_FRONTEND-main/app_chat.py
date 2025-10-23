@@ -414,7 +414,7 @@ def main(page: ft.Page):
 
                     respuesta_container.controls.clear()
                     tf = ft.TextField(
-                        hint_text="Escribe tu respuesta aquí, utilizando el «Enter» para realizar salto de línea",
+                        hint_text="Escribe tu respuesta aquí, presionando «Enter» para realizar salto de línea",
                         expand=True, multiline=True, min_lines=1, max_lines=5,
                         bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                         focused_border_color=COLORES["primario"], border_radius=15,
@@ -566,7 +566,7 @@ def main(page: ft.Page):
                 chat_area.controls.append(
                     ft.Container(
                         content=ft.Text("Por favor, escribe un mensaje", color=COLORES["error"], size=16),
-                        padding=20, bgcolor=ft.colors.RED_50, border_radius=5,
+                        padding=20, bgcolor=ft.colors.RED_50, border_radius=10,
                         alignment=ft.alignment.center_right,
                     )
                 )
@@ -640,7 +640,7 @@ def main(page: ft.Page):
             bgcolor=COLORES["secundario"],
             border_color=COLORES["secundario"],
             focused_border_color=COLORES["primario"],
-            border_radius=15,
+            border_radius=10,
             hint_style=ft.TextStyle(color=COLORES["accento"]),
             max_length=500,
             on_submit=send_message,
@@ -781,7 +781,6 @@ def main(page: ft.Page):
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             )
         )
-
         
         # start
         cargar_problema(problema_actual_id)
@@ -800,14 +799,22 @@ def main(page: ft.Page):
             remaining = max(0, TOTAL_SECONDS - elapsed)
 
             def cuenta():
-                # ✅ skip updates while page is rebuilding
                 while getattr(page, "_is_loading_problem", False):
                     time.sleep(0.1)
                 t = remaining
                 while t > 0 and not stop_timer:
                     m, s = divmod(t, 60)
+                    percent = t / TOTAL_SECONDS
+                    if percent > 0.5:
+                        temporizador_text.color = COLORES["exito"]      # verde
+                    elif percent > 0.2:
+                        temporizador_text.color = COLORES["advertencia"]  # amarillo
+                    else:
+                        temporizador_text.color = COLORES["error"]       # rojo
                     temporizador_text.value = f"{m:02}:{s:02}"
-                    page.update(); time.sleep(1); t -= 1
+                    page.update()
+                    time.sleep(1)
+                    t -= 1
                 if not stop_timer:
                     temporizador_text.value = "¡Tiempo terminado!"
                     siguiente_button.disabled = True
