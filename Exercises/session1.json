@@ -1,0 +1,78 @@
+{
+  "title": "Unidad III: Algoritmos para Grafos",
+  "description": "Listas de adyacencia y matrices de adyacencia; Búsqueda en anchura (Breadth-First Search); Búsqueda en profundidad (Depth-First Search); Orden topológico (Topological Sort); Componentes fuertemente conectados (Strongly Connected Components); Comparación de representaciones de grafos",
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "Dado el siguiente grafo dirigido con vértices V = {A, B, C, D, E} y aristas E = {(A,B), (A,C), (B,D), (C,D), (D,E), (E,A)}... Escribe su matriz de adyacencia (Utiliza los enters para realizar el salto de linea)."
+    },
+    {
+      "id": 2,
+      "enunciado": "Dado el siguiente grafo dirigido con vértices V = {A, B, C, D, E} y aristas E = {(A,B), (A,C), (B,D), (C,D), (D,E), (E,A)}... Escribe la lista de adyacencia."
+    },
+    {
+      "id": 3,
+      "enunciado": "Dado el siguiente grafo dirigido con vértices V = {A, B, C, D, E} y aristas E = {(A,B), (A,C), (B,D), (C,D), (D,E), (E,A)}... Explica, con tus propias palabras, cuándo conviene usar cada representación (en qué tipo de algoritmo o tamaño de grafo."
+    },
+    {
+      "id": 4,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 5,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 6,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 7,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 8,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 9,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 10,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 11,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 12,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 13,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 14,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 15,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 16,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 17,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    },
+    {
+      "id": 18,
+      "enunciado": "Compara el desempeño de Dijkstra y Bellman-Ford en grafos con pesos negativos."
+    }
+  ]
+}

@@ -857,16 +857,8 @@ def main(page: ft.Page):
                     t -= 1
                 if not stop_timer:
                     temporizador_text.value = "¡Tiempo terminado!"
-                    retroceder_button.disabled = True
-                    enviar_button.disabled = True
-                    siguiente_button.disabled = True
                     page.update()
-
-                    # ✅ Schedule UI change safely on main thread
-                    def _show_final():
-                        page.invoke_later(lambda: mostrar_pantalla_encuesta_final())
-
-                    threading.Timer(3, _show_final).start()
+                    page.invoke_later(lambda: mostrar_pantalla_encuesta_final())
 
             if page.session:
                 threading.Thread(target=cuenta, daemon=True).start()
