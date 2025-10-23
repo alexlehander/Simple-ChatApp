@@ -427,11 +427,15 @@ def main(page: ft.Page):
             problema_actual_id = id_problema
             save_k(page, STATE_KEYS["current_problem"], problema_actual_id)
             chat_area.controls.clear()
-            # ✅ ensure buttons are re-enabled on each new problem
+
             siguiente_button.disabled = False
             enviar_button.disabled = False
             retroceder_button.disabled = False
             page.update()
+
+            # 🧩 set the flag once
+            if getattr(page, "_is_loading_problem", False):
+                return  # ignore concurrent clicks
 
             page._is_loading_problem = True
             try:
@@ -441,33 +445,27 @@ def main(page: ft.Page):
                     ejercicio_text.value = p.get("enunciado", "")
                     ejercicio_text.text_align = ft.TextAlign.CENTER
 
-                    # 🧹 Prevent duplicate answer boxes
-                    if getattr(page, "_is_loading_problem", False):
-                        return  # another load already in progress
-                    page._is_loading_problem = True
-                    try:
-                        respuesta_container.controls.clear()  # ensure previous TextField removed
-                        page.update()
-                        tf = ft.TextField(
-                            hint_text="Escribe tu respuesta aquí, presionando «Enter» para realizar salto de línea",
-                            expand=True, multiline=True, min_lines=1, max_lines=5,
-                            bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
-                            focused_border_color=COLORES["primario"], border_radius=15,
-                            hint_style=ft.TextStyle(color=COLORES["accento"]),
-                            on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
-                        )
-                        # 🟢 Restore saved draft safely
-                        draft = page.client_storage.get(f"respuesta_{id_problema}")
-                        if draft:
-                            tf.value = draft
-                        respuesta_container.controls.append(tf)
-                        feedback_text.value = ""
-                        status_row.visible = False
-                    finally:
-                        page._is_loading_problem = False
-                    # (opcional) si antes hubo error de backend, limpia el flag
-                    if getattr(page, "_backend_error_reported", False):
-                        page._backend_error_reported = False
+                    # ✅ clean + load new TextField safely
+                    respuesta_container.controls.clear()
+                    page.update()
+
+                    tf = ft.TextField(
+                        hint_text="Escribe tu respuesta aquí, presionando «Enter» para realizar salto de línea",
+                        expand=True, multiline=True, min_lines=1, max_lines=5,
+                        bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
+                        focused_border_color=COLORES["primario"], border_radius=15,
+                        hint_style=ft.TextStyle(color=COLORES["accento"]),
+                        on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
+                    )
+
+                    draft = page.client_storage.get(f"respuesta_{id_problema}")
+                    if draft:
+                        tf.value = draft
+
+                    respuesta_container.controls.append(tf)
+                    feedback_text.value = ""
+                    status_row.visible = False
+
                 else:
                     feedback_text.value = "Error al cargar el problema."
                     feedback_text.color = COLORES["error"]
@@ -476,11 +474,10 @@ def main(page: ft.Page):
                 if not getattr(page, "_backend_error_reported", False):
                     feedback_text.value = "Error de conexión con el servidor."
                     feedback_text.color = COLORES["error"]
-                    page._backend_error_reported = True  # evita spam de errores
+                    page._backend_error_reported = True
                 print(f"[WARN] Connection error: {type(e).__name__}")
 
             finally:
-                # ✅ siempre liberar el flag y actualizar UI
                 page._is_loading_problem = False
                 cargar_chat_guardado(id_problema)
                 numero_text.value = f"Problema: {id_problema} de {NUM_PROBLEMAS}"
@@ -488,7 +485,7 @@ def main(page: ft.Page):
                 estado_text.value = f"Estado: {estado}"
                 entregados = sum(1 for x in respuestas_enviadas if x)
                 progreso_text.value = f"Entregados: {entregados} de {NUM_PROBLEMAS}"
-                # 🔄 Refresh progress bar colors
+                # 🔄 refresh bar colors
                 barra_progreso.controls.clear()
                 barra_progreso.controls.extend(construir_barra_progreso().controls)
                 page.update()
