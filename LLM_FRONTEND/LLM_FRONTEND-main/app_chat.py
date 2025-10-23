@@ -858,7 +858,10 @@ def main(page: ft.Page):
                 if not stop_timer:
                     temporizador_text.value = "¡Tiempo terminado!"
                     page.update()
-                    page.invoke_later(lambda: mostrar_pantalla_encuesta_final())
+                    try:
+                        page.call_from_async(lambda: mostrar_pantalla_encuesta_final())
+                    except Exception:
+                        threading.Timer(0.5, lambda: mostrar_pantalla_encuesta_final()).start()
 
             if page.session:
                 threading.Thread(target=cuenta, daemon=True).start()
