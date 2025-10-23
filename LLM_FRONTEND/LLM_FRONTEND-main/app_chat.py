@@ -834,7 +834,7 @@ def main(page: ft.Page):
                 start_epoch = now
                 save_k(page, STATE_KEYS["timer_start"], start_epoch)
 
-            TOTAL_SECONDS = 1 * 60
+            TOTAL_SECONDS = 120 * 60
             elapsed = max(0, now - int(start_epoch))
             remaining = max(0, TOTAL_SECONDS - elapsed)
 
@@ -932,13 +932,17 @@ def main(page: ft.Page):
         )
 
         page.clean()
+        header_row = ft.Row(
+            [ft.Container(), reiniciar_button_final],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        )
+
         page.add(
             ft.Column(
-                [container,
-                ft.Row([reiniciar_button_final], alignment=ft.MainAxisAlignment.END)],
-                alignment=ft.MainAxisAlignment.CENTER,
+                [header_row, container],
+                alignment=ft.MainAxisAlignment.START,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=10,
+                spacing=20,
             )
         )
 
