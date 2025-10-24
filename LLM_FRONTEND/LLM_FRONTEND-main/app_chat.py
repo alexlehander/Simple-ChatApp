@@ -863,7 +863,7 @@ def main(page: ft.Page):
             page.update()
 
         instruccion = ft.Text(
-            "Después de terminar los problemas, te agradecería mucho que respondieras el siguiente cuestionario, ya que es muy importante conocer tu experiencia con el sistema. Por favor, copia y pega tu código de identificación en esta última encuesta. Al finalizarla, habrás completado tu participación en el estudio y podrás cerrar todas las pestañas utilizadas. Si leiste este mensaje con atencion, mandame un correo con el mensaje secreto 'quiero 10' y tendras 10 sobre 100 puntos extras en esta practica.",
+            "Después de terminar los problemas, te agradecería mucho que respondieras la siguiente encuesta, ya que es muy importante conocer tu experiencia con la app. Por favor, copia y pega tu correo en esta última encuesta. Al finalizarla, habrás completado exitosamente tu actividad y podrás cerrar todas las pestañas utilizadas.",
             size=18, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.JUSTIFY,
         )
         codigo_btn = ft.TextButton(
@@ -881,8 +881,8 @@ def main(page: ft.Page):
             ),
         )
         link_final = ft.TextButton(
-            "Cuestionario Final",
-            url="https://docs.google.com/forms/d/e/1FAIpQLScX0lriSeCq6YdRYQnOjHVV12x6IQX52eULPGObiaC5LGmi8g/viewform?usp=dialog",
+            "Encuesta se Satisfacción",
+            url="https://forms.gle/MfcjCF3oNs77zXtp8",
             url_target=ft.UrlTarget.BLANK,
             style=ft.ButtonStyle(
                 color=COLORES["accento"],
