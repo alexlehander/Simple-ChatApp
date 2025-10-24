@@ -169,6 +169,13 @@ def main(page: ft.Page):
         bgcolor=COLORES["exito"], open=False, duration=1000
     )
     
+    def flash(msg: str, ok: bool = False, ms: int = 2000):
+        save_snack.content = ft.Text(msg, color=COLORES["accento"])
+        save_snack.bgcolor = COLORES["exito"] if ok else COLORES["error"]
+        save_snack.duration = ms
+        save_snack.open = True
+        page.update()
+    
     page.overlay.append(save_snack)
     
     # =============== PANTALLA 1: CONSENTIMIENTO =============== 
@@ -243,54 +250,17 @@ def main(page: ft.Page):
         
     # =============== PANTALLA 2: INSTRUCCIONES =============== 
     def mostrar_pantalla_seleccion_sesion():
-        
+        save_k(page, STATE_KEYS["screen"], "instructions")  # ← add this
         page.clean()
         archivos = listar_sesiones()
-        
+
         if not archivos:
             page.add(ft.Text("No hay sesiones disponibles en la carpeta 'exercises/'.", color=ft.colors.RED))
             return
-            
+
         opciones = [ft.dropdown.Option(a) for a in archivos]
-        
-        sesion_dropdown = ft.Dropdown(
-            label="Selecciona una sesión de ejercicios",
-            options=opciones,
-            width=400
-        )
-        
-        iniciar_button = ft.ElevatedButton(
-            "Iniciar sesión",
-            icon=ft.Icons.PLAY_ARROW,
-            on_click=lambda e: iniciar_sesion(e, sesion_dropdown.value)
-        )
-        
-        page.add(
-            ft.Column([
-                ft.Text("Selecciona la práctica que deseas resolver", size=20, weight="bold"),
-                sesion_dropdown,
-                iniciar_button
-            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-        )
-        
-        def iniciar_sesion(e, nombre_archivo):
-            if not nombre_archivo:
-                page.snack_bar = ft.SnackBar(ft.Text("Por favor selecciona una sesión."))
-                page.snack_bar.open = True
-                page.update()
-                return
-                
-            titulo, problemas = cargar_sesion(nombre_archivo)
-            # persist selection for later steps
-            save_k(page, "selected_session_title", titulo)
-            save_k(page, "selected_session_problems", problemas)
-            save_k(page, "selected_session_filename", nombre_archivo)
-            mostrar_pantalla_encuesta()  # <- go to email screen next
-            
-    # =============== PANTALLA 3: ENCUESTA + CÓDIGO =============== 
-    def mostrar_pantalla_encuesta():
-        save_k(page, STATE_KEYS["screen"], "survey")
-        
+
+        # --- Combined layout: email + dropdown ---
         email_input = ft.TextField(
             label=ft.Container(
                 content=ft.Text("Correo institucional (Google)", text_align=ft.TextAlign.CENTER),
@@ -303,43 +273,53 @@ def main(page: ft.Page):
             bgcolor=COLORES["accento"],
             border_color=COLORES["borde"],
         )
-        
-        def guardar_email(e):
+
+        sesion_dropdown = ft.Dropdown(
+            label="Selecciona una sesión de ejercicios",
+            options=opciones,
+            width=400,
+        )
+
+        def iniciar_sesion(e):
             correo = email_input.value.strip()
+            nombre_archivo = sesion_dropdown.value
             if "@" not in correo:
-                page.snack_bar = ft.SnackBar(
-                    content=ft.Text("Ingresa un correo válido", color=COLORES["accento"]),
-                    bgcolor=COLORES["error"], open=True, duration=2000
-                )
-                page.update()
+                flash("Ingresa un correo válido")   # shows red snackbar
                 return
+            if not nombre_archivo:
+                flash("Selecciona una práctica antes de continuar")
+                return
+
+            # ✅ Save both the email and session data
             page.client_storage.set("correo_identificacion", correo)
-            # pull the chosen session and continue
-            titulo = load_k(page, "selected_session_title", "Sesión")
-            problemas = load_k(page, "selected_session_problems", [])
+            titulo, problemas = cargar_sesion(nombre_archivo)
+            save_k(page, "selected_session_title", titulo)
+            save_k(page, "selected_session_problems", problemas)
+            save_k(page, "selected_session_filename", nombre_archivo)
             mostrar_pantalla_intervencion(titulo, problemas)
-            
-        continuar_btn = ft.ElevatedButton(
-            "Continuar",
+
+        iniciar_button = ft.ElevatedButton(
+            "Comenzar práctica",
+            icon=ft.icons.PLAY_ARROW,
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
-            on_click=guardar_email,
+            on_click=iniciar_sesion,
         )
-        
+
         layout = ft.Column(
             [
-                ft.Text("Inicia sesión con tu correo Google institucional", size=22, weight="bold", color=COLORES["primario"]),
+                ft.Text("Inicia sesión y selecciona la práctica", size=22, weight="bold", color=COLORES["primario"]),
                 email_input,
-                continuar_btn,
+                sesion_dropdown,
+                iniciar_button,
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=20,
         )
-        
-        page.clean()
-        page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))
-        
+
+        page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))  
+    
     # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
     def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
         save_k(page, STATE_KEYS["screen"], "problems")
@@ -943,10 +923,8 @@ def main(page: ft.Page):
 
     # Boot
     screen = load_k(page, STATE_KEYS["screen"], "consent")
-    if screen == "instructions":
+    if screen in ("instructions", "survey"):
         mostrar_pantalla_seleccion_sesion()
-    elif screen == "survey":
-        mostrar_pantalla_encuesta()
     elif screen == "problems":
         titulo = load_k(page, "selected_session_title", "Sesión")
         problemas = load_k(page, "selected_session_problems", [])
