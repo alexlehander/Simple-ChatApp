@@ -284,6 +284,7 @@ def main(page: ft.Page):
             # persist selection for later steps
             save_k(page, "selected_session_title", titulo)
             save_k(page, "selected_session_problems", problemas)
+            save_k(page, "selected_session_filename", nombre_archivo)
             mostrar_pantalla_encuesta()  # <- go to email screen next
             
     # =============== PANTALLA 3: ENCUESTA + CÓDIGO =============== 
@@ -520,10 +521,17 @@ def main(page: ft.Page):
                     page.update()
                     return
 
+                practice_name = load_k(page, "selected_session_filename", "unknown_session.json")
                 resp = requests.post(
                     f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
-                    json={"respuesta": val, "correo_identificacion": correo},
+                    json={
+                        "respuesta": val,
+                        "correo_identificacion": correo,
+                        "practice_name": practice_name
+                    },
+                    timeout=20,
                 )
+
                 resp.raise_for_status()
 
                 # ✅ Guardar y avanzar de forma segura
@@ -722,7 +730,7 @@ def main(page: ft.Page):
         )
         
         titulo_label = ft.Text(
-            f"Sesión: {titulo_sesion}",
+            f"{titulo_sesion}",
             size=20, color=COLORES["subtitulo"], weight="bold",
         )
         

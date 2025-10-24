@@ -68,6 +68,7 @@ class RespuestaUsuario(db.Model):
     __tablename__ = "railway_respuesta_usuario"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("railway_usuario.id"), nullable=True)
+    practice_name = db.Column(db.String(255), nullable=True)
     problema_id = db.Column(db.Integer, nullable=False)
     correo_identificacion = db.Column(db.String(128), nullable=True)
     respuesta = db.Column(db.Text, nullable=True)   # changed from String(255) to Text
@@ -86,6 +87,30 @@ class ChatLog(db.Model):
 with app.app_context():
     db.create_all()
 
+    # --- Auto-migrate: add practice_name column ---
+    try:
+        exists = db.session.execute(db.text("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'railway_respuesta_usuario'
+            AND COLUMN_NAME = 'practice_name'
+        """)).scalar()
+
+        if not exists:
+            print("⚙️ Adding 'practice_name' column...")
+            db.session.execute(db.text("""
+                ALTER TABLE railway_respuesta_usuario
+                ADD COLUMN practice_name VARCHAR(255) NULL
+            """))
+            db.session.commit()
+            print("✔ Column 'practice_name' added successfully")
+        else:
+            print("↪ Column 'practice_name' already present, skipping")
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ Skipping add 'practice_name': {e}")
+
+    
     # --- Auto-migrate: respuesta -> TEXT (run only once) ---
     try:
         dtype = db.session.execute(db.text(
@@ -164,27 +189,6 @@ with app.app_context():
 # Problem bank (18 open-ended problems; replace texts with yours if needed)
 # ------------------------------------------------------------------------------------
 # If you have your real enunciados in code already, replace the strings below.
-PROBLEMAS: List[Dict] = [
-    {"id": 1, "enunciado": "Listas de adyacencia y matrices de adyacencia -> Dado el siguiente grafo dirigido con vértices V = {A, B, C, D, E} y aristas E = {(A,B), (A,C), (B,D), (C,D), (D,E), (E,A)}... Escribe su matriz de adyacencia (Utiliza los enters para realizar el salto de linea)."},
-    {"id": 2, "enunciado": "Listas de adyacencia y matrices de adyacencia -> Dado el siguiente grafo dirigido con vértices V = {A, B, C, D, E} y aristas E = {(A,B), (A,C), (B,D), (C,D), (D,E), (E,A)}... Escribe la lista de adyacencia."},
-    {"id": 3, "enunciado": "Listas de adyacencia y matrices de adyacencia -> Dado el siguiente grafo dirigido con vértices V = {A, B, C, D, E} y aristas E = {(A,B), (A,C), (B,D), (C,D), (D,E), (E,A)}... Explica, con tus propias palabras, cuándo conviene usar cada representación (en qué tipo de algoritmo o tamaño de grafo."},
-    {"id": 4, "enunciado": "Búsqueda en anchura (Breadth-First Search) -> Se tiene el grafo no dirigido siguiente: V = {1, 2, 3, 4, 5, 6}, E = {(1,2), (1,3), (2,4), (3,5), (4,6), (5,6)}... Aplica el algoritmo BFS comenzando en el vértice 1, mostrando el orden en que se descubren los vértices y el padre de cada uno."},
-    {"id": 5, "enunciado": "Búsqueda en anchura (Breadth-First Search) -> Se tiene el grafo no dirigido siguiente: V = {1, 2, 3, 4, 5, 6}, E = {(1,2), (1,3), (2,4), (3,5), (4,6), (5,6)}... Indica qué distancia (en número de aristas) tiene cada vértice desde el vertice 1."},
-    {"id": 6, "enunciado": "Búsqueda en anchura (Breadth-First Search) -> Se tiene el grafo no dirigido siguiente: V = {1, 2, 3, 4, 5, 6}, E = {(1,2), (1,3), (2,4), (3,5), (4,6), (5,6)}... Describe, con tus propias palabras, una aplicación práctica de BFS en la vida real o en informática."},
-    {"id": 7, "enunciado": "Búsqueda en profundidad (Depth-First Search) -> Considera el siguiente grafo dirigido: V = {u, v, w, x, y, z}, E = {(u,v), (u,x), (v,y), (w,y), (w,z), (x,v), (y,x), (z,z)}... Ejecuta DFS(G) considerando el orden alfabético de los vértices y anota para cada vértice los tiempos de descubrimiento (d) y finalización (f)."},
-    {"id": 8, "enunciado": "Búsqueda en profundidad (Depth-First Search) -> Considera el siguiente grafo dirigido: V = {u, v, w, x, y, z}, E = {(u,v), (u,x), (v,y), (w,y), (w,z), (x,v), (y,x), (z,z)}... Determina si el grafo contiene algún ciclo con base en los tiempos d/f."},
-    {"id": 9, "enunciado": "Búsqueda en profundidad (Depth-First Search) -> Considera el siguiente grafo dirigido: V = {u, v, w, x, y, z}, E = {(u,v), (u,x), (v,y), (w,y), (w,z), (x,v), (y,x), (z,z)}... Explica, con tus propias palabras, qué diferencia conceptual hay entre BFS y DFS."},
-    {"id": 10, "enunciado": "Orden topológico (Topological Sort) -> Dado el siguiente grafo dirigido acíclico (DAG): V = {A, B, C, D, E, F}, E = {(A,B), (A,C), (B,D), (C,D), (C,E), (D,F), (E,F)}... Usa el algoritmo de DFS para obtener un orden topológico de los vértices, escribiendo los pasos clave (descubrimiento y finalización) y el resultado final."},
-    {"id": 11, "enunciado": "Orden topológico (Topological Sort) -> Dado el siguiente grafo dirigido acíclico (DAG): V = {A, B, C, D, E, F}, E = {(A,B), (A,C), (B,D), (C,D), (C,E), (D,F), (E,F)}... Verifica tu orden topológico comprobando que todas las aristas van de izquierda a derecha."},
-    {"id": 12, "enunciado": "Orden topológico (Topological Sort) -> Dado el siguiente grafo dirigido acíclico (DAG): V = {A, B, C, D, E, F}, E = {(A,B), (A,C), (B,D), (C,D), (C,E), (D,F), (E,F)}... Explica una aplicación real de orden topológico, por ejemplo en planificación de tareas o compilación de programas."},
-    {"id": 13, "enunciado": "Componentes fuertemente conectados (Strongly Connected Components) -> Considera el siguiente grafo dirigido: V = {A, B, C, D, E, F}, E = {(A,B), (B,C), (C,A), (B,D), (D,E), (E,F), (F,D)}... Usa el algoritmo de Kosaraju o Tarjan (como en Cormen) para identificar los componentes fuertemente conectados (CFCs), mostrando los pasos principales (Primer DFS con tiempos de finalización, Grafo transpuesto, Segundo DFS por orden decreciente de f)."},
-    {"id": 14, "enunciado": "Componentes fuertemente conectados (Strongly Connected Components) -> Considera el siguiente grafo dirigido: V = {A, B, C, D, E, F}, E = {(A,B), (B,C), (C,A), (B,D), (D,E), (E,F), (F,D)}... Escribe los CFCs encontradas en forma de conjuntos (por ejemplo {A,B,C})."},
-    {"id": 15, "enunciado": "Componentes fuertemente conectados (Strongly Connected Components) -> Considera el siguiente grafo dirigido: V = {A, B, C, D, E, F}, E = {(A,B), (B,C), (C,A), (B,D), (D,E), (E,F), (F,D)}... Explica brevemente qué significa que dos vértices pertenezcan al mismo CFC."},
-    {"id": 16, "enunciado": "Comparación de representaciones de grafos -> Supón que tienes un grafo no dirigido y muy denso, con n = 10,000 vértices, y otro dirigido y disperso, con n = 10,000 pero solo 20,000 aristas... Explica qué representación (lista o matriz de adyacencia) sería más eficiente para cada grafo y por qué."},
-    {"id": 17, "enunciado": "Comparación de representaciones de grafos -> Supón que tienes un grafo no dirigido y muy denso, con n = 10,000 vértices, y otro dirigido y disperso, con n = 10,000 pero solo 20,000 aristas... Calcula aproximadamente cuánta memoria necesitaría cada representación si los vértices se numeran del 1 al n (usa la fórmula n² para matriz y 2m o m para listas, según el caso)."},
-    {"id": 18, "enunciado": "BFS con rutas más cortas -> Se tiene una red de transporte urbano simplificada. Los vértices representan paradas de autobús, y las aristas indican que hay una conexión directa entre ellas: V = {Centro, Museo, Parque, Escuela, Estadio, Hospital}, E = {(Centro,Museo), (Centro,Parque), (Museo,Escuela), (Parque,Estadio), (Escuela,Hospital), (Estadio,Hospital)}... Explica brevemente por qué BFS siempre encuentra el camino más corto en este tipo de grafo."},
-    # ... agrega más ...
-]
 
 # System prompts per problem (optional). If missing, a generic prompt is used.
 PROMPTS_PROBLEMAS: Dict[int, str] = {
@@ -285,6 +289,7 @@ def verificar_respuesta(problema_id):
     data = request.get_json()
     respuesta = data.get("respuesta")
     correo = data.get("correo_identificacion")
+    practice_name = data.get("practice_name", "unknown_session.json")
 
     if not respuesta or not correo:
         return jsonify({"error": "Datos incompletos"}), 400
@@ -296,6 +301,7 @@ def verificar_respuesta(problema_id):
         problema_id=problema_id,
         correo_identificacion=correo,
         respuesta=respuesta,
+        practice_name=practice_name,
     )
     db.session.add(nueva_respuesta)
     db.session.commit()
