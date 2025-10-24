@@ -184,17 +184,17 @@ def main(page: ft.Page):
         page.scroll = ft.ScrollMode.ALWAYS
         
         title = ft.Text(
-            "¿Listo(a) para resolver la Práctica 4 de la clase de Análisis de Algoritmos con ayuda de un simple y sencillo prototipo de un tutor inteligente?",
+            "¿Listo(a) para resolver tus prácticas/exámenes con ayuda de un tutor inteligente?",
             size=24, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.CENTER,
         )
         
         subtitle = ft.Text(
-            "Puedes usar tus apuntes (texto o digital) así como realizar búsqueda en el navegador. Ten cuidado de no cerrar la ventana del tutor inteligente. Tienes prohibido usar chatbots (ChatGPT, LLaMa, etc.) o platicar con tus compañeros.",
+            "Puedes usar tus apuntes (texto o digital) y buscar en el navegador. Tienes prohibido usar chatbots (ChatGPT, LLaMa, etc.) o platicar con tus compañeros.",
             size=20, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
         
         details = ft.Text(
-            "Se van a recolectar datos relacionados con tu solución de la práctica, NO se va a recolectar información personal.",
+            "Sólo se recolectarán datos relacionados con tu interacción con el tutor inteligente, no información personal.",
             size=16, color=COLORES["texto"], text_align=ft.TextAlign.CENTER,
         )
         
@@ -263,7 +263,7 @@ def main(page: ft.Page):
         # --- Combined layout: email + dropdown ---
         email_input = ft.TextField(
             label=ft.Container(
-                content=ft.Text("Correo institucional (Google)", text_align=ft.TextAlign.CENTER),
+                content=ft.Text("Correo institucional", text_align=ft.TextAlign.CENTER),
                 alignment=ft.alignment.center
             ),
             hint_text="nombre@uabc.edu.mx",
@@ -275,7 +275,7 @@ def main(page: ft.Page):
         )
 
         sesion_dropdown = ft.Dropdown(
-            label="Selecciona una sesión de ejercicios",
+            label="Selecciona una actividad para resolver",
             options=opciones,
             width=400,
         )
@@ -287,7 +287,7 @@ def main(page: ft.Page):
                 flash("Ingresa un correo válido")   # shows red snackbar
                 return
             if not nombre_archivo:
-                flash("Selecciona una práctica antes de continuar")
+                flash("Selecciona una actividad antes de continuar")
                 return
 
             # ✅ Save both the email and session data
@@ -299,7 +299,7 @@ def main(page: ft.Page):
             mostrar_pantalla_intervencion(titulo, problemas)
 
         iniciar_button = ft.ElevatedButton(
-            "Comenzar práctica",
+            "Comenzar la actividad",
             icon=ft.Icons.PLAY_ARROW,
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
@@ -308,7 +308,7 @@ def main(page: ft.Page):
 
         layout = ft.Column(
             [
-                ft.Text("Inicia sesión y selecciona la práctica", size=22, weight="bold", color=COLORES["primario"]),
+                ft.Text("Inicia sesión con tu correo institucional y selecciona una actividad de la lista", size=22, weight="bold", color=COLORES["primario"]),
                 email_input,
                 sesion_dropdown,
                 iniciar_button,
