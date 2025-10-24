@@ -300,7 +300,7 @@ def main(page: ft.Page):
 
         iniciar_button = ft.ElevatedButton(
             "Comenzar práctica",
-            icon=ft.icons.PLAY_ARROW,
+            icon=ft.Icons.PLAY_ARROW,
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
             on_click=iniciar_sesion,
@@ -421,7 +421,7 @@ def main(page: ft.Page):
 
                 # ✅ Cargar enunciado localmente
                 ejercicio_text.value = p.get("enunciado", "")
-                ejercicio_text.text_align = ft.TextAlign.CENTER
+                ejercicio_text.text_align = ft.TextAlign.JUSTIFY
 
                 # ✅ Crear campo de respuesta
                 respuesta_container.controls.clear()
