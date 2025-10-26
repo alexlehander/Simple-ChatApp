@@ -608,7 +608,11 @@ def main(page: ft.Page):
             try:
                 r = requests.post(
                     f"{BACKEND_URL_CHAT}/{problema_actual_id}",
-                    json={"message": msg, "correo_identificacion": correo},
+                    json={
+                        "message": msg,
+                        "correo_identificacion": correo,
+                        "practice_name": load_k(page, "selected_session_filename", "unknown_session.json")
+                    },
                     timeout=30,
                 )
                 data = r.json() if r.ok else {"response": "Sin respuesta"}
