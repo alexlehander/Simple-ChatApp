@@ -277,28 +277,6 @@ def main(page: ft.Page):
             "", color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY
         )
 
-        # --- 🔹 Modal de descripción ---
-        descripcion_dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Descripción de la práctica", color=COLORES["primario"], size=20, weight="bold"),
-            content=ft.Container(
-                width=520,
-                height=320,
-                padding=10,
-                bgcolor=COLORES["accento"],
-                border_radius=8,
-                clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                content=ft.ListView(
-                    controls=[descripcion_text],
-                    expand=True,
-                    auto_scroll=False,
-                )
-            ),
-            actions=[ft.TextButton("Cerrar", on_click=lambda e: page.close(descripcion_dialog))],
-            actions_alignment=ft.MainAxisAlignment.END,
-            bgcolor=COLORES["accento"],
-        )
-
         def on_change_sesion(e):
             nombre_archivo = e.control.value
             if not nombre_archivo:
@@ -307,15 +285,7 @@ def main(page: ft.Page):
                 with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
                     data = json.load(f)
                 descripcion = data.get("description", "No se encontró descripción para esta práctica.")
-
-                # actualizar texto del diálogo
                 descripcion_text.value = descripcion
-
-                # asignar el diálogo a la página antes de abrirlo
-                page.dialog = descripcion_dialog
-                descripcion_dialog.open = True
-
-                # forzar actualización de la página
                 page.update()
             except Exception as err:
                 print(f"⚠️ Error al leer descripción de {nombre_archivo}: {err}")
@@ -326,6 +296,16 @@ def main(page: ft.Page):
             options=opciones,
             width=400,
             on_change=on_change_sesion,
+        )
+        
+        descripcion_label = ft.Text(
+            "Descripción de la práctica:",
+            size=18, weight="bold", color=COLORES["primario"]
+        )
+
+        descripcion_text = ft.Text(
+            "Selecciona una práctica para ver su descripción.",
+            color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY
         )
         
         def iniciar_sesion(e):
@@ -361,6 +341,8 @@ def main(page: ft.Page):
                 ),
                 email_input,
                 sesion_dropdown,
+                descripcion_label,
+                descripcion_text,
                 iniciar_button,
             ],
             alignment=ft.MainAxisAlignment.CENTER,
