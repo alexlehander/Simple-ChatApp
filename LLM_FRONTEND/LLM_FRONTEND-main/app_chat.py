@@ -273,19 +273,26 @@ def main(page: ft.Page):
             border_color=COLORES["borde"],
         )
 
+        descripcion_text = ft.Text(
+            "", color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY
+        )
+
         # --- 🔹 Modal de descripción ---
         descripcion_dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text("Descripción de la práctica", color=COLORES["primario"], size=20, weight="bold"),
-            content=ft.Container(  # 👈
+            content=ft.Container(
                 width=520,
                 height=320,
                 padding=10,
                 bgcolor=COLORES["accento"],
                 border_radius=8,
                 clip_behavior=ft.ClipBehavior.HARD_EDGE,
-                scroll=ft.ScrollMode.AUTO,
-                content=ft.Text("", color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY),
+                content=ft.ListView(
+                    controls=[descripcion_text],
+                    expand=True,
+                    auto_scroll=False,
+                )
             ),
             actions=[ft.TextButton("Cerrar", on_click=lambda e: page.close(descripcion_dialog))],
             actions_alignment=ft.MainAxisAlignment.END,
@@ -301,9 +308,7 @@ def main(page: ft.Page):
                     data = json.load(f)
                 descripcion = data.get("description", "No se encontró descripción para esta práctica.")
                 # 👇 mantener el contenedor scrollable: actualizamos su hijo
-                descripcion_dialog.content.content = ft.Text(
-                    descripcion, color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY
-                )
+                descripcion_text.value = descripcion
                 page.dialog = descripcion_dialog
                 descripcion_dialog.open = True
                 page.update()
@@ -850,7 +855,6 @@ def main(page: ft.Page):
         
         # Temporizador (Xmin)
         def iniciar_temporizador():
-            nonlocal stop_timer
             start_epoch = load_k(page, STATE_KEYS["timer_start"], None)
             now = int(time.time())
             if start_epoch is None:
@@ -862,6 +866,7 @@ def main(page: ft.Page):
             remaining = max(0, TOTAL_SECONDS - elapsed)
 
             def cuenta():
+                nonlocal stop_timer
                 while getattr(page, "_is_loading_problem", False):
                     time.sleep(0.1)
                 t = remaining
