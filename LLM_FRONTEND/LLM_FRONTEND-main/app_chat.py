@@ -85,7 +85,7 @@ STATE_KEYS = {
     "current_problem": "current_problem_id",   # int
     "answers": "answers_map",                  # dict: {problem_id: "answer text"}
     "chat": "chat_map",                        # dict: {problem_id: [{"role":"user|agent","text":"..."}]}
-    "timer_start": "timer_start_epoch",        # int epoch seconds when 120min started
+    "timer_start": "timer_start_epoch",        # int epoch seconds when Xmin started
 }
 
 def listar_sesiones():
@@ -250,7 +250,7 @@ def main(page: ft.Page):
         
     # =============== PANTALLA 2: INSTRUCCIONES =============== 
     def mostrar_pantalla_seleccion_sesion():
-        save_k(page, STATE_KEYS["screen"], "instructions")  # ← add this
+        save_k(page, STATE_KEYS["screen"], "instructions")
         page.clean()
         archivos = listar_sesiones()
 
@@ -260,7 +260,6 @@ def main(page: ft.Page):
 
         opciones = [ft.dropdown.Option(a) for a in archivos]
 
-        # --- Combined layout: email + dropdown ---
         email_input = ft.TextField(
             label=ft.Container(
                 content=ft.Text("Correo institucional", text_align=ft.TextAlign.CENTER),
@@ -274,23 +273,60 @@ def main(page: ft.Page):
             border_color=COLORES["borde"],
         )
 
+        # --- 🔹 Modal de descripción ---
+        descripcion_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Descripción de la práctica", color=COLORES["primario"], size=20, weight="bold"),
+            content=ft.Container(  # 👈
+                width=520,
+                height=320,
+                padding=10,
+                bgcolor=COLORES["accento"],
+                border_radius=8,
+                clip_behavior=ft.ClipBehavior.HARD_EDGE,
+                scroll=ft.ScrollMode.AUTO,
+                content=ft.Text("", color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY),
+            ),
+            actions=[ft.TextButton("Cerrar", on_click=lambda e: page.close(descripcion_dialog))],
+            actions_alignment=ft.MainAxisAlignment.END,
+            bgcolor=COLORES["accento"],
+        )
+
+        def on_change_sesion(e):
+            nombre_archivo = e.control.value
+            if not nombre_archivo:
+                return
+            try:
+                with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                descripcion = data.get("description", "No se encontró descripción para esta práctica.")
+                # 👇 mantener el contenedor scrollable: actualizamos su hijo
+                descripcion_dialog.content.content = ft.Text(
+                    descripcion, color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY
+                )
+                page.dialog = descripcion_dialog
+                descripcion_dialog.open = True
+                page.update()
+            except Exception as err:
+                print(f"⚠️ Error al leer descripción de {nombre_archivo}: {err}")
+                
         sesion_dropdown = ft.Dropdown(
             label="Selecciona una actividad para resolver",
             options=opciones,
             width=400,
+            on_change=on_change_sesion,  # 👈 nuevo evento
         )
 
         def iniciar_sesion(e):
             correo = email_input.value.strip()
             nombre_archivo = sesion_dropdown.value
             if "@" not in correo:
-                flash("Ingresa un correo válido")   # shows red snackbar
+                flash("Ingresa un correo válido")
                 return
             if not nombre_archivo:
                 flash("Selecciona una actividad antes de continuar")
                 return
 
-            # ✅ Save both the email and session data
             page.client_storage.set("correo_identificacion", correo)
             titulo, problemas = cargar_sesion(nombre_archivo)
             save_k(page, "selected_session_title", titulo)
@@ -308,7 +344,10 @@ def main(page: ft.Page):
 
         layout = ft.Column(
             [
-                ft.Text("Inicia sesión con tu correo institucional y selecciona una actividad de la lista", size=22, weight="bold", color=COLORES["primario"]),
+                ft.Text(
+                    "Inicia sesión con tu correo institucional y selecciona una actividad de la lista",
+                    size=22, weight="bold", color=COLORES["primario"]
+                ),
                 email_input,
                 sesion_dropdown,
                 iniciar_button,
@@ -318,8 +357,8 @@ def main(page: ft.Page):
             spacing=20,
         )
 
-        page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))  
-    
+        page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))
+
     # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
     def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
         save_k(page, STATE_KEYS["screen"], "problems")
@@ -473,6 +512,7 @@ def main(page: ft.Page):
             # ⛔ Si intenta ir después del último problema
             if nuevo_id > NUM_PROBLEMAS:
                 if all(respuestas_enviadas):
+                    stop_timer = True
                     mostrar_pantalla_encuesta_final()
                 else:
                     feedback_text.value = "¡Aún tienes problemas pendientes por contestar!"
@@ -635,9 +675,8 @@ def main(page: ft.Page):
                 chat_area.controls.append(
                     ft.Row(
                         [ft.Container(
-                            content=ft.Text("Error de conexión con el servidor."),
-                            bgcolor = COLORES["error"],
-                            color = COLORES["accento"],
+                            content=ft.Text("Error de conexión con el servidor.", color=COLORES["accento"]),
+                            bgcolor=COLORES["error"],
                             padding=20,
                             border_radius=10
                         )],
@@ -739,7 +778,7 @@ def main(page: ft.Page):
         )
 
         # Layout
-        temporizador_text = ft.Text("20:00", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
+        temporizador_text = ft.Text("", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
         left_panel = ft.Container(
             content=ft.Column([chat_container, user_input], spacing=20, expand=True),
@@ -765,6 +804,11 @@ def main(page: ft.Page):
         )
         
         def reiniciar_practica(e):
+            try:
+                nonlocal stop_timer
+                stop_timer = True
+            except Exception:
+                pass
             reset_progress(page)
             try:
                 page.launch_url(JS_CLEAR_STORAGE)
@@ -804,7 +848,7 @@ def main(page: ft.Page):
         # start
         cargar_problema(problema_actual_id)
         
-        # Temporizador (120min)
+        # Temporizador (Xmin)
         def iniciar_temporizador():
             nonlocal stop_timer
             start_epoch = load_k(page, STATE_KEYS["timer_start"], None)
@@ -813,7 +857,7 @@ def main(page: ft.Page):
                 start_epoch = now
                 save_k(page, STATE_KEYS["timer_start"], start_epoch)
 
-            TOTAL_SECONDS = 120 * 60
+            TOTAL_SECONDS = 180 * 60
             elapsed = max(0, now - int(start_epoch))
             remaining = max(0, TOTAL_SECONDS - elapsed)
 
@@ -835,6 +879,7 @@ def main(page: ft.Page):
                     time.sleep(1)
                     t -= 1
                 if not stop_timer:
+                    stop_timer = True
                     temporizador_text.value = "¡Tiempo terminado!"
                     page.update()
                     try:
@@ -885,7 +930,7 @@ def main(page: ft.Page):
             ),
         )
         link_final = ft.TextButton(
-            "Encuesta se Satisfacción",
+            "Encuesta de Satisfacción",
             url="https://forms.gle/MfcjCF3oNs77zXtp8",
             url_target=ft.UrlTarget.BLANK,
             style=ft.ButtonStyle(
