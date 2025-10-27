@@ -320,6 +320,14 @@ def main(page: ft.Page):
             except Exception as err:
                 print(f"⚠️ Error al leer descripción de {nombre_archivo}: {err}")
 
+        # 🔹 crea el Dropdown ANTES de iniciar_sesion
+        sesion_dropdown = ft.Dropdown(
+            label="Selecciona una actividad para resolver",
+            options=opciones,
+            width=400,
+            on_change=on_change_sesion,
+        )
+        
         def iniciar_sesion(e):
             correo = email_input.value.strip()
             nombre_archivo = sesion_dropdown.value
