@@ -307,20 +307,18 @@ def main(page: ft.Page):
                 with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
                     data = json.load(f)
                 descripcion = data.get("description", "No se encontró descripción para esta práctica.")
-                # 👇 mantener el contenedor scrollable: actualizamos su hijo
+
+                # actualizar texto del diálogo
                 descripcion_text.value = descripcion
+
+                # asignar el diálogo a la página antes de abrirlo
                 page.dialog = descripcion_dialog
                 descripcion_dialog.open = True
+
+                # forzar actualización de la página
                 page.update()
             except Exception as err:
                 print(f"⚠️ Error al leer descripción de {nombre_archivo}: {err}")
-                
-        sesion_dropdown = ft.Dropdown(
-            label="Selecciona una actividad para resolver",
-            options=opciones,
-            width=400,
-            on_change=on_change_sesion,  # 👈 nuevo evento
-        )
 
         def iniciar_sesion(e):
             correo = email_input.value.strip()
