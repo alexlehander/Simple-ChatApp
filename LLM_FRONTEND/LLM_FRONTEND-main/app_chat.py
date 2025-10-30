@@ -273,10 +273,6 @@ def main(page: ft.Page):
             border_color=COLORES["borde"],
         )
 
-        descripcion_text = ft.Text(
-            "", color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY
-        )
-
         def on_change_sesion(e):
             nombre_archivo = e.control.value
             if not nombre_archivo:
