@@ -201,8 +201,8 @@ DEFAULT_SYSTEM_PROMPT = (
 
 QC_SYSTEM_PROMPT = (
     "ERES UN experto en control de calidad de los Sistemas de Tutoria Inteligente potenciados por Modelos Extensos de Lenguaje. "
-    "RECIBES (a) el <Enunciado del problema>, (b) las <Reglas del sistema> y (c) la <Propuesta de respuesta>. "
-    "TU TAREA CONSISTE EN revisar y, si es necesario, reescribir la <Propuesta de respuesta> para cumplir estrictamente con las <Reglas del sistema>. "
+    "RECIBES (a) la <Pregunta del estudiante>, (b) el <Enunciado del problema>, (c) las <Reglas del sistema>, y (d) la <Propuesta de respuesta>. "
+    "TU TAREA CONSISTE EN revisar y, si es necesario, modificar la <Propuesta de respuesta> para cumplir estrictamente con las <Reglas del sistema>. "
     "DEVUELVE ÚNICAMENTE el texto final de respuesta para el estudiante. "
 )
 
@@ -211,10 +211,11 @@ EXERCISES_PATH = os.getenv("EXERCISES_PATH", "exercises")
 # ------------------------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------------------------
-def review_with_qc(original_answer: str, problem_text: str, system_rules: str) -> str:
+def review_with_qc(original_answer: str, problem_text: str, system_rules: str, user_message: str) -> str:
     messages = [
         {"role": "system", "content": QC_SYSTEM_PROMPT},
         {"role":"user","content": (
+            f"<Pregunta del estudiante>\n{user_message}\n</Pregunta del estudiante>\n\n"
             f"<Enunciado del problema>\n{problem_text or '(no disponible)'}\n</Enunciado del problema>\n\n"
             f"<Reglas del sistema>\n{system_rules}\n</Reglas del sistema>\n\n"
             f"<Propuesta de respuesta>\n{original_answer}\n</Propuesta de respuesta>\n"
@@ -346,8 +347,6 @@ def chat(problema_id: int):
     save_chat_turn(usuario, correo_identificacion or None, problema_id, "user", user_msg)
     # Build message history (system + prior turns)
     messages = history_for_chat(correo_identificacion or None, problema_id, practice_name)
-    # Append current user message (again for the actual call)
-    messages.append({"role": "user", "content": user_msg})
 
     # If we don't have an API key, return a graceful fallback
     if not OPENROUTER_API_KEY:
@@ -370,8 +369,7 @@ def chat(problema_id: int):
         # 2ª pasada (control de calidad)
         final_text = draft_text
         if QC_ENABLED:
-            # Pasa también tus reglas del sistema activas (DEFAULT_SYSTEM_PROMPT ya inyecta reglas clave)
-            final_text = review_with_qc(draft_text, problem_text, DEFAULT_SYSTEM_PROMPT)
+            final_text = review_with_qc(original_answer=draft_text, problem_text=problem_text, system_rules=DEFAULT_SYSTEM_PROMPT, user_message=user_msg)
         # Guarda SOLO la versión final para no 'contaminar' el historial
         save_chat_turn(usuario, correo_identificacion or None, problema_id, "assistant", final_text)
         return jsonify({"response": final_text})
