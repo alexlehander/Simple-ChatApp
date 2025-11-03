@@ -17,7 +17,7 @@
     {
       "id": 4,
       "enunciado": "Para el algoritmo siguiente, que recibe como entrada un grafo conectado G y una función de costos reales w, demuestre que el árbol T resultante es un árbol de esparcimiento mínimo (MST) o proporcione un contraejemplo: \nMAYBE-MST-A (G, w) \n1. T = vacio \n2. for each edge e, taken in arbitrary order \n3.       if T ∪ {e} has no cycles \n4.             T = T ∪ {e} \n5. return T"
-    }
+    },
     {
       "id": 5,
       "enunciado": "Define qué es una arista segura para un conjunto A de aristas en un grafo dirigido. Explica cómo se relaciona con la propiedad de corte y proporciona un ejemplo con sus conjuntos S y S̄."
