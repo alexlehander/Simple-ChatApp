@@ -19,7 +19,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_SITE_URL = os.getenv("OPENROUTER_SITE_URL", "https://example.com")
 OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "GrowTogether")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-QC_ENABLED = os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
+QC_ENABLED = False  #os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
 
 def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", temperature=0.5, max_tokens=1000):
@@ -184,11 +184,6 @@ with app.app_context():
     except Exception as e:
         db.session.rollback()
         print(f"⚠️ Skipping rename migration: {e}")
-
-# ------------------------------------------------------------------------------------
-# Problem bank (18 open-ended problems; replace texts with yours if needed)
-# ------------------------------------------------------------------------------------
-# If you have your real enunciados in code already, replace the strings below.
 
 DEFAULT_SYSTEM_PROMPT = (
     "ERES UN tutor inteligente que emplea el método “Chain of Thought” para procesar la información y responder en el idioma español. "
