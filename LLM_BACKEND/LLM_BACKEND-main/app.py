@@ -91,6 +91,19 @@ with app.app_context():
 
     # --- Auto-migrate: add practice_name column ---
     
+    # --- Reposition 'problema_id' after practice_name (cosmetic) ---
+    try:
+        db.session.execute(db.text("""
+            ALTER TABLE railway_respuesta_usuario
+            MODIFY COLUMN problema_id INT NOT NULL
+            AFTER practice_name
+        """))
+        db.session.commit()
+        print("✔ Reordered railway_respuesta_usuario.problema_id after practice_name")
+    except Exception as e:
+        db.session.rollback()
+        print(f"↪ Skipping reorder of problema_id on railway_respuesta_usuario: {e}")
+    
     # --- Reposition 'practice_name' after correo_identificacion (cosmetic) ---
     try:
         # Only run if the column exists (it will, after the add step)
