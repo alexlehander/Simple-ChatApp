@@ -19,6 +19,8 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_SITE_URL = os.getenv("OPENROUTER_SITE_URL", "https://example.com")
 OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "GrowTogether")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+QC_ENABLED = os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
+
 
 def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", temperature=0.5, max_tokens=1000):
     """Send chat messages to OpenRouter’s Mistral API."""
@@ -53,9 +55,6 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
-
-# OpenAI key (env only; no hard-coded secrets)
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 
 # ------------------------------------------------------------------------------------
 # Data Model (table names align with your SQL dumps)
@@ -192,12 +191,19 @@ with app.app_context():
 # If you have your real enunciados in code already, replace the strings below.
 
 DEFAULT_SYSTEM_PROMPT = (
-    "Eres un tutor inteligente que emplea el método “Chain of Thought” para procesar la información y responder en español de manera socrática. "
-    "BAJO NINGUNA CIRCUNSTANCIA puedes generar una solución completa o parcial al ejercicio con el que está trabajando el usuario. "
-    "TAMPOCO tienes permitido responder preguntas o generar información que se sale del contexto del ejercicio con el que está trabajando el usuario. "
-    "RESPONDES a las preguntas del usuario con frases breves y precisas, evitando redundancia y lenguaje excesivamente formal. "
-    "DEBES ayudar al usuario a comprender el tema proporcionando explicaciones, creando ejemplos, y clarificando conceptos. "
-    "Si ves que el usuario tiene dificultades, ayudalo con pistas graduales y retroalimentación personalizada. "
+    "ERES UN tutor inteligente que emplea el método “Chain of Thought” para procesar la información y responder en español de manera socrática. "
+    "TU TAREA CONSISTE EN proporcionar ayuda pedagógica basada en pistas graduales, ejemplos prácticos y retroalimentación personalizada. "
+    "TIENES PROHIBIDO generar soluciones completas o parciales del ejercicio con el que está trabajando el usuario. "
+    "TIENES PROHIBIDO responder preguntas o generar información que se sale del contexto del ejercicio con el que está trabajando el usuario. "
+    "DEBES RESPONDER a las preguntas del usuario con frases breves y precisas, evitando redundancia y lenguaje excesivamente formal. "
+    "DEBES PRESERVAR la integridad pedagógica de la conversación sin revelar información sensible del problema o el software educativo. "
+)
+
+QC_SYSTEM_PROMPT = (
+    "ERES UN experto en control de calidad de los Sistemas de Tutoria Inteligente potenciados por Modelos Extensos de Lenguaje. "
+    "RECIBES (a) el <Enunciado del problema>, (b) las <Reglas del sistema> y (c) la <Propuesta de respuesta>. "
+    "TU TAREA CONSISTE EN revisar y, si es necesario, reescribir la <Propuesta de respuesta> para cumplir estrictamente con las <Reglas del sistema>. "
+    "DEVUELVE ÚNICAMENTE el texto final de respuesta para el estudiante. "
 )
 
 EXERCISES_PATH = os.getenv("EXERCISES_PATH", "exercises")
@@ -205,6 +211,25 @@ EXERCISES_PATH = os.getenv("EXERCISES_PATH", "exercises")
 # ------------------------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------------------------
+def review_with_qc(original_answer: str, problem_text: str, system_rules: str) -> str:
+    messages = [
+        {"role": "system", "content": QC_SYSTEM_PROMPT},
+        {"role":"user","content": (
+            f"<Enunciado del problema>\n{problem_text or '(no disponible)'}\n</Enunciado del problema>\n\n"
+            f"<Reglas del sistema>\n{system_rules}\n</Reglas del sistema>\n\n"
+            f"<Propuesta de respuesta>\n{original_answer}\n</Propuesta de respuesta>\n"
+        )}
+    ]
+    try:
+        # más determinista en la revisión
+        reviewed = call_mistral(messages, temperature=0.25, max_tokens=1000)
+        reviewed = (reviewed or "").strip()
+        return reviewed or original_answer
+    except Exception as e:
+        # En caso de fallo del 2º paso, devolvemos el original para no bloquear al usuario
+        print("QC second-pass error:", e)
+        return original_answer
+        
 def get_problem_enunciado(practice_name: str, problema_id: int) -> str:
     try:
         file_path = os.path.join(EXERCISES_PATH, practice_name)
@@ -216,22 +241,17 @@ def get_problem_enunciado(practice_name: str, problema_id: int) -> str:
     except Exception as e:
         print(f"⚠️ Error leyendo {practice_name}: {e}")
     return ""
-
+    
 def get_or_create_user(correo_identificacion: str | None) -> Usuario:
     if not correo_identificacion:
-        # still allow an anonymous row, but with NULL email
-        u = Usuario(correo_identificacion=None)
-        db.session.add(u)
-        db.session.commit()
-        return u
+        return None
     u = Usuario.query.filter_by(correo_identificacion=correo_identificacion).first()
-    if u:
-        return u
+    if u: return u
     u = Usuario(correo_identificacion=correo_identificacion)
     db.session.add(u)
     db.session.commit()
     return u
-
+    
 def history_for_chat(correo_identificacion: str | None, problema_id: int, practice_name: str | None = None) -> List[Dict]:
     """Build conversation history with a dynamic system prompt including the problem enunciado."""
     logs = (
@@ -245,7 +265,7 @@ def history_for_chat(correo_identificacion: str | None, problema_id: int, practi
     if not practice_name:
         last_resp = (
             RespuestaUsuario.query
-            .filter_by(problema_id=problema_id)
+            .filter_by(problema_id=problema_id, correo_identificacion=correo_identificacion)
             .order_by(RespuestaUsuario.created_at.desc())
             .first()
         )
@@ -315,18 +335,17 @@ def chat(problema_id: int):
     user_msg = (data.get("message") or "").strip()
     correo_identificacion = (data.get("correo_identificacion") or "").strip()
     practice_name = (data.get("practice_name") or "").strip()
+    problem_text = get_problem_enunciado(practice_name, problema_id)
 
     if not user_msg:
         return jsonify({"response": "¿Puedes escribir tu mensaje?"})
 
+    # Create a user based on e-mail
     usuario = get_or_create_user(correo_identificacion or None)
-
     # Save user's turn
     save_chat_turn(usuario, correo_identificacion or None, problema_id, "user", user_msg)
-
     # Build message history (system + prior turns)
     messages = history_for_chat(correo_identificacion or None, problema_id, practice_name)
-
     # Append current user message (again for the actual call)
     messages.append({"role": "user", "content": user_msg})
 
@@ -341,17 +360,21 @@ def chat(problema_id: int):
         return jsonify({"response": assistant_text})
     else:
         try:
-            assistant_text = call_mistral(messages)
+            draft_text = call_mistral(messages)  # 1ª pasada (borrador)
         except Exception as e:
             print("Error contacting Mistral:", e)
-            assistant_text = (
+            draft_text = (
                 "He tenido un problema técnico para generar una respuesta en este momento. "
                 "Mientras tanto, intenta descomponer el problema en pasos más pequeños y explícame tu siguiente idea."
             )
-
-        # Save assistant's turn
-        save_chat_turn(usuario, correo_identificacion or None, problema_id, "assistant", assistant_text)
-        return jsonify({"response": assistant_text})
+        # 2ª pasada (control de calidad)
+        final_text = draft_text
+        if QC_ENABLED:
+            # Pasa también tus reglas del sistema activas (DEFAULT_SYSTEM_PROMPT ya inyecta reglas clave)
+            final_text = review_with_qc(draft_text, problem_text, DEFAULT_SYSTEM_PROMPT)
+        # Guarda SOLO la versión final para no 'contaminar' el historial
+        save_chat_turn(usuario, correo_identificacion or None, problema_id, "assistant", final_text)
+        return jsonify({"response": final_text})
 
 # ------------------------------------------------------------------------------------
 # Entrypoint
