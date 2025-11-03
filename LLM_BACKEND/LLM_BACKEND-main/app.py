@@ -90,6 +90,35 @@ with app.app_context():
     db.create_all()
 
     # --- Auto-migrate: add practice_name column ---
+    
+    # --- Reposition 'practice_name' after correo_identificacion (cosmetic) ---
+    try:
+        # Only run if the column exists (it will, after the add step)
+        db.session.execute(db.text("""
+            ALTER TABLE railway_chat_log
+            MODIFY COLUMN practice_name VARCHAR(255) NULL
+            AFTER correo_identificacion
+        """))
+        db.session.commit()
+        print("✔ Reordered railway_chat_log.practice_name")
+    except Exception as e:
+        db.session.rollback()
+        print(f"↪ Skipping reorder of practice_name on railway_chat_log: {e}")
+        
+    # --- Reposition 'practice_name' after correo_identificacion (cosmetic) ---
+    try:
+        # Only run if the column exists (it will, after the add step)
+        db.session.execute(db.text("""
+            ALTER TABLE railway_respuesta_usuario
+            MODIFY COLUMN practice_name VARCHAR(255) NULL
+            AFTER correo_identificacion
+        """))
+        db.session.commit()
+        print("✔ Reordered railway_respuesta_usuario.practice_name")
+    except Exception as e:
+        db.session.rollback()
+        print(f"↪ Skipping reorder of practice_name on railway_respuesta_usuario: {e}")
+    
     try:
         exists = db.session.execute(db.text("""
             SELECT COUNT(*) FROM information_schema.COLUMNS

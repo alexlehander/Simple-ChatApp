@@ -704,7 +704,7 @@ def main(page: ft.Page):
         )
 
         enviar_button = ft.ElevatedButton(
-            "Guardar ✅ Respuesta",
+            "Contestar ✅ Pregunta",
             bgcolor=COLORES["exito"],
             color=COLORES["accento"],
             on_click=enviar_respuesta
