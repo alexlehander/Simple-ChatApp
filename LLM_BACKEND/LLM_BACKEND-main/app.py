@@ -19,6 +19,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_SITE_URL = os.getenv("OPENROUTER_SITE_URL", "https://example.com")
 OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "GrowTogether")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# If you want to implement a second layer of security / verification mechanism for LLM-generated answers - uncomment the next line and delete False (The quality of life improvement is very little)
 QC_ENABLED = False  #os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
 
@@ -68,9 +69,9 @@ class RespuestaUsuario(db.Model):
     __tablename__ = "railway_respuesta_usuario"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("railway_usuario.id"), nullable=True)
+    correo_identificacion = db.Column(db.String(128), nullable=True)
     practice_name = db.Column(db.String(255), nullable=True)
     problema_id = db.Column(db.Integer, nullable=False)
-    correo_identificacion = db.Column(db.String(128), nullable=True)
     respuesta = db.Column(db.Text, nullable=True)   # changed from String(255) to Text
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
 
@@ -79,6 +80,7 @@ class ChatLog(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey("railway_usuario.id"), nullable=True)
     correo_identificacion = db.Column(db.String(128), nullable=True)
+    practice_name = db.Column(db.String(255), nullable=True)
     problema_id = db.Column(db.Integer, nullable=False)
     role = db.Column(db.String(16), nullable=False)  # "user" or "assistant" or "system"
     content = db.Column(db.Text, nullable=False)
@@ -88,6 +90,27 @@ with app.app_context():
     db.create_all()
 
     # --- Auto-migrate: add practice_name column ---
+    try:
+        exists = db.session.execute(db.text("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'railway_chat_log'
+              AND COLUMN_NAME = 'practice_name'
+        """)).scalar()
+        if not exists:
+            print("⚙️ Adding 'practice_name' to railway_chat_log...")
+            db.session.execute(db.text("""
+                ALTER TABLE railway_chat_log
+                ADD COLUMN practice_name VARCHAR(255) NULL
+            """))
+            db.session.commit()
+            print("✔ Column 'practice_name' added to railway_chat_log")
+        else:
+            print("↪ railway_chat_log.practice_name already present, skipping")
+    except Exception as e:
+        db.session.rollback()
+        print(f"⚠️ Skipping add 'practice_name' to railway_chat_log: {e}")
+        
     try:
         exists = db.session.execute(db.text("""
             SELECT COUNT(*) FROM information_schema.COLUMNS
@@ -110,8 +133,6 @@ with app.app_context():
         db.session.rollback()
         print(f"⚠️ Skipping add 'practice_name': {e}")
 
-    
-    # --- Auto-migrate: respuesta -> TEXT (run only once) ---
     try:
         dtype = db.session.execute(db.text(
             "SELECT DATA_TYPE "
@@ -248,11 +269,11 @@ def get_or_create_user(correo_identificacion: str | None) -> Usuario:
     db.session.commit()
     return u
     
-def history_for_chat(correo_identificacion: str | None, problema_id: int, practice_name: str | None = None) -> List[Dict]:
+def history_for_chat(correo_identificacion: str | None, problema_id: int, practice_name: str | None) -> List[Dict]:
     """Build conversation history with a dynamic system prompt including the problem enunciado."""
     logs = (
         ChatLog.query
-        .filter_by(correo_identificacion=correo_identificacion, problema_id=problema_id)
+        .filter_by(correo_identificacion=correo_identificacion, practice_name=practice_name, problema_id=problema_id)
         .order_by(ChatLog.created_at.asc())
         .all()
     )
@@ -261,7 +282,7 @@ def history_for_chat(correo_identificacion: str | None, problema_id: int, practi
     if not practice_name:
         last_resp = (
             RespuestaUsuario.query
-            .filter_by(problema_id=problema_id, correo_identificacion=correo_identificacion)
+            .filter_by(correo_identificacion=correo_identificacion, practice_name=practice_name, problema_id=problema_id)
             .order_by(RespuestaUsuario.created_at.desc())
             .first()
         )
@@ -279,10 +300,11 @@ def history_for_chat(correo_identificacion: str | None, problema_id: int, practi
         messages.append({"role": role, "content": row.content})
     return messages
 
-def save_chat_turn(user: Usuario | None, correo: str | None, problema_id: int, role: str, content: str):
+def save_chat_turn(user: Usuario | None, correo: str | None, practice_name: str | None, problema_id: int, role: str, content: str):
     log = ChatLog(
         user_id=user.id if user else None,
         correo_identificacion=correo,
+        practice_name=practice_name,
         problema_id=problema_id,
         role=role,
         content=content,
@@ -339,7 +361,7 @@ def chat(problema_id: int):
     # Create a user based on e-mail
     usuario = get_or_create_user(correo_identificacion or None)
     # Save user's turn
-    save_chat_turn(usuario, correo_identificacion or None, problema_id, "user", user_msg)
+    save_chat_turn(usuario, correo_identificacion or None, practice_name, problema_id, "user", user_msg)
     # Build message history (system + prior turns)
     messages = history_for_chat(correo_identificacion or None, problema_id, practice_name)
 
@@ -350,7 +372,7 @@ def chat(problema_id: int):
             "Intenta explicar tu razonamiento y da el siguiente paso en el problema."
         )
         # ➜ Guardar turno del asistente y responder
-        save_chat_turn(usuario, correo_identificacion or None, problema_id, "assistant", assistant_text)
+        save_chat_turn(usuario, correo_identificacion or None, practice_name, problema_id, "assistant", assistant_text)
         return jsonify({"response": assistant_text})
     else:
         try:
@@ -366,7 +388,7 @@ def chat(problema_id: int):
         if QC_ENABLED:
             final_text = review_with_qc(original_answer=draft_text, problem_text=problem_text, system_rules=DEFAULT_SYSTEM_PROMPT, user_message=user_msg)
         # Guarda SOLO la versión final para no 'contaminar' el historial
-        save_chat_turn(usuario, correo_identificacion or None, problema_id, "assistant", final_text)
+        save_chat_turn(usuario, correo_identificacion or None, practice_name, problema_id, "assistant", final_text)
         return jsonify({"response": final_text})
 
 # ------------------------------------------------------------------------------------
