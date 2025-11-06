@@ -409,7 +409,7 @@ def main(page: ft.Page):
                         size=16,
                         selectable=True
                     ),
-                    padding=ft.padding.symmetric(horizontal=20, vertical=10),
+                    padding=ft.padding.symmetric(horizontal=10, vertical=10),
                     alignment=ft.alignment.center_right if is_user else ft.alignment.center_left,
                     border_radius=ft.border_radius.all(10),
                     width=float("inf"),
