@@ -405,16 +405,43 @@ def main(page: ft.Page):
                 texto = (respuesta_container.controls[0].value or "").strip()
                 save_k(page, f"respuesta_{problema_actual_id}", texto)
                 
+        def _escape_html(s: str) -> str:
+            """Escape <, >, & to prevent HTML injection before KaTeX render."""
+            return (s.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;"))
+                    
+        def render_message(text: str, color: str):
+            """Render chat message with KaTeX math support (optimized)."""
+            html_content = f"""
+            <div id="msg" style="color:{color};font-size:16px;line-height:1.5;">
+                {_escape_html(text).replace("\n", "<br>")}
+            </div>
+            <script>
+                try {{
+                    if (window.renderMathInElement) {{
+                        renderMathInElement(document.getElementById("msg"), {{
+                            delimiters: [
+                                {{left: "$$", right: "$$", display: true}},
+                                {{left: "\\\\(", right: "\\\\)", display: false}}
+                            ]
+                        }});
+                    }}
+                }} catch(e) {{
+                    console.error("KaTeX render error:", e);
+                }}
+            </script>
+            """
+            return ft.Html(content=html_content, width=450, height=None)
+            
         # Unified function for consistent chat bubble alignment
         def add_chat_bubble(role, text):
             is_user = role == "user"
             chat_area.controls.append(
                 ft.Container(
-                    content=ft.Text(
+                    content=render_message(
                         text,
-                        color=COLORES["primario"] if is_user else COLORES["texto"],
-                        size=16,
-                        selectable=True
+                        COLORES["primario"] if is_user else COLORES["texto"]
                     ),
                     padding=ft.padding.symmetric(horizontal=10, vertical=10),
                     alignment=ft.alignment.center_right if is_user else ft.alignment.center_left,
@@ -625,12 +652,24 @@ def main(page: ft.Page):
                 # ✅ Siempre desbloquear
                 page._is_sending_response = False
 
+        # One-time KaTeX loader at top of chat
+        katex_loader = ft.Html(
+            content="""
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+            """,
+            height=0,
+            width=0,
+        )
+
         # ---- Chat UI ----
         chat_area = ft.ListView(
             spacing=20,
             padding=20,
             height=475,
             auto_scroll=True,
+            controls=[katex_loader],  # 👈 preload KaTeX once
         )
 
         chat_container = ft.Container(
