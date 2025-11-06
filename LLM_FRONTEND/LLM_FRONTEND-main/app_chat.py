@@ -356,6 +356,10 @@ def main(page: ft.Page):
         stop_timer = False
         problema_actual_id = 1
         NUM_PROBLEMAS = len(PROBLEMAS)
+        # --- Timer toggle state ---
+        timer_hidden = False
+        last_timer_string = ""
+        last_timer_color = COLORES["primario"]
 
         # --- Align completion flags length with current total ---
         prev = load_k(page, "respuestas_enviadas", [])
@@ -462,8 +466,10 @@ def main(page: ft.Page):
                 tf = ft.TextField(
                     hint_text="Escribe tu respuesta aquí, presionando «Enter» para realizar salto de línea",
                     expand=True, multiline=True, min_lines=1, max_lines=10,
-                    bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
-                    focused_border_color=COLORES["exito"], border_radius=15,
+                    bgcolor=COLORES["secundario"],
+                    border_color=COLORES["secundario"],
+                    focused_border_color=COLORES["exito"],
+                    border_radius=10,
                     hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
                     color=COLORES["accento"],
                     on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
@@ -768,6 +774,19 @@ def main(page: ft.Page):
         # Layout
         temporizador_text = ft.Text("", size=32, color=COLORES["primario"], weight="bold", text_align=ft.TextAlign.CENTER)
         
+        def toggle_timer(e):
+            nonlocal timer_hidden, last_timer_string, last_timer_color
+            timer_hidden = not timer_hidden
+            if timer_hidden:
+                # Show placeholder label but DO NOT stop timer thread
+                temporizador_text.value = "Tiempo"
+                temporizador_text.color = COLORES["primario"]
+            else:
+                # Restore the most recent computed value and color
+                temporizador_text.value = last_timer_string or temporizador_text.value
+                temporizador_text.color = last_timer_color
+            page.update()
+ 
         left_panel = ft.Container(
             content=ft.Column([chat_container, user_input], spacing=20, expand=True),
             expand=1,
@@ -807,10 +826,13 @@ def main(page: ft.Page):
                     expand=True,
                     alignment=ft.alignment.center,
                 ),
-                ft.Container(
-                    temporizador_text,
-                    alignment=ft.alignment.center,
-                    padding=ft.padding.symmetric(horizontal=12),
+                ft.GestureDetector(
+                    content=ft.Container(
+                        temporizador_text,
+                        alignment=ft.alignment.center,
+                        padding=ft.padding.symmetric(horizontal=12),
+                    ),
+                    on_tap=toggle_timer,
                 ),
                 reiniciar_button,
             ],
@@ -846,27 +868,34 @@ def main(page: ft.Page):
             remaining = max(0, TOTAL_SECONDS - elapsed)
 
             def cuenta():
-                nonlocal stop_timer
+                nonlocal timer_hidden, last_timer_string, last_timer_color, stop_timer
                 while getattr(page, "_is_loading_problem", False):
                     time.sleep(0.1)
                 t = remaining
                 while t > 0 and not stop_timer:
                     m, s = divmod(t, 60)
                     percent = t / TOTAL_SECONDS
-                    if percent > 0.5:
-                        temporizador_text.color = COLORES["exito"]      # verde
-                    elif percent > 0.25:
-                        temporizador_text.color = COLORES["advertencia"]  # amarillo
-                    else:
-                        temporizador_text.color = COLORES["error"]       # rojo
-                    temporizador_text.value = f"{m:02}:{s:02}"
-                    page.update()
+                    # Compute next color and string
+                    next_color = COLORES["exito"] if percent > 0.5 else (COLORES["advertencia"] if percent > 0.25 else COLORES["error"])
+                    next_value = f"{m:02}:{s:02}"
+                    # Always keep latest values, but only paint UI if not hidden
+                    last_timer_color = next_color
+                    last_timer_string = next_value
+                    if not timer_hidden:
+                        temporizador_text.color = next_color
+                        temporizador_text.value = next_value
+                        page.update()
                     time.sleep(1)
                     t -= 1
                 if not stop_timer:
                     stop_timer = True
-                    temporizador_text.value = "¡Tiempo terminado!"
-                    page.update()
+                    finish_text = "¡Tiempo terminado!"
+                    last_timer_string = finish_text
+                    last_timer_color = COLORES["error"]
+                    if not timer_hidden:
+                        temporizador_text.value = finish_text
+                        temporizador_text.color = COLORES["error"]
+                        page.update()
                     try:
                         page.call_from_async(lambda: mostrar_pantalla_encuesta_final())
                     except Exception:
