@@ -459,6 +459,7 @@ def main(page: ft.Page):
                     bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                     focused_border_color=COLORES["primario"], border_radius=15,
                     hint_style=ft.TextStyle(color=COLORES["texto"]),
+                    color=COLORES["accento"],
                     on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
                 )
 
@@ -683,7 +684,8 @@ def main(page: ft.Page):
             border_color=COLORES["secundario"],
             focused_border_color=COLORES["primario"],
             border_radius=10,
-            hint_style=ft.TextStyle(color=COLORES["accento"]),
+            hint_style=ft.TextStyle(color=COLORES["texto"]),
+            color=COLORES["accento"],
             max_length=1000,
             on_submit=send_message,
         )
