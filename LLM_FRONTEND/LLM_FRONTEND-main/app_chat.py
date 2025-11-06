@@ -807,7 +807,12 @@ def main(page: ft.Page):
                     expand=True,
                     alignment=ft.alignment.center,
                 ),
-                reiniciar_button
+                ft.Container(
+                    temporizador_text,
+                    alignment=ft.alignment.center,
+                    padding=ft.padding.symmetric(horizontal=12),
+                ),
+                reiniciar_button,
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -817,10 +822,10 @@ def main(page: ft.Page):
         
         page.add(
             ft.Column(
-                [header_row, temporizador_text, main_row],
+                [header_row, main_row],
                 spacing=20,
                 expand=True,
-                alignment=ft.MainAxisAlignment.START,  # 👈 prevents vertical centering
+                alignment=ft.MainAxisAlignment.START,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             )
         )
