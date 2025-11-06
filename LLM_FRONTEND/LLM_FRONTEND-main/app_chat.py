@@ -432,7 +432,9 @@ def main(page: ft.Page):
             chats = load_k(page, STATE_KEYS["chat"], {})
             for msg in chats.get(str(id_problema), []):
                 add_chat_bubble(msg["role"], msg["text"])
+            chat_area.auto_scroll = True
             chat_area.update()
+            chat_area.auto_scroll = False
 
         # 🔹 Restore last open problem
         saved_id = load_k(page, STATE_KEYS["current_problem"], 1)
