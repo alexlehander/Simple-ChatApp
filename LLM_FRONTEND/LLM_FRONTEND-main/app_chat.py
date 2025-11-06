@@ -457,7 +457,7 @@ def main(page: ft.Page):
                     hint_text="Escribe tu respuesta aquí, presionando «Enter» para salto de línea",
                     expand=True, multiline=True, min_lines=1, max_lines=10,
                     bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
-                    focused_border_color=COLORES["primario"], border_radius=15,
+                    focused_border_color=COLORES["exito"], border_radius=15,
                     hint_style=ft.TextStyle(color=COLORES["texto"]),
                     color=COLORES["accento"],
                     on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
@@ -481,8 +481,22 @@ def main(page: ft.Page):
                 numero_text.value = f"Problema: {id_problema} de {NUM_PROBLEMAS}"
                 estado = "✅ Entregado" if respuestas_enviadas[id_problema - 1] else "⏳ Pendiente"
                 estado_text.value = f"Estado: {estado}"
+                # Dynamic color for Estado
+                if "Pendiente" in estado:
+                    estado_text.color = COLORES["advertencia"]
+                else:
+                    estado_text.color = COLORES["exito"]
                 entregados = sum(1 for x in respuestas_enviadas if x)
                 progreso_text.value = f"Completados: {entregados} de {NUM_PROBLEMAS}"
+                # Dynamic color for Progreso
+                progreso_ratio = entregados / NUM_PROBLEMAS if NUM_PROBLEMAS > 0 else 0
+                if progreso_ratio < 0.33:
+                    progreso_text.color = COLORES["error"]
+                elif progreso_ratio < 0.66:
+                    progreso_text.color = COLORES["advertencia"]
+                else:
+                    progreso_text.color = COLORES["exito"]
+                    
                 barra_progreso.controls.clear()
                 barra_progreso.controls.extend(construir_barra_progreso().controls)
                 page.update()
@@ -550,8 +564,21 @@ def main(page: ft.Page):
                 save_k(page, "respuestas_enviadas", respuestas_enviadas)
                 # 🔄 Refrescar rótulos de Estado / Progreso
                 estado_text.value = "Estado: ✅ Entregado"
+                # Dynamic color for Estado
+                if "Pendiente" in estado:
+                    estado_text.color = COLORES["advertencia"]
+                else:
+                    estado_text.color = COLORES["exito"]
                 entregados = sum(1 for x in respuestas_enviadas if x)
                 progreso_text.value = f"Completados: {entregados} de {NUM_PROBLEMAS}"
+                # Dynamic color for Progreso
+                progreso_ratio = entregados / NUM_PROBLEMAS if NUM_PROBLEMAS > 0 else 0
+                if progreso_ratio < 0.33:
+                    progreso_text.color = COLORES["error"]
+                elif progreso_ratio < 0.66:
+                    progreso_text.color = COLORES["advertencia"]
+                else:
+                    progreso_text.color = COLORES["exito"]
                 feedback_text.value = ""
                 save_snack.open = True
                 status_icon.visible = True
@@ -682,7 +709,7 @@ def main(page: ft.Page):
             hint_text="Presiona «Enter» para enviar tu mensaje",
             bgcolor=COLORES["secundario"],
             border_color=COLORES["secundario"],
-            focused_border_color=COLORES["primario"],
+            focused_border_color=COLORES["exito"],
             border_radius=10,
             hint_style=ft.TextStyle(color=COLORES["texto"]),
             color=COLORES["accento"],
@@ -734,13 +761,13 @@ def main(page: ft.Page):
         estado_text = ft.Text(
             "",
             size=14,
-            color=COLORES["primario"]
+            color=COLORES["advertencia"]
         )
         
         progreso_text = ft.Text(
             "",
             size=14,
-            color=COLORES["primario"]
+            color=COLORES["error"]
         )
         
         titulo_label = ft.Text(
