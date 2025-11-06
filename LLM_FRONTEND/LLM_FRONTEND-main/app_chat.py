@@ -422,7 +422,9 @@ def main(page: ft.Page):
                     width=float("inf"),
                 )
             )
+            chat_area.auto_scroll = True
             chat_area.update()
+            chat_area.auto_scroll = False
             
         def cargar_chat_guardado(id_problema):
             #Recupera el historial del chat de un problema.
