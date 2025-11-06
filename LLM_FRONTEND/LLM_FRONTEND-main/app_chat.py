@@ -708,7 +708,7 @@ def main(page: ft.Page):
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=25, vertical=15),
                 shape=ft.RoundedRectangleBorder(radius=10),
-            )
+            ),
             on_click=lambda e: ir_a_problema(-1)
         )
 
@@ -719,7 +719,7 @@ def main(page: ft.Page):
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=25, vertical=15),
                 shape=ft.RoundedRectangleBorder(radius=10),
-            )
+            ),
             on_click=enviar_respuesta
         )
 
@@ -730,7 +730,7 @@ def main(page: ft.Page):
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(horizontal=25, vertical=15),
                 shape=ft.RoundedRectangleBorder(radius=10),
-            )
+            ),
             on_click=lambda e: ir_a_problema(+1)
         )
 
