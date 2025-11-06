@@ -398,7 +398,7 @@ def main(page: ft.Page):
                 texto = (respuesta_container.controls[0].value or "").strip()
                 save_k(page, f"respuesta_{problema_actual_id}", texto)
                 
-        # ✅ Unified function for consistent chat bubble alignment
+        # Unified function for consistent chat bubble alignment
         def add_chat_bubble(role, text):
             is_user = role == "user"
             chat_area.controls.append(
@@ -411,9 +411,8 @@ def main(page: ft.Page):
                     ),
                     padding=ft.padding.symmetric(horizontal=20, vertical=10),
                     alignment=ft.alignment.center_right if is_user else ft.alignment.center_left,
-                    bgcolor=COLORES["accento"] if is_user else None,
                     border_radius=ft.border_radius.all(10),
-                    width=float("inf"),  # 🟢 fills full width for consistent alignment
+                    width=float("inf"),
                 )
             )
             chat_area.update()
