@@ -455,7 +455,7 @@ def main(page: ft.Page):
                 respuesta_container.controls.clear()
                 tf = ft.TextField(
                     hint_text="Escribe tu respuesta aquí, presionando «Enter» para salto de línea",
-                    expand=True, multiline=True, min_lines=1, max_lines=5,
+                    expand=True, multiline=True, min_lines=1, max_lines=10,
                     bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                     focused_border_color=COLORES["primario"], border_radius=15,
                     hint_style=ft.TextStyle(color=COLORES["accento"]),
@@ -689,7 +689,7 @@ def main(page: ft.Page):
         )
 
         # ---- Problem area ----
-        ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"], weight="bold")
+        ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"])
         respuesta_container = ft.Column(spacing=20)
         feedback_text = ft.Text("", size=16, color=COLORES["exito"], text_align=ft.TextAlign.CENTER)
         status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
@@ -725,25 +725,25 @@ def main(page: ft.Page):
 
         numero_text = ft.Text(
             f"Problema: {problema_actual_id} de {NUM_PROBLEMAS}",
-            color=COLORES["subtitulo"],
+            color=COLORES["primario"],
             size=14
         )
         
         estado_text = ft.Text(
             "",
             size=14,
-            color=COLORES["subtitulo"]
+            color=COLORES["primario"]
         )
         
         progreso_text = ft.Text(
             "",
             size=14,
-            color=COLORES["subtitulo"]
+            color=COLORES["primario"]
         )
         
         titulo_label = ft.Text(
             f"{titulo_sesion}",
-            size=20, color=COLORES["subtitulo"], weight="bold",
+            size=20, color=COLORES["primario"], weight="bold",
         )
         
         # (opcional) pre-inicializar antes del primer cargar_problema:
@@ -808,7 +808,7 @@ def main(page: ft.Page):
         reiniciar_button = ft.ElevatedButton(
             "Reiniciar 🔄 Práctica",
             bgcolor=COLORES["error"],
-            color=COLORES["texto"],
+            color=COLORES["accento"],
             on_click=reiniciar_practica,
         )
         
