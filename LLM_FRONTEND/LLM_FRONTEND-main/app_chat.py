@@ -340,6 +340,14 @@ def main(page: ft.Page):
 
         page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))
 
+    def reiniciar_practica(e):
+        try:
+            reset_progress(page)
+            page.launch_url(JS_CLEAR_STORAGE)
+        except Exception as ex:
+            print(f"[WARN] Reinicio fallido: {ex}")
+        mostrar_pantalla_consentimiento()
+
     # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
     def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
         save_k(page, STATE_KEYS["screen"], "problems")
@@ -584,7 +592,7 @@ def main(page: ft.Page):
                     save_k(page, STATE_KEYS["current_problem"], next_id)
                     cargar_problema(next_id)
                 else:
-                    feedback_text.value = "¡Este fue el último problema disponible, presiona «Siguiente» para finalizar si ya entregaste todo!"
+                    feedback_text.value = "¡Este fue el último problema disponible! Presiona «Siguiente» para finalizar si ya entregaste todo"
                     feedback_text.color = COLORES["advertencia"]
                     enviar_button.disabled = False
                     page.update()
@@ -808,19 +816,6 @@ def main(page: ft.Page):
             expand=True,
             vertical_alignment=ft.CrossAxisAlignment.START,
         )
-        
-        def reiniciar_practica(e):
-            try:
-                nonlocal stop_timer
-                stop_timer = True
-            except Exception:
-                pass
-            reset_progress(page)
-            try:
-                page.launch_url(JS_CLEAR_STORAGE)
-            except Exception:
-                pass
-            mostrar_pantalla_consentimiento()
             
         reiniciar_button = ft.ElevatedButton(
             "Reiniciar 🔄 Práctica",
