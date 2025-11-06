@@ -706,8 +706,7 @@ def main(page: ft.Page):
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=25, vertical=15),
-                shape=ft.RoundedRectangleBorder(radius=10),
+                padding=ft.padding.symmetric(horizontal=30, vertical=20),
             ),
             on_click=lambda e: ir_a_problema(-1)
         )
@@ -717,8 +716,7 @@ def main(page: ft.Page):
             bgcolor=COLORES["exito"],
             color=COLORES["accento"],
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=25, vertical=15),
-                shape=ft.RoundedRectangleBorder(radius=10),
+                padding=ft.padding.symmetric(horizontal=30, vertical=20),
             ),
             on_click=enviar_respuesta
         )
@@ -728,8 +726,7 @@ def main(page: ft.Page):
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
             style=ft.ButtonStyle(
-                padding=ft.padding.symmetric(horizontal=25, vertical=15),
-                shape=ft.RoundedRectangleBorder(radius=10),
+                padding=ft.padding.symmetric(horizontal=30, vertical=20),
             ),
             on_click=lambda e: ir_a_problema(+1)
         )
