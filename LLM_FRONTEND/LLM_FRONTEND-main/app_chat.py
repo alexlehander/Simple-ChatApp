@@ -701,21 +701,13 @@ def main(page: ft.Page):
         status_text = ft.Text("", size=12, color=COLORES["exito"])
         status_row = ft.Row([status_icon, status_text], spacing=10, visible=False)
         
-        # 1.5× button style
-        SCALE = 1.5
-        BASE_PAD_H, BASE_PAD_V = 16, 10
-        BASE_TEXT_SIZE, BASE_RADIUS = 14, 8
-
+        # Larger buttons without changing text size
+        BTN_PAD_H, BTN_PAD_V = 24, 14   # increase only the padding
         big_btn_style = ft.ButtonStyle(
             padding=ft.padding.symmetric(
-                horizontal=int(BASE_PAD_H * SCALE),
-                vertical=int(BASE_PAD_V * SCALE),
+                horizontal=BTN_PAD_H,
+                vertical=BTN_PAD_V,
             ),
-            text_style=ft.TextStyle(
-                size=int(BASE_TEXT_SIZE * SCALE),
-                weight="bold",
-            ),
-            shape=ft.RoundedRectangleBorder(radius=int(BASE_RADIUS * SCALE)),
         )
         
         retroceder_button = ft.ElevatedButton(
