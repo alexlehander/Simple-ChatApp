@@ -700,11 +700,29 @@ def main(page: ft.Page):
         status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
         status_text = ft.Text("", size=12, color=COLORES["exito"])
         status_row = ft.Row([status_icon, status_text], spacing=10, visible=False)
+        
+        # 1.5× button style
+        SCALE = 1.5
+        BASE_PAD_H, BASE_PAD_V = 16, 10
+        BASE_TEXT_SIZE, BASE_RADIUS = 14, 8
 
+        big_btn_style = ft.ButtonStyle(
+            padding=ft.padding.symmetric(
+                horizontal=int(BASE_PAD_H * SCALE),
+                vertical=int(BASE_PAD_V * SCALE),
+            ),
+            text_style=ft.TextStyle(
+                size=int(BASE_TEXT_SIZE * SCALE),
+                weight="bold",
+            ),
+            shape=ft.RoundedRectangleBorder(radius=int(BASE_RADIUS * SCALE)),
+        )
+        
         retroceder_button = ft.ElevatedButton(
             "⏪ Anterior",
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
+            style=big_btn_style,
             on_click=lambda e: ir_a_problema(-1)
         )
 
@@ -712,6 +730,7 @@ def main(page: ft.Page):
             "Contestar ✅ Pregunta",
             bgcolor=COLORES["exito"],
             color=COLORES["accento"],
+            style=big_btn_style,
             on_click=enviar_respuesta
         )
 
@@ -719,13 +738,14 @@ def main(page: ft.Page):
             "Siguiente ⏩",
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
+            style=big_btn_style,
             on_click=lambda e: ir_a_problema(+1)
         )
 
         botones_row = ft.Row(
             [retroceder_button, enviar_button, siguiente_button],
             alignment=ft.MainAxisAlignment.CENTER,
-            spacing=20
+            spacing=30
         )
 
         numero_text = ft.Text(
@@ -863,7 +883,7 @@ def main(page: ft.Page):
                 start_epoch = now
                 save_k(page, STATE_KEYS["timer_start"], start_epoch)
 
-            TOTAL_SECONDS = 180 * 60
+            TOTAL_SECONDS = 1 * 60
             elapsed = max(0, now - int(start_epoch))
             remaining = max(0, TOTAL_SECONDS - elapsed)
 
