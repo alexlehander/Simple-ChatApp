@@ -1,5 +1,5 @@
 # app.py
-# Backend for single-condition, open-ended answering flow
+
 import os
 import random
 import string
@@ -7,21 +7,20 @@ import requests
 import json
 import datetime as dt
 from typing import List, Dict
-
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
 # ------------------------------------------------------------------------------------
-# Mistral / OpenRouter setup
+# LLM Setup
 # ------------------------------------------------------------------------------------
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_SITE_URL = os.getenv("OPENROUTER_SITE_URL", "https://example.com")
 OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "GrowTogether")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
 # If you want to implement a second layer of security / verification mechanism for LLM-generated answers - uncomment the next line and delete False (The quality of life improvement is very little)
 QC_ENABLED = False  #os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
-
 
 def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", temperature=0.5, max_tokens=1000):
     """Send chat messages to OpenRouter’s Mistral API."""
@@ -46,10 +45,9 @@ def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", tem
 # ------------------------------------------------------------------------------------
 # App & Config
 # ------------------------------------------------------------------------------------
+
 app = Flask(__name__)
 CORS(app)
-
-# DB URL via env; default matches docker-compose.yml
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "DATABASE_URL",
     "mysql+pymysql://app:app@db:3306/llmapp"
@@ -58,8 +56,9 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
 # ------------------------------------------------------------------------------------
-# Data Model (table names align with your SQL dumps)
+# Data Models
 # ------------------------------------------------------------------------------------
+
 class Usuario(db.Model):
     __tablename__ = "railway_usuario"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -89,164 +88,9 @@ class ChatLog(db.Model):
 with app.app_context():
     db.create_all()
 
-    # --- Auto-migrate: add practice_name column ---
-    
-    # --- Reposition 'problema_id' after practice_name (cosmetic) ---
-    try:
-        db.session.execute(db.text("""
-            ALTER TABLE railway_respuesta_usuario
-            MODIFY COLUMN problema_id INT NOT NULL
-            AFTER practice_name
-        """))
-        db.session.commit()
-        print("✔ Reordered railway_respuesta_usuario.problema_id after practice_name")
-    except Exception as e:
-        db.session.rollback()
-        print(f"↪ Skipping reorder of problema_id on railway_respuesta_usuario: {e}")
-    
-    # --- Reposition 'practice_name' after correo_identificacion (cosmetic) ---
-    try:
-        # Only run if the column exists (it will, after the add step)
-        db.session.execute(db.text("""
-            ALTER TABLE railway_chat_log
-            MODIFY COLUMN practice_name VARCHAR(255) NULL
-            AFTER correo_identificacion
-        """))
-        db.session.commit()
-        print("✔ Reordered railway_chat_log.practice_name")
-    except Exception as e:
-        db.session.rollback()
-        print(f"↪ Skipping reorder of practice_name on railway_chat_log: {e}")
-        
-    # --- Reposition 'practice_name' after correo_identificacion (cosmetic) ---
-    try:
-        # Only run if the column exists (it will, after the add step)
-        db.session.execute(db.text("""
-            ALTER TABLE railway_respuesta_usuario
-            MODIFY COLUMN practice_name VARCHAR(255) NULL
-            AFTER correo_identificacion
-        """))
-        db.session.commit()
-        print("✔ Reordered railway_respuesta_usuario.practice_name")
-    except Exception as e:
-        db.session.rollback()
-        print(f"↪ Skipping reorder of practice_name on railway_respuesta_usuario: {e}")
-    
-    try:
-        exists = db.session.execute(db.text("""
-            SELECT COUNT(*) FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'railway_chat_log'
-              AND COLUMN_NAME = 'practice_name'
-        """)).scalar()
-        if not exists:
-            print("⚙️ Adding 'practice_name' to railway_chat_log...")
-            db.session.execute(db.text("""
-                ALTER TABLE railway_chat_log
-                ADD COLUMN practice_name VARCHAR(255) NULL
-            """))
-            db.session.commit()
-            print("✔ Column 'practice_name' added to railway_chat_log")
-        else:
-            print("↪ railway_chat_log.practice_name already present, skipping")
-    except Exception as e:
-        db.session.rollback()
-        print(f"⚠️ Skipping add 'practice_name' to railway_chat_log: {e}")
-        
-    try:
-        exists = db.session.execute(db.text("""
-            SELECT COUNT(*) FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-            AND TABLE_NAME = 'railway_respuesta_usuario'
-            AND COLUMN_NAME = 'practice_name'
-        """)).scalar()
-
-        if not exists:
-            print("⚙️ Adding 'practice_name' column...")
-            db.session.execute(db.text("""
-                ALTER TABLE railway_respuesta_usuario
-                ADD COLUMN practice_name VARCHAR(255) NULL
-            """))
-            db.session.commit()
-            print("✔ Column 'practice_name' added successfully")
-        else:
-            print("↪ Column 'practice_name' already present, skipping")
-    except Exception as e:
-        db.session.rollback()
-        print(f"⚠️ Skipping add 'practice_name': {e}")
-
-    try:
-        dtype = db.session.execute(db.text(
-            "SELECT DATA_TYPE "
-            "FROM information_schema.COLUMNS "
-            "WHERE TABLE_SCHEMA = DATABASE() "
-            "AND TABLE_NAME = 'railway_respuesta_usuario' "
-            "AND COLUMN_NAME = 'respuesta'"
-        )).scalar()
-
-        if dtype == "varchar":
-            db.session.execute(db.text(
-                "ALTER TABLE railway_respuesta_usuario "
-                "MODIFY COLUMN respuesta TEXT"
-            ))
-            db.session.commit()
-            print("✔ Migrated railway_respuesta_usuario.respuesta to TEXT")
-        else:
-            print(f"↪ respuesta already {dtype}, skipping")
-    except Exception as e:
-        db.session.rollback()
-        print("⚠️ Skipping respuesta TEXT migration:", e)
-
-    # --- Auto-migrate: drop obsolete 'correcta' column ---
-    try:
-        exists = db.session.execute(db.text("""
-            SELECT COUNT(*) FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'railway_respuesta_usuario'
-              AND COLUMN_NAME = 'correcta'
-        """)).scalar()
-
-        if exists:
-            print("⚙️ Dropping obsolete column 'correcta' ...")
-            db.session.execute(db.text("ALTER TABLE railway_respuesta_usuario DROP COLUMN correcta"))
-            db.session.commit()
-            print("✔ Column 'correcta' dropped successfully")
-        else:
-            print("↪ Column 'correcta' already absent, skipping")
-    except Exception as e:
-        db.session.rollback()
-        print(f"⚠️ Skipping drop 'correcta': {e}")
-
-    # --- Auto-migrate: rename codigo_identificacion → correo_identificacion (run only once) ---
-    try:
-        for table in ["railway_usuario", "railway_respuesta_usuario", "railway_chat_log"]:
-            old_col_exists = db.session.execute(db.text(f"""
-                SELECT COUNT(*)
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                AND TABLE_NAME = '{table}'
-                AND COLUMN_NAME = 'codigo_identificacion'
-            """)).scalar()
-            new_col_exists = db.session.execute(db.text(f"""
-                SELECT COUNT(*)
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                AND TABLE_NAME = '{table}'
-                AND COLUMN_NAME = 'correo_identificacion'
-            """)).scalar()
-            if old_col_exists and not new_col_exists:
-                print(f"⚙️ Renaming codigo_identificacion → correo_identificacion in {table}...")
-                db.session.execute(db.text(f"""
-                    ALTER TABLE {table}
-                    CHANGE codigo_identificacion correo_identificacion VARCHAR(128) NULL
-                """))
-                db.session.commit()
-                print(f"✔ {table}: renamed successfully")
-            else:
-                print(f"↪ {table}: already migrated, skipping")
-    except Exception as e:
-        db.session.rollback()
-        print(f"⚠️ Skipping rename migration: {e}")
+# ------------------------------------------------------------------------------------
+# System Prompts
+# ------------------------------------------------------------------------------------
 
 DEFAULT_SYSTEM_PROMPT = (
     "ERES UN tutor inteligente que emplea el método “Chain of Thought” para procesar la información y responder en el idioma español. "
@@ -264,11 +108,12 @@ QC_SYSTEM_PROMPT = (
     "DEVUELVE ÚNICAMENTE el texto final de respuesta para el estudiante. "
 )
 
+# ------------------------------------------------------------------------------------
+# System Helpers
+# ------------------------------------------------------------------------------------
+
 EXERCISES_PATH = os.getenv("EXERCISES_PATH", "exercises")
 
-# ------------------------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------------------------
 def review_with_qc(original_answer: str, problem_text: str, system_rules: str, user_message: str) -> str:
     messages = [
         {"role": "system", "content": QC_SYSTEM_PROMPT},
@@ -288,7 +133,7 @@ def review_with_qc(original_answer: str, problem_text: str, system_rules: str, u
         # En caso de fallo del 2º paso, devolvemos el original para no bloquear al usuario
         print("QC second-pass error:", e)
         return original_answer
-        
+
 def get_problem_enunciado(practice_name: str, problema_id: int) -> str:
     try:
         file_path = os.path.join(EXERCISES_PATH, practice_name)
@@ -300,7 +145,7 @@ def get_problem_enunciado(practice_name: str, problema_id: int) -> str:
     except Exception as e:
         print(f"⚠️ Error leyendo {practice_name}: {e}")
     return ""
-    
+
 def get_or_create_user(correo_identificacion: str | None) -> Usuario:
     if not correo_identificacion:
         return None
@@ -310,7 +155,7 @@ def get_or_create_user(correo_identificacion: str | None) -> Usuario:
     db.session.add(u)
     db.session.commit()
     return u
-    
+
 def history_for_chat(correo_identificacion: str | None, problema_id: int, practice_name: str | None) -> List[Dict]:
     """Build conversation history with a dynamic system prompt including the problem enunciado."""
     logs = (
@@ -319,7 +164,6 @@ def history_for_chat(correo_identificacion: str | None, problema_id: int, practi
         .order_by(ChatLog.created_at.asc())
         .all()
     )
-
     # Determine problem text
     if not practice_name:
         last_resp = (
@@ -330,12 +174,10 @@ def history_for_chat(correo_identificacion: str | None, problema_id: int, practi
         )
         if last_resp and last_resp.practice_name:
             practice_name = last_resp.practice_name
-
     problem_text = get_problem_enunciado(practice_name, problema_id) if practice_name else ""
     sys_prompt = DEFAULT_SYSTEM_PROMPT + (
         f"El usuario está trabajando con el siguiente problema: {problem_text}" if problem_text else ""
     )
-
     messages = [{"role": "system", "content": sys_prompt}]
     for row in logs:
         role = "assistant" if row.role == "assistant" else "user"
@@ -357,6 +199,7 @@ def save_chat_turn(user: Usuario | None, correo: str | None, practice_name: str 
 # ------------------------------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------------------------------
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"ok": True})
@@ -367,12 +210,9 @@ def verificar_respuesta(problema_id):
     respuesta = data.get("respuesta")
     correo = data.get("correo_identificacion")
     practice_name = data.get("practice_name", "unknown_session.json")
-
     if not respuesta or not correo:
         return jsonify({"error": "Datos incompletos"}), 400
-
     usuario = get_or_create_user(correo)
-
     nueva_respuesta = RespuestaUsuario(
         user_id=usuario.id,
         problema_id=problema_id,
@@ -382,31 +222,23 @@ def verificar_respuesta(problema_id):
     )
     db.session.add(nueva_respuesta)
     db.session.commit()
-
     return jsonify({"message": "Respuesta registrada"}), 200
 
 @app.route("/chat/<int:problema_id>", methods=["POST"])
 def chat(problema_id: int):
-    """
-    Simple tutoring chat tied to a problem id.
-    Uses a single prompt set (no condition branching).
-    """
     data = request.get_json() or {}
     user_msg = (data.get("message") or "").strip()
     correo_identificacion = (data.get("correo_identificacion") or "").strip()
     practice_name = (data.get("practice_name") or "").strip()
     problem_text = get_problem_enunciado(practice_name, problema_id)
-
     if not user_msg:
         return jsonify({"response": "¿Puedes escribir tu mensaje?"})
-
     # Create a user based on e-mail
     usuario = get_or_create_user(correo_identificacion or None)
     # Save user's turn
     save_chat_turn(usuario, correo_identificacion or None, practice_name, problema_id, "user", user_msg)
     # Build message history (system + prior turns)
     messages = history_for_chat(correo_identificacion or None, problema_id, practice_name)
-
     # If we don't have an API key, return a graceful fallback
     if not OPENROUTER_API_KEY:
         assistant_text = (
@@ -436,6 +268,7 @@ def chat(problema_id: int):
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------
+
 if __name__ == "__main__":
     # For local dev; in production, gunicorn runs this app
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")), debug=False)

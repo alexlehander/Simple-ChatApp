@@ -805,15 +805,11 @@ def main(page: ft.Page):
                 pass
             mostrar_pantalla_consentimiento()
             
-        reiniciar_button = ft.TextButton(
+        reiniciar_button = ft.ElevatedButton(
             "Reiniciar 🔄 Práctica",
+            bgcolor=COLORES["error"],
+            color=COLORES["texto"],
             on_click=reiniciar_practica,
-            style=ft.ButtonStyle(
-                color=COLORES["accento"],
-                bgcolor=COLORES["error"],
-                padding=ft.padding.symmetric(10, 5),
-                shape=ft.RoundedRectangleBorder(radius=10),
-            )
         )
         
         # Layout principal con el botón de reinicio en la esquina
@@ -933,15 +929,11 @@ def main(page: ft.Page):
         layout = ft.Column([instruccion, ft.Divider(10), codigo_btn, ft.Divider(20), link_final, ft.Divider(30)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
         container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
         
-        reiniciar_button_final = ft.TextButton(
+        reiniciar_button_final = ft.ElevatedButton(
             "Reiniciar 🔄 Práctica",
-            on_click=lambda e: (reset_progress(page), mostrar_pantalla_consentimiento()),
-            style=ft.ButtonStyle(
-                color=COLORES["accento"],
-                bgcolor=COLORES["error"],
-                padding=ft.padding.symmetric(10, 5),
-                shape=ft.RoundedRectangleBorder(radius=6),
-            ),
+            bgcolor=COLORES["error"],
+            color=COLORES["texto"],
+            on_click=reiniciar_practica,
         )
 
         page.clean()
