@@ -397,26 +397,33 @@ def main(page: ft.Page):
             if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
                 texto = (respuesta_container.controls[0].value or "").strip()
                 save_k(page, f"respuesta_{problema_actual_id}", texto)
-
+                
+        # ✅ Unified function for consistent chat bubble alignment
+        def add_chat_bubble(role, text):
+            is_user = role == "user"
+            chat_area.controls.append(
+                ft.Container(
+                    content=ft.Text(
+                        text,
+                        color=COLORES["primario"] if is_user else COLORES["texto"],
+                        size=16,
+                        selectable=True
+                    ),
+                    padding=ft.padding.symmetric(horizontal=20, vertical=10),
+                    alignment=ft.alignment.center_right if is_user else ft.alignment.center_left,
+                    bgcolor=COLORES["accento"] if is_user else None,
+                    border_radius=ft.border_radius.all(10),
+                    width=float("inf"),  # 🟢 fills full width for consistent alignment
+                )
+            )
+            chat_area.update()
+            
         def cargar_chat_guardado(id_problema):
             #Recupera el historial del chat de un problema.
             chat_area.controls.clear()
             chats = load_k(page, STATE_KEYS["chat"], {})
             for msg in chats.get(str(id_problema), []):
-                align = ft.MainAxisAlignment.END if msg["role"] == "user" else ft.MainAxisAlignment.START
-                text_color = COLORES["primario"] if msg["role"] == "user" else COLORES["texto"]
-                chat_area.controls.append(
-                    ft.Row(
-                        [
-                            ft.Container(
-                                content=ft.Text(msg["text"], color=text_color, size=16, selectable=True),
-                                width=400,   # ✅ limit line width
-                                alignment=ft.alignment.top_right if msg["role"] == "user" else ft.alignment.top_left,
-                            )
-                        ],
-                        alignment=align,
-                    )
-                )
+                add_chat_bubble(msg["role"], msg["text"])
             chat_area.update()
 
         # 🔹 Restore last open problem
@@ -637,18 +644,7 @@ def main(page: ft.Page):
                 return
 
             # Show user bubble
-            chat_area.controls.append(
-                ft.Row(
-                    [
-                        ft.Container(
-                            content=ft.Text(msg, color=COLORES["primario"], size=16, selectable=True),
-                            width=400,   # ✅ same width constraint
-                            alignment=ft.alignment.top_right,
-                        )
-                    ],
-                    alignment=ft.MainAxisAlignment.END,
-                )
-            )
+            add_chat_bubble("user", msg)
             user_input.value = ""
             page.update()
             
@@ -669,33 +665,12 @@ def main(page: ft.Page):
                     timeout=30,
                 )
                 data = r.json() if r.ok else {"response": "Sin respuesta"}
-                chat_area.controls.append(
-                    ft.Row(
-                        [
-                            ft.Container(
-                                content=ft.Text(data.get("response", "Sin respuesta"), color=COLORES["texto"], size=16, selectable=True),
-                                width=400,   # ✅ same wrapping limit
-                                alignment=ft.alignment.top_left,
-                            )
-                        ],
-                        alignment=ft.MainAxisAlignment.START,
-                    )
-                )
+                add_chat_bubble("assistant", data.get("response", "Sin respuesta"))
                 chat_area.auto_scroll = True
                 chat_area.update()
                 chat_area.auto_scroll = False
             except Exception:
-                chat_area.controls.append(
-                    ft.Row(
-                        [ft.Container(
-                            content=ft.Text("Error de conexión con el servidor.", color=COLORES["accento"]),
-                            bgcolor=COLORES["error"],
-                            padding=20,
-                            border_radius=10
-                        )],
-                        alignment=ft.MainAxisAlignment.START,
-                    )
-                )
+                add_chat_bubble("assistant","Error de conexión con el servidor.")
             page.update()
             
             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": data.get('response','Sin respuesta')})
