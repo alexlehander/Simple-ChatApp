@@ -780,7 +780,7 @@ def main(page: ft.Page):
             if timer_hidden:
                 # Show placeholder label but DO NOT stop timer thread
                 temporizador_text.value = "Tiempo"
-                temporizador_text.color = COLORES["primario"]
+                temporizador_text.color = last_timer_color
             else:
                 # Restore the most recent computed value and color
                 temporizador_text.value = last_timer_string or temporizador_text.value
