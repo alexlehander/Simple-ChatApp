@@ -689,7 +689,7 @@ def main(page: ft.Page):
         )
 
         # ---- Problem area ----
-        ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["primario"])
+        ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["subtitulo"])
         respuesta_container = ft.Column(spacing=20)
         feedback_text = ft.Text("", size=16, color=COLORES["exito"], text_align=ft.TextAlign.CENTER)
         status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
