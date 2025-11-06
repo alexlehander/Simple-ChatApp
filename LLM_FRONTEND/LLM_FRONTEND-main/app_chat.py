@@ -564,11 +564,7 @@ def main(page: ft.Page):
                 save_k(page, "respuestas_enviadas", respuestas_enviadas)
                 # 🔄 Refrescar rótulos de Estado / Progreso
                 estado_text.value = "Estado: ✅ Entregado"
-                # Dynamic color for Estado
-                if "Pendiente" in estado:
-                    estado_text.color = COLORES["advertencia"]
-                else:
-                    estado_text.color = COLORES["exito"]
+                estado_text.color = COLORES["exito"]
                 entregados = sum(1 for x in respuestas_enviadas if x)
                 progreso_text.value = f"Completados: {entregados} de {NUM_PROBLEMAS}"
                 # Dynamic color for Progreso
