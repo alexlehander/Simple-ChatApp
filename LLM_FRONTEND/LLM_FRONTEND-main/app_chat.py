@@ -523,7 +523,7 @@ def main(page: ft.Page):
                     feedback_text.color = COLORES["advertencia"]
                     page.update()
                 return
-
+                
             cargar_problema(nuevo_id)
 
         def enviar_respuesta(e):
@@ -944,7 +944,7 @@ def main(page: ft.Page):
         reiniciar_button_final = ft.ElevatedButton(
             "Reiniciar 🔄 Práctica",
             bgcolor=COLORES["error"],
-            color=COLORES["texto"],
+            color=COLORES["accento"],
             on_click=reiniciar_practica,
         )
 
