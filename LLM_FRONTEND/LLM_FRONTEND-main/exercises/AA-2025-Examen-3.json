@@ -1,6 +1,7 @@
 {
   "title": "Unidad III: Algoritmos para Grafos",
   "description": "Propiedades de DFS/BFS, algoritmos de árbol de expansión mínima (MST), aristas seguras, Bellman-Ford optimizado y fundamentos teóricos de rutas más cortas.",
+  "max_time": 1800,
   "problemas": [
     {
       "id": 1,

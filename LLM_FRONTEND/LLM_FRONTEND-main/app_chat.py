@@ -308,6 +308,9 @@ def main(page: ft.Page):
 
             page.client_storage.set("correo_identificacion", correo)
             titulo, problemas = cargar_sesion(nombre_archivo)
+            with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
+                data = json.load(f)
+            save_k(page, "selected_session_meta", data)
             save_k(page, "selected_session_title", titulo)
             save_k(page, "selected_session_problems", problemas)
             save_k(page, "selected_session_filename", nombre_archivo)
@@ -872,9 +875,23 @@ def main(page: ft.Page):
                 start_epoch = now
                 save_k(page, STATE_KEYS["timer_start"], start_epoch)
 
-            TOTAL_SECONDS = 1 * 60
+            # 🔹 Leer tiempo máximo de la práctica o de un problema
+            session_data = load_k(page, "selected_session_problems", [])
+            session_meta = load_k(page, "selected_session_meta", {}) or {}
+
+            # Por defecto, 10 minutos (600 s)
+            TOTAL_SECONDS = session_meta.get("max_time", 600)
+
+            # O si lo defines por problema:
+            current_problem = next((p for p in PROBLEMAS if p.get("id") == problema_actual_id), {})
+            TOTAL_SECONDS = current_problem.get("max_time", TOTAL_SECONDS)
+
             elapsed = max(0, now - int(start_epoch))
             remaining = max(0, TOTAL_SECONDS - elapsed)
+            m, s = divmod(remaining, 60)            # mejor usar remaining para reanudar correctamente
+            temporizador_text.value = f"{m:02}:{s:02}"
+            temporizador_text.color = COLORES["exito"]
+            page.update()
 
             def cuenta():
                 nonlocal timer_hidden, last_timer_string, last_timer_color, stop_timer
