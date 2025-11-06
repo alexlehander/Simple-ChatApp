@@ -404,7 +404,7 @@ def main(page: ft.Page):
             chats = load_k(page, STATE_KEYS["chat"], {})
             for msg in chats.get(str(id_problema), []):
                 align = ft.MainAxisAlignment.END if msg["role"] == "user" else ft.MainAxisAlignment.START
-                text_color = COLORES["error"] if msg["role"] == "user" else COLORES["texto"]
+                text_color = COLORES["accento"] if msg["role"] == "user" else COLORES["texto"]
                 chat_area.controls.append(
                     ft.Row(
                         [
@@ -454,7 +454,7 @@ def main(page: ft.Page):
                 # ✅ Crear campo de respuesta
                 respuesta_container.controls.clear()
                 tf = ft.TextField(
-                    hint_text="Escribe tu respuesta aquí, presionando «Enter» para salto de línea",
+                    hint_text="Escribe tu respuesta aquí, presionando «Enter» para realizar salto de línea",
                     expand=True, multiline=True, min_lines=1, max_lines=10,
                     bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                     focused_border_color=COLORES["exito"], border_radius=15,
@@ -641,7 +641,7 @@ def main(page: ft.Page):
                 ft.Row(
                     [
                         ft.Container(
-                            content=ft.Text(msg, color=COLORES["error"], size=16, selectable=True),
+                            content=ft.Text(msg, color=COLORES["accento"], size=16, selectable=True),
                             width=400,   # ✅ same width constraint
                             alignment=ft.alignment.top_right,
                         )
@@ -702,7 +702,7 @@ def main(page: ft.Page):
             save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
 
         user_input = ft.TextField(
-            hint_text="Presiona «Enter» para enviar tu mensaje",
+            hint_text="Escribe tu mensaje aqui, presionando «Enter» para enviarlo",
             bgcolor=COLORES["secundario"],
             border_color=COLORES["secundario"],
             focused_border_color=COLORES["exito"],
@@ -714,7 +714,7 @@ def main(page: ft.Page):
         )
 
         # ---- Problem area ----
-        ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, color=COLORES["subtitulo"])
+        ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, weight="bold", color=COLORES["subtitulo"])
         respuesta_container = ft.Column(spacing=20)
         feedback_text = ft.Text("", size=16, color=COLORES["exito"], text_align=ft.TextAlign.CENTER)
         status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
