@@ -901,10 +901,12 @@ def main(page: ft.Page):
                     # Always keep latest values, but only paint UI if not hidden
                     last_timer_color = next_color
                     last_timer_string = next_value
-                    if not timer_hidden:
+                    if timer_hidden:
+                        temporizador_text.color = next_color  # let the label color follow the timer
+                    else:
                         temporizador_text.color = next_color
                         temporizador_text.value = next_value
-                        page.update()
+                    page.update()
                     time.sleep(1)
                     t -= 1
                 if not stop_timer:
