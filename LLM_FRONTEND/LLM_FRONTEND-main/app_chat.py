@@ -26,10 +26,6 @@ EXERCISES_PATH = "exercises"
 #    "exito": "#2E8B57",         # verde esmeralda legible (feedback positivo)
 #    "error": "#D64541",         # rojo coral (mejor contraste que #e63946)
 #    "advertencia": "#E0A800",   # amarillo dorado para alertas suaves
-#
-#    # Acentos (para resaltar)
-#    "acento": "#FFB400",        # dorado para llamar la atención sin saturar
-#    "acento2": "#E25B50",       # coral suave (resaltar textos o etiquetas)
 #}
 
 COLORES = {
@@ -51,10 +47,6 @@ COLORES = {
     "exito":     "#2ECC95",  # verde jade ligeramente más frío
     "error":     "#F2797B",  # rojo suave legible en dark
     "advertencia":"#F6A721", # ámbar accesible
-
-    # Acentos
-    "acento":    "#F5BE3D",  # dorado cálido para highlights
-    "acento2":   "#F4788A",  # coral para etiquetas/pequeños énfasis
 }
 
 JS_CLEAR_STORAGE = (
@@ -215,7 +207,7 @@ def main(page: ft.Page):
             on_change=on_check,
             active_color=COLORES["primario"],
             check_color=COLORES["accento"],
-            overlay_color=COLORES["acento2"],
+            overlay_color=COLORES["error"],
             label_style=ft.TextStyle(color=COLORES["primario"]),
         )
         
@@ -404,7 +396,7 @@ def main(page: ft.Page):
             chats = load_k(page, STATE_KEYS["chat"], {})
             for msg in chats.get(str(id_problema), []):
                 align = ft.MainAxisAlignment.END if msg["role"] == "user" else ft.MainAxisAlignment.START
-                text_color = COLORES["accento"] if msg["role"] == "user" else COLORES["texto"]
+                text_color = COLORES["primario"] if msg["role"] == "user" else COLORES["texto"]
                 chat_area.controls.append(
                     ft.Row(
                         [
@@ -458,7 +450,7 @@ def main(page: ft.Page):
                     expand=True, multiline=True, min_lines=1, max_lines=10,
                     bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                     focused_border_color=COLORES["exito"], border_radius=15,
-                    hint_style=ft.TextStyle(color=COLORES["texto"]),
+                    hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
                     color=COLORES["accento"],
                     on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
                 )
@@ -641,7 +633,7 @@ def main(page: ft.Page):
                 ft.Row(
                     [
                         ft.Container(
-                            content=ft.Text(msg, color=COLORES["accento"], size=16, selectable=True),
+                            content=ft.Text(msg, color=COLORES["primario"], size=16, selectable=True),
                             width=400,   # ✅ same width constraint
                             alignment=ft.alignment.top_right,
                         )
@@ -707,7 +699,7 @@ def main(page: ft.Page):
             border_color=COLORES["secundario"],
             focused_border_color=COLORES["exito"],
             border_radius=10,
-            hint_style=ft.TextStyle(color=COLORES["texto"]),
+            hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
             color=COLORES["accento"],
             max_length=1000,
             on_submit=send_message,
