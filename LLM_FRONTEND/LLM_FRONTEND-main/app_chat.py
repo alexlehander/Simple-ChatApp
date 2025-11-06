@@ -799,10 +799,19 @@ def main(page: ft.Page):
         )
         
         # Layout principal con el botón de reinicio en la esquina
-        header_row = ft.Column([
-            ft.Row([titulo_label, reiniciar_button], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            barra_progreso
-        ], spacing=10)
+        header_row = ft.Row(
+            [
+                titulo_label,
+                ft.Container(
+                    barra_progreso,
+                    expand=True,
+                    alignment=ft.alignment.center,
+                ),
+                reiniciar_button
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
 
         page.clean()
         
