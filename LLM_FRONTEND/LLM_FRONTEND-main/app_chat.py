@@ -4,6 +4,7 @@ import time
 import threading
 import os
 import json
+import uuid
 
 EXERCISES_PATH = "exercises"
 
@@ -410,22 +411,26 @@ def main(page: ft.Page):
             return (s.replace("&", "&amp;")
                     .replace("<", "&lt;")
                     .replace(">", "&gt;"))
-                    
+
         def render_message(text: str, color: str):
             """Render chat message with KaTeX math support (optimized)."""
+            msg_id = f"msg-{uuid.uuid4().hex}"
             html_content = f"""
-            <div id="msg" style="color:{color};font-size:16px;line-height:1.5;">
+            <div id="{msg_id}" style="color:{color};font-size:16px;line-height:1.5;">
                 {_escape_html(text).replace("\n", "<br>")}
             </div>
             <script>
                 try {{
                     if (window.renderMathInElement) {{
-                        renderMathInElement(document.getElementById("msg"), {{
-                            delimiters: [
-                                {{left: "$$", right: "$$", display: true}},
-                                {{left: "\\\\(", right: "\\\\)", display: false}}
-                            ]
-                        }});
+                        const el = document.getElementById("{msg_id}");
+                        if (el) {{
+                            renderMathInElement(el, {{
+                                delimiters: [
+                                    {{left: "$$", right: "$$", display: true}},
+                                    {{left: "\\\\(", right: "\\\\)", display: false}}
+                                ]
+                            }});
+                        }}
                     }}
                 }} catch(e) {{
                     console.error("KaTeX render error:", e);
@@ -433,7 +438,7 @@ def main(page: ft.Page):
             </script>
             """
             return ft.Html(content=html_content, width=450, height=None)
-            
+
         # Unified function for consistent chat bubble alignment
         def add_chat_bubble(role, text):
             is_user = role == "user"
@@ -717,9 +722,6 @@ def main(page: ft.Page):
                 )
                 data = r.json() if r.ok else {"response": "Sin respuesta"}
                 add_chat_bubble("assistant", data.get("response", "Sin respuesta"))
-                chat_area.auto_scroll = True
-                chat_area.update()
-                chat_area.auto_scroll = False
             except Exception:
                 add_chat_bubble("assistant","Error de conexión con el servidor.")
             page.update()
