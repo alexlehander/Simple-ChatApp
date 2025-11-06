@@ -701,20 +701,11 @@ def main(page: ft.Page):
         status_text = ft.Text("", size=12, color=COLORES["exito"])
         status_row = ft.Row([status_icon, status_text], spacing=10, visible=False)
         
-        # Larger buttons without changing text size
-        BTN_PAD_H, BTN_PAD_V = 24, 14   # increase only the padding
-        big_btn_style = ft.ButtonStyle(
-            padding=ft.padding.symmetric(
-                horizontal=BTN_PAD_H,
-                vertical=BTN_PAD_V,
-            ),
-        )
-        
         retroceder_button = ft.ElevatedButton(
             "⏪ Anterior",
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
-            style=big_btn_style,
+            padding=ft.padding.symmetric(horizontal=25, vertical=15),
             on_click=lambda e: ir_a_problema(-1)
         )
 
@@ -722,7 +713,7 @@ def main(page: ft.Page):
             "Contestar ✅ Pregunta",
             bgcolor=COLORES["exito"],
             color=COLORES["accento"],
-            style=big_btn_style,
+            padding=ft.padding.symmetric(horizontal=25, vertical=15),
             on_click=enviar_respuesta
         )
 
@@ -730,7 +721,7 @@ def main(page: ft.Page):
             "Siguiente ⏩",
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
-            style=big_btn_style,
+            padding=ft.padding.symmetric(horizontal=25, vertical=15),
             on_click=lambda e: ir_a_problema(+1)
         )
 
