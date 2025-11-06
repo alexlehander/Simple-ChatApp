@@ -458,7 +458,7 @@ def main(page: ft.Page):
                     expand=True, multiline=True, min_lines=1, max_lines=10,
                     bgcolor=COLORES["secundario"], border_color=COLORES["secundario"],
                     focused_border_color=COLORES["primario"], border_radius=15,
-                    hint_style=ft.TextStyle(color=COLORES["accento"]),
+                    hint_style=ft.TextStyle(color=COLORES["texto"]),
                     on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
                 )
 
