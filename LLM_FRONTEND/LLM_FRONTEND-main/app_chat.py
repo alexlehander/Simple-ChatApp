@@ -48,13 +48,10 @@ def _escape_html(s: str) -> str:
     return (s or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
 
 def build_katex_srcdoc(text: str) -> str:
-    # Leave TeX delimiters intact; only escape HTML.
-    # Preserve newlines so KaTeX can render blocks nicely.
     return KATEX_HTML.replace("{CONTENT}", _escape_html(text).replace("\n", "<br/>"))
 
 def might_have_latex(text: str) -> bool:
     t = text or ""
-    # Cheap heuristic that works well enough
     return any(x in t for x in ["\\(", "\\[", "$$", "$", "\\frac", "\\sum", "\\int", "\\begin{", "^", "_{"])
 
 
@@ -467,7 +464,6 @@ def main(page: ft.Page):
             content_ctrl: ft.Control
 
             if might_have_latex(text):
-                # Estimate a reasonable height; also allow postMessage resize (see below).
                 base = 60
                 extra = min(600, 20 * max(1, text.count("\n") + text.count("$$") + text.count("\\[")))
                 iframe_height = base + extra
@@ -751,8 +747,7 @@ def main(page: ft.Page):
             page.update()
             
             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "user", "text": msg})
-            save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))  # ensure persisted
-            # ✅ Define un default para evitar NameError si hay excepción
+            save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
             data = {"response": "Sin respuesta"}
 
             # Call backend
