@@ -718,23 +718,19 @@ def main(page: ft.Page):
         )
         
         # Listen for iframe auto-height messages (web only)
-        def _on_view_event(e: ft.ViewEvent):
-            payload = e.data if isinstance(e.data, dict) else json.loads(e.data)
-            if payload.get("type") == "katex_iframe_height":
-                try:
-                    payload = json.loads(e.data)
-                    if payload.get("type") == "katex_iframe_height":
-                        # The last added control is our bubble; adjust iframe height.
-                        if chat_area.controls:
-                            last = chat_area.controls[-1]
-                            if isinstance(last, ft.Container) and isinstance(last.content, ft.IFrame):
-                                last.content.height = int(payload.get("height", last.content.height))
-                                chat_area.update()
-                except Exception:
-                    pass
+        def _on_view_event(e):
+            try:
+                payload = e.data if isinstance(e.data, dict) else json.loads(e.data)
+                if payload.get("type") == "katex_iframe_height":
+                    if chat_area.controls:
+                        last = chat_area.controls[-1]
+                        if isinstance(last, ft.Container) and isinstance(last.content, ft.IFrame):
+                            last.content.height = int(payload.get("height", last.content.height))
+                            chat_area.update()
+            except Exception:
+                pass
 
         page.on_view_event = _on_view_event
-
 
         def send_message(e):
             msg = (user_input.value or "").strip()
