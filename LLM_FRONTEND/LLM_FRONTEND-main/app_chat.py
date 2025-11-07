@@ -6,6 +6,18 @@ import os
 import json
 import uuid
 
+# --- Safe Html shim (works with or without flet.Html) ---
+HtmlControl = getattr(ft, "Html", None)
+
+def _html_or_text(content: str, *, width=450, height=None, color=None):
+    """Render HTML if available, else plain text fallback."""
+    if HtmlControl:
+        return HtmlControl(content=content, width=width, height=height)
+    import re
+    stripped = re.sub(r"<[^>]*>", "", content)
+    return ft.Text(stripped, color=color or COLORES["texto"], size=16, selectable=True)
+
+
 EXERCISES_PATH = "exercises"
 
 #COLORES = {
@@ -437,7 +449,7 @@ def main(page: ft.Page):
                 }}
             </script>
             """
-            return ft.Html(content=html_content, width=450, height=None)
+            return _html_or_text(html_content, width=450, height=None)
 
         # Unified function for consistent chat bubble alignment
         def add_chat_bubble(role, text):
@@ -658,9 +670,12 @@ def main(page: ft.Page):
                 page._is_sending_response = False
 
         # One-time KaTeX loader at top of chat
-        katex_loader = ft.Html(
-            content="""
+        katex_loader = _html_or_text("""
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+            """, width=0, height=0)
+
             <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
             <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
             """,
