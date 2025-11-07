@@ -4,19 +4,6 @@ import time
 import threading
 import os
 import json
-import io, base64
-import matplotlib.pyplot as plt
-
-def latex_to_image_base64(latex_expr: str) -> str:
-    """Render LaTeX string to a base64 PNG image."""
-    fig, ax = plt.subplots(figsize=(0.01, 0.01))
-    ax.axis("off")
-    ax.text(0.5, 0.5, f"${latex_expr}$", fontsize=18, ha="center", va="center")
-    buf = io.BytesIO()
-    plt.savefig(buf, format="png", bbox_inches="tight", pad_inches=0.1, transparent=True)
-    plt.close(fig)
-    buf.seek(0)
-    return base64.b64encode(buf.read()).decode("utf-8")
 
 EXERCISES_PATH = "exercises"
 
@@ -421,25 +408,14 @@ def main(page: ft.Page):
         # Unified function for consistent chat bubble alignment
         def add_chat_bubble(role, text):
             is_user = role == "user"
-            stripped = (text or "").strip()
-
-            # If the whole message is a display-math block like $$ ... $$
-            # we render it to an image; otherwise we show plain text.
-            content_ctrl: ft.Control
-            if stripped.startswith("$$") and stripped.endswith("$$") and len(stripped) >= 4:
-                expr = stripped.strip("$")  # remove the wrapping $$...$$
-                try:
-                    img_b64 = latex_to_image_base64(expr)
-                    content_ctrl = ft.Image(src_base64=img_b64, width=350)
-                except Exception:
-                    # Fallback to plain text if math render fails
-                    content_ctrl = ft.Text(text, color=COLORES["primario"] if is_user else COLORES["texto"], size=16, selectable=True)
-            else:
-                content_ctrl = ft.Text(text, color=COLORES["primario"] if is_user else COLORES["texto"], size=16, selectable=True)
-
             chat_area.controls.append(
                 ft.Container(
-                    content=content_ctrl,
+                    content=ft.Text(
+                        text,
+                        color=COLORES["primario"] if is_user else COLORES["texto"],
+                        size=16,
+                        selectable=True
+                    ),
                     padding=ft.padding.symmetric(horizontal=10, vertical=10),
                     alignment=ft.alignment.center_right if is_user else ft.alignment.center_left,
                     border_radius=ft.border_radius.all(10),
