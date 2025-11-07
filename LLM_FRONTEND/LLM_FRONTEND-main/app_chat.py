@@ -5,6 +5,59 @@ import threading
 import os
 import json
 
+# --- LaTeX (KaTeX) helpers ----------------------------------------------------
+KATEX_HTML = """<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin:0; padding:8px 10px; background: transparent; }
+      .bubble { font-size: 16px; line-height: 1.35; color: #E6E9EF; }
+      .katex-display { margin: .6rem 0 .6rem 0; }
+      a { color: #8FB7FF; }
+      pre, code { color:#E6E9EF; }
+    </style>
+  </head>
+  <body>
+    <div id="content" class="bubble">{CONTENT}</div>
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        renderMathInElement(document.getElementById("content"), {
+          delimiters: [
+            {left: "$$", right: "$$", display: true},
+            {left: "\\\\[", right: "\\\\]", display: true},
+            {left: "\\\\(", right: "\\\\)", display: false},
+            {left: "$", right: "$", display: false}
+          ],
+          throwOnError: false
+        });
+        // Auto-height: report height to parent (Flet) if supported.
+        const h = document.documentElement.scrollHeight;
+        parent?.postMessage?.({type:"katex_iframe_height", height:h}, "*");
+      });
+    </script>
+  </body>
+</html>"""
+
+def _escape_html(s: str) -> str:
+    return (s or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+
+def build_katex_srcdoc(text: str) -> str:
+    # Leave TeX delimiters intact; only escape HTML.
+    # Preserve newlines so KaTeX can render blocks nicely.
+    return KATEX_HTML.replace("{CONTENT}", _escape_html(text).replace("\n", "<br/>"))
+
+def might_have_latex(text: str) -> bool:
+    t = text or ""
+    # Cheap heuristic that works well enough
+    return any(x in t for x in ["\\(", "\\[", "$$", "$", "\\frac", "\\sum", "\\int", "\\begin{", "^", "_{"])
+
+
 EXERCISES_PATH = "exercises"
 
 #COLORES = {
@@ -406,25 +459,47 @@ def main(page: ft.Page):
                 save_k(page, f"respuesta_{problema_actual_id}", texto)
                 
         # Unified function for consistent chat bubble alignment
+        
         def add_chat_bubble(role, text):
             is_user = role == "user"
-            chat_area.controls.append(
-                ft.Container(
-                    content=ft.Text(
-                        text,
-                        color=COLORES["primario"] if is_user else COLORES["texto"],
-                        size=16,
-                        selectable=True
-                    ),
-                    padding=ft.padding.symmetric(horizontal=10, vertical=10),
-                    alignment=ft.alignment.center_right if is_user else ft.alignment.center_left,
-                    border_radius=ft.border_radius.all(10),
-                    width=float("inf"),
+
+            # default content: plain text
+            content_ctrl: ft.Control
+
+            if might_have_latex(text):
+                # Estimate a reasonable height; also allow postMessage resize (see below).
+                base = 60
+                extra = min(600, 20 * max(1, text.count("\n") + text.count("$$") + text.count("\\[")))
+                iframe_height = base + extra
+
+                content_ctrl = ft.IFrame(
+                    srcdoc=build_katex_srcdoc(text),
+                    width=600,                 # you can tweak or set to None and rely on container width
+                    height=iframe_height,      # initial height; we’ll adjust on message
+                    border_radius=10,
                 )
+            else:
+                content_ctrl = ft.Text(
+                    text,
+                    color=COLORES["primario"] if is_user else COLORES["texto"],
+                    size=16,
+                    selectable=True
+                )
+
+            bubble = ft.Container(
+                content=content_ctrl,
+                padding=ft.padding.symmetric(horizontal=10, vertical=10),
+                alignment=ft.alignment.center_right if is_user else ft.alignment.center_left,
+                border_radius=ft.border_radius.all(10),
+                width=float("inf"),
+                bgcolor=None
             )
+
+            chat_area.controls.append(bubble)
             chat_area.auto_scroll = True
             chat_area.update()
             chat_area.auto_scroll = False
+
             
         def cargar_chat_guardado(id_problema):
             #Recupera el historial del chat de un problema.
@@ -641,6 +716,25 @@ def main(page: ft.Page):
             height=475,
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
+        
+        # Listen for iframe auto-height messages (web only)
+        def _on_view_event(e: ft.ViewEvent):
+            payload = e.data if isinstance(e.data, dict) else json.loads(e.data)
+            if payload.get("type") == "katex_iframe_height":
+                try:
+                    payload = json.loads(e.data)
+                    if payload.get("type") == "katex_iframe_height":
+                        # The last added control is our bubble; adjust iframe height.
+                        if chat_area.controls:
+                            last = chat_area.controls[-1]
+                            if isinstance(last, ft.Container) and isinstance(last.content, ft.IFrame):
+                                last.content.height = int(payload.get("height", last.content.height))
+                                chat_area.update()
+                except Exception:
+                    pass
+
+        page.on_view_event = _on_view_event
+
 
         def send_message(e):
             msg = (user_input.value or "").strip()
