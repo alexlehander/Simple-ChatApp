@@ -676,13 +676,6 @@ def main(page: ft.Page):
             <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
             """, width=0, height=0)
 
-            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-            <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-            """,
-            height=0,
-            width=0,
-        )
-
         # ---- Chat UI ----
         chat_area = ft.ListView(
             spacing=20,
