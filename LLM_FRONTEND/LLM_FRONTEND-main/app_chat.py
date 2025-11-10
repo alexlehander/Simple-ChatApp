@@ -7,46 +7,34 @@ import json
 
 EXERCISES_PATH = "exercises"
 
-#COLORES = {
-#    # Fondos y superficies
-#    "fondo": "#F5F7FA",         # gris-azulado muy claro (base neutra)
-#    "accento": "#E8F1FA",       # azul pastel para tarjetas / paneles
-#
-#    # Colores de texto
-#    "texto": "#1E2A38",         # gris-azul oscuro, alto contraste
-#    "subtitulo": "#4E5D6C",     # gris medio, ideal para instrucciones y detalles
-#
-#    # Colores principales de interacción
-#    "primario": "#1A4E8A",      # azul profesional, más cálido que el marino puro
-#    "secundario": "#5BA3D0",    # azul claro moderno para áreas intermedias
-#    "boton": "#1A4E8A",         # igual que primario para consistencia
-#    "borde": "#C8D6E5",         # gris azulado claro para contornos suaves
-#
-#    # Estados del sistema
-#    "exito": "#2E8B57",         # verde esmeralda legible (feedback positivo)
-#    "error": "#D64541",         # rojo coral (mejor contraste que #e63946)
-#    "advertencia": "#E0A800",   # amarillo dorado para alertas suaves
-#}
+# Paleta CLARA
+LIGHT_COLORS = {
+    "fondo": "#F5F7FA",
+    "accento": "#E8F1FA",
+    "texto": "#1E2A38",
+    "subtitulo": "#4E5D6C",
+    "primario": "#1A4E8A",
+    "secundario": "#5BA3D0",
+    "boton": "#1A4E8A",
+    "borde": "#C8D6E5",
+    "exito": "#2E8B57",
+    "error": "#D64541",
+    "advertencia": "#E0A800",
+}
 
-COLORES = {
-    # Fondos y superficies (más neutros)
-    "fondo":     "#0B0F14",  # charcoal neutral (menos tinte azul que #0F172A)
-    "accento":   "#161A20",  # panel/cards (ligeramente más claro que fondo)
-
-    # Texto
-    "texto":     "#E6E9EF",  # gris muy claro, no blanco puro
-    "subtitulo": "#AAB3C0",  # gris medio neutro
-
-    # Interacción (azules que destacan más sobre fondo neutro)
-    "primario":  "#8FB7FF",  # azul claro un poco más cálido (↑ contraste)
-    "secundario":"#5B96F7",  # azul medio para inputs/áreas intermedias
-    "boton":     "#1F3B86",  # azul profundo, suficiente separación del fondo
-    "borde":     "#2B323A",  # gris neutro para contornos/sombras suaves
-
-    # Estados
-    "exito":     "#2ECC95",  # verde jade ligeramente más frío
-    "error":     "#F2797B",  # rojo suave legible en dark
-    "advertencia":"#F6A721", # ámbar accesible
+# Paleta OSCURA
+DARK_COLORS = {
+    "fondo":     "#0B0F14",
+    "accento":   "#161A20",
+    "texto":     "#E6E9EF",
+    "subtitulo": "#AAB3C0",
+    "primario":  "#8FB7FF",
+    "secundario":"#5B96F7",
+    "boton":     "#1F3B86",
+    "borde":     "#2B323A",
+    "exito":     "#2ECC95",
+    "error":     "#F2797B",
+    "advertencia":"#F6A721",
 }
 
 JS_CLEAR_STORAGE = (
@@ -138,13 +126,16 @@ def reset_progress(page):
         print("❌ Error durante reset_progress:", e)
 
 def main(page: ft.Page):
+    theme_name = load_k(page, "theme", "dark")  # "dark" o "light"
+    COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
     page.title = "Grow Together"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.vertical_alignment = ft.MainAxisAlignment.START  # 👈 pin everything to the top
     page.scroll = ft.ScrollMode.ALWAYS
     page.padding = 20
     page.bgcolor = COLORES["fondo"]
-    page.theme_mode = ft.ThemeMode.DARK #ft.ThemeMode.LIGHT
+    page.theme_mode = ft.ThemeMode.DARK if theme_name == "dark" else ft.ThemeMode.LIGHT
+
     
     page.theme = ft.Theme(
         scrollbar_theme=ft.ScrollbarTheme(
@@ -167,7 +158,42 @@ def main(page: ft.Page):
         save_snack.duration = ms
         save_snack.open = True
         page.update()
-    
+        
+    def _apply_theme_and_redraw():
+        nonlocal theme_name, COLORES
+        theme_name = load_k(page, "theme", "dark")
+        COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
+
+        # Aplicar a nivel de Page
+        page.bgcolor = COLORES["fondo"]
+        page.theme_mode = ft.ThemeMode.DARK if theme_name == "dark" else ft.ThemeMode.LIGHT
+
+        # Redibujar según pantalla persistida
+        _render_current_screen()
+
+    def _render_current_screen():
+        screen = load_k(page, STATE_KEYS["screen"], "consent")
+        if screen in ("instructions", "survey"):
+            mostrar_pantalla_seleccion_sesion()
+        elif screen == "problems":
+            titulo = load_k(page, "selected_session_title", "Sesión")
+            problemas = load_k(page, "selected_session_problems", [])
+            if problemas:
+                mostrar_pantalla_intervencion(titulo, problemas)
+            else:
+                mostrar_pantalla_seleccion_sesion()
+        elif screen == "final":
+            mostrar_pantalla_encuesta_final()
+        else:
+            mostrar_pantalla_consentimiento()
+            
+    def toggle_theme(e=None):
+        # Cambiar valor y persistir
+        new_theme = "light" if load_k(page, "theme", "dark") == "dark" else "dark"
+        save_k(page, "theme", new_theme)
+        # Reaplicar paleta y redibujar la pantalla actual
+        _apply_theme_and_redraw()
+
     page.overlay.append(save_snack)
     
     # =============== PANTALLA 1: CONSENTIMIENTO =============== 
@@ -558,8 +584,8 @@ def main(page: ft.Page):
                 if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
                     val = (respuesta_container.controls[0].value or "").strip()
                 if not val:
-                    feedback_text.value = "La respuesta no puede estar vacía."
-                    feedback_text.color = COLORES["error"]
+                    feedback_text.value = "¡La respuesta no puede estar vacía!"
+                    feedback_text.color = COLORES["advertencia"]
                     enviar_button.disabled = False
                     page.update()
                     return
@@ -833,15 +859,18 @@ def main(page: ft.Page):
             on_click=reiniciar_practica,
         )
         
+        theme_icon_btn = ft.IconButton(
+            icon = ft.Icons.LIGHT_MODE if theme_name == "dark" else ft.Icons.DARK_MODE,
+            tooltip = "Cambiar tema",
+            icon_color = COLORES["primario"],
+            on_click = toggle_theme,
+        )
+        
         # Layout principal con el botón de reinicio en la esquina
         header_row = ft.Row(
             [
-                titulo_label,
-                ft.Container(
-                    barra_progreso,
-                    expand=True,
-                    alignment=ft.alignment.center,
-                ),
+                ft.Row([theme_icon_btn, titulo_label], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                ft.Container(barra_progreso, expand=True, alignment=ft.alignment.center),
                 ft.GestureDetector(
                     content=ft.Container(
                         temporizador_text,
@@ -1012,22 +1041,7 @@ def main(page: ft.Page):
             )
         )
 
-    # Boot
-    screen = load_k(page, STATE_KEYS["screen"], "consent")
-    if screen in ("instructions", "survey"):
-        mostrar_pantalla_seleccion_sesion()
-    elif screen == "problems":
-        titulo = load_k(page, "selected_session_title", "Sesión")
-        problemas = load_k(page, "selected_session_problems", [])
-        if problemas:
-            mostrar_pantalla_intervencion(titulo, problemas)
-        else:
-            mostrar_pantalla_seleccion_sesion()
-    elif screen == "final":
-        mostrar_pantalla_encuesta_final()
-    else:
-        mostrar_pantalla_consentimiento()
-
+    _apply_theme_and_redraw()
 
 if __name__ == "__main__":
     import os
