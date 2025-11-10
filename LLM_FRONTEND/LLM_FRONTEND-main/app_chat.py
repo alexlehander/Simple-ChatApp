@@ -1006,7 +1006,7 @@ def main(page: ft.Page):
         )
         link_final = ft.TextButton(
             "Encuesta de Satisfacción",
-            url="https://forms.gle/MfcjCF3oNs77zXtp8",
+            url="https://forms.gle/bKgHXAppdzbB5LQdA",
             url_target=ft.UrlTarget.BLANK,
             style=ft.ButtonStyle(
                 color=COLORES["accento"],
