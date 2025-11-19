@@ -1,10 +1,6 @@
 # app.py
 
-import os
-import random
-import string
-import requests
-import json
+import os, random, string, requests, json, threading
 import datetime as dt
 from typing import List, Dict
 from flask import Flask, jsonify, request
@@ -198,6 +194,20 @@ def save_chat_turn(user: Usuario | None, correo: str | None, practice_name: str 
     db.session.add(log)
     db.session.commit()
 
+def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id):
+    with app_obj.app_context():
+        print(f"🤖 [Background] Procesando mensaje para {correo}...")
+        try:
+            messages = history_for_chat(correo, problema_id, practice_name)
+            bot_response = call_mistral(messages)
+            usuario = Usuario.query.get(usuario_id)
+            save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", bot_response)
+            print(f"✅ [Background] Respuesta guardada para {correo}")
+        except Exception as e:
+            print(f"❌ [Background] Error generando respuesta: {e}")
+            usuario = Usuario.query.get(usuario_id)
+            save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", "Lo siento, tuve un error técnico al pensar mi respuesta.")
+            
 # ------------------------------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------------------------------
@@ -230,42 +240,31 @@ def verificar_respuesta(problema_id):
 def chat(problema_id: int):
     data = request.get_json() or {}
     user_msg = (data.get("message") or "").strip()
-    correo_identificacion = (data.get("correo_identificacion") or "").strip()
+    correo = (data.get("correo_identificacion") or "").strip()
     practice_name = (data.get("practice_name") or "").strip()
-    problem_text = get_problem_enunciado(practice_name, problema_id)
     if not user_msg:
-        return jsonify({"response": "¿Puedes escribir tu mensaje?"})
-    # Create a user based on e-mail
-    usuario = get_or_create_user(correo_identificacion or None)
-    # Save user's turn
-    save_chat_turn(usuario, correo_identificacion or None, practice_name, problema_id, "user", user_msg)
-    # Build message history (system + prior turns)
-    messages = history_for_chat(correo_identificacion or None, problema_id, practice_name)
-    # If we don't have an API key, return a graceful fallback
-    if not OPENROUTER_API_KEY:
-        assistant_text = (
-            "Gracias por tu mensaje. En este momento no puedo contactar al tutor automático. "
-            "Intenta explicar tu razonamiento y da el siguiente paso en el problema."
-        )
-        # ➜ Guardar turno del asistente y responder
-        save_chat_turn(usuario, correo_identificacion or None, practice_name, problema_id, "assistant", assistant_text)
-        return jsonify({"response": assistant_text})
+        return jsonify({"status": "error", "message": "Mensaje vacío"}), 400
+    usuario = get_or_create_user(correo)
+    save_chat_turn(usuario, correo, practice_name, problema_id, "user", user_msg)
+    thread = threading.Thread(
+        target=background_llm_task,
+        args=(app, usuario.id, correo, practice_name, problema_id)
+    )
+    thread.start()
+    return jsonify({"status": "processing", "message": "Procesando..."})
+    
+@app.route("/check_new_messages/<int:problema_id>", methods=["POST"])
+def check_new_messages(problema_id):
+    data = request.get_json()
+    correo = data.get("correo_identificacion")
+    last_msg = ChatLog.query.filter_by(
+        correo_identificacion=correo, 
+        problema_id=problema_id
+    ).order_by(ChatLog.created_at.desc()).first()
+    if last_msg and last_msg.role == "assistant":
+        return jsonify({"status": "completed", "response": last_msg.content})
     else:
-        try:
-            draft_text = call_mistral(messages)  # 1ª pasada (borrador)
-        except Exception as e:
-            print("Error contacting Mistral:", e)
-            draft_text = (
-                "He tenido un problema técnico para generar una respuesta en este momento. "
-                "Mientras tanto, intenta descomponer el problema en pasos más pequeños y explícame tu siguiente idea."
-            )
-        # 2ª pasada (control de calidad)
-        final_text = draft_text
-        if QC_ENABLED:
-            final_text = review_with_qc(original_answer=draft_text, problem_text=problem_text, system_rules=DEFAULT_SYSTEM_PROMPT, user_message=user_msg)
-        # Guarda SOLO la versión final para no 'contaminar' el historial
-        save_chat_turn(usuario, correo_identificacion or None, practice_name, problema_id, "assistant", final_text)
-        return jsonify({"response": final_text})
+        return jsonify({"status": "waiting"})
 
 # ------------------------------------------------------------------------------------
 # Entrypoint

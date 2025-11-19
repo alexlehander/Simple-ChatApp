@@ -743,64 +743,109 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Text("Por favor, escribe un mensaje", color=COLORES["error"], size=16),
                         padding=20, bgcolor=ft.colors.RED_50, border_radius=10,
-                        alignment = ft.alignment.center,
+                        alignment=ft.alignment.center,
                     )
                 )
                 page.update()
                 return
 
+            # 1. Mostrar mensaje del usuario inmediatamente
             add_chat_bubble("user", msg)
             user_input.value = ""
             page.update()
+            
+            # Guardar en historial local
             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "user", "text": msg})
-            save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))  # ensure persisted
-            data = {"response": "Sin respuesta"}
 
-            # Call backend
-            try:
-                # 🌟 DATOS DE LA PETICIÓN
-                payload = {
-                    "message": msg,
-                    "correo_identificacion": correo,
-                    "practice_name": load_k(page, "selected_session_filename", "unknown_session.json")
-                }
-                
-                r = requests.post(
-                    f"{BACKEND_URL_CHAT}/{problema_actual_id}",
-                    json=payload,
-                    timeout=30,
-                )
-                r.raise_for_status() # Lanza excepción si el status no es 2xx
+            # Datos para el backend
+            payload = {
+                "message": msg,
+                "correo_identificacion": correo,
+                "practice_name": load_k(page, "selected_session_filename", "unknown_session.json")
+            }
 
-                # ✅ Éxito
-                data = r.json()
-                response_text = data.get("response", "Sin respuesta")
-
-            except requests.exceptions.RequestException:
-                # ⚠️ Fallo de conexión o timeout: Agregar a la cola y usar respuesta de fallback
-                print("❌ Falló el envío de chat. Agregando a cola.")
-                add_to_pending_queue(page, {
-                    "type": "chat",
-                    "problema_id": problema_actual_id,
-                    "data": payload,
-                })
-                response_text = "Error de conexión con el servidor. Se reintentará tu mensaje automáticamente."
-            except Exception:
-                response_text = "Error inesperado al procesar la respuesta."
-            
-            current_id_on_ui = load_k(page, STATE_KEYS["current_problem"], 1)
-                if int(current_id_on_ui) != problema_actual_id:
-                    update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": response_text})
+            # 2. Función de POLLING (La magia para que no se congele)
+            def poll_loop():
+                # Paso A: Enviar el mensaje inicial
+                try:
+                    # Esta petición ahora responde muy rápido ("Procesando...")
+                    r_init = requests.post(
+                        f"{BACKEND_URL_CHAT}/{problema_actual_id}",
+                        json=payload,
+                        timeout=10
+                    )
+                    r_init.raise_for_status()
+                except Exception as ex:
+                    print(f"Error envío inicial: {ex}")
+                    # Si falla el envío inicial, agregamos a la cola de reintentos
+                    add_to_pending_queue(page, {
+                        "type": "chat",
+                        "problema_id": problema_actual_id,
+                        "data": payload,
+                    })
+                    if not page.cleaned:
+                        add_chat_bubble("system", "Sin conexión. Se reintentará automáticamente.")
+                        page.update()
                     return
-            # Show assistant bubble
-            add_chat_bubble("assistant", response_text)
-            chat_area.auto_scroll = True
-            chat_area.update()
-            chat_area.auto_scroll = False
-            
-            # Persistir el turno del asistente (LOCAL)
-            update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": response_text})
-            save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
+
+                # Mostrar burbuja temporal de "Escribiendo..."
+                loading_text = "Escribiendo..."
+                if not page.cleaned:
+                    add_chat_bubble("assistant", loading_text)
+                    page.update()
+
+                # Paso B: Preguntar repetidamente si ya terminó
+                max_retries = 60  # 120 segundos máx
+                retry_count = 0
+                
+                while retry_count < max_retries:
+                    if page.cleaned: return # Si el usuario cerró la pestaña
+                    
+                    time.sleep(2) # Esperar 2 segundos entre preguntas
+                    
+                    try:
+                        # Verificar si el usuario cambió de problema mientras esperábamos
+                        current_ui_id = int(load_k(page, STATE_KEYS["current_problem"], 1))
+                        if current_ui_id != problema_actual_id:
+                            return # Ya no estamos en el problema correcto, abortar visualización
+
+                        # Preguntar al backend
+                        r = requests.post(
+                            f"{BASE}/check_new_messages/{problema_actual_id}",
+                            json={"correo_identificacion": correo},
+                            timeout=5
+                        )
+                        data = r.json()
+                        
+                        if data.get("status") == "completed":
+                            # ¡RESPUESTA LISTA!
+                            final_response = data.get("response")
+                            
+                            # Eliminar burbuja de "Escribiendo..."
+                            if chat_area.controls and chat_area.controls[-1].content.content.value == loading_text:
+                                chat_area.controls.pop()
+                            
+                            # Mostrar respuesta final
+                            add_chat_bubble("assistant", final_response)
+                            update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": final_response})
+                            page.update()
+                            return # TERMINAMOS
+                            
+                    except Exception as e:
+                        print(f"Polling error: {e}")
+                    
+                    retry_count += 1
+                
+                # Si llegamos aquí, es timeout
+                if not page.cleaned:
+                    # Eliminar "Escribiendo..."
+                    if chat_area.controls and chat_area.controls[-1].content.content.value == loading_text:
+                        chat_area.controls.pop()
+                    add_chat_bubble("system", "El tutor tardó demasiado. Por favor intenta de nuevo.")
+                    page.update()
+
+            # 3. Iniciar el proceso en un hilo aparte
+            threading.Thread(target=poll_loop, daemon=True).start()
 
         user_input = ft.TextField(
             hint_text="Escribe tu mensaje aqui, presionando «Enter» para enviarlo",
