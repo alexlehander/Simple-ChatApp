@@ -107,7 +107,7 @@ def update_map(page, key, problem_id, item):
 
 def reset_progress(page):
     try:
-        keys = page.client_storage.get_keys()
+        keys = page.client_storage.get_keys("")
         print(f"🧹 Eliminando {len(keys)} claves del almacenamiento local...")
         for k in keys:
             try:
@@ -1100,8 +1100,8 @@ def main(page: ft.Page):
                             return
                     if not page.cleaned:
                         mostrar_pantalla_encuesta_final()
-
-        threading.Thread(target=cuenta, daemon=True).start()
+            threading.Thread(target=cuenta, daemon=True).start()
+        
         iniciar_temporizador()
         
         def process_pending_queue():
