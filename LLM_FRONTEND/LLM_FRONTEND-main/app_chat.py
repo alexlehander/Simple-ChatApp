@@ -397,6 +397,19 @@ def main(page: ft.Page):
         else:
             respuestas_enviadas = prev
         save_k(page, "respuestas_enviadas", respuestas_enviadas)
+        
+        # --- DEBOUNCING ---
+        debounce_timers = {}
+        DEBOUNCE_DELAY_SECONDS = 1.0
+        def debounce_save(id_problema: int, value: str):
+            pid = str(id_problema)
+            if pid in debounce_timers and debounce_timers[pid] is not None:
+                debounce_timers[pid].cancel()
+            def perform_save():
+                page.run_thread(lambda: save_k(page, f"respuesta_{id_problema}", value))
+            t = threading.Timer(DEBOUNCE_DELAY_SECONDS, perform_save)
+            debounce_timers[pid] = t
+            t.start()
 
         # === PROGRESS BAR OF PROBLEMS ===
         def construir_barra_progreso():
@@ -505,7 +518,7 @@ def main(page: ft.Page):
                     border_radius=10,
                     hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
                     color=COLORES["accento"],
-                    on_change=lambda e: save_k(page, f"respuesta_{id_problema}", e.control.value)
+                    on_change=lambda e, pid=id_problema: debounce_save(pid, e.control.value)
                 )
 
                 draft = page.client_storage.get(f"respuesta_{id_problema}")
