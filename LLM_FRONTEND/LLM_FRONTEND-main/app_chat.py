@@ -394,9 +394,16 @@ def main(page: ft.Page):
     # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
     def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
         save_k(page, STATE_KEYS["screen"], "problems")
-
+        user_input = None
         correo = page.client_storage.get("correo_identificacion") or "No disponible"
         stop_timer = False
+        page.input_is_focused = False
+        def on_input_focus(e): page.input_is_focused = True
+        def on_input_blur(e): page.input_is_focused = False
+        def on_global_keyboard(e: ft.KeyboardEvent):
+            if e.key and len(e.key) == 1 and not page.input_is_focused:
+                user_input.focus()
+        page.on_keyboard_event = on_global_keyboard
         problema_actual_id = 1
         NUM_PROBLEMAS = len(PROBLEMAS)
         # --- Timer toggle state ---
@@ -499,19 +506,16 @@ def main(page: ft.Page):
 
         # ---- Funciones internas ----
         def cargar_problema(id_problema: int):
+            if user_input is not None: save_k(page, f"chat_draft_{problema_actual_id}", user_input.value)
             nonlocal problema_actual_id
             problema_actual_id = id_problema
             save_k(page, STATE_KEYS["current_problem"], problema_actual_id)
             chat_area.controls.clear()
-
             siguiente_button.disabled = False
             enviar_button.disabled = False
             retroceder_button.disabled = False
             page.update()
-
-            if getattr(page, "_is_loading_problem", False):
-                return
-
+            if getattr(page, "_is_loading_problem", False): return
             page._is_loading_problem = True
             try:
                 p = next((pr for pr in PROBLEMAS if pr.get("id") == id_problema), None)
@@ -520,11 +524,9 @@ def main(page: ft.Page):
                     feedback_text.color = COLORES["error"]
                     page.update()
                     return
-
                 # ✅ Cargar enunciado localmente
                 ejercicio_text.value = p.get("enunciado", "")
                 ejercicio_text.text_align = ft.TextAlign.JUSTIFY
-
                 # ✅ Crear campo de respuesta
                 respuesta_container.controls.clear()
                 tf = ft.TextField(
@@ -536,14 +538,16 @@ def main(page: ft.Page):
                     border_radius=10,
                     hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
                     color=COLORES["accento"],
-                    on_change=lambda e, pid=id_problema: debounce_save(pid, e.control.value)
+                    on_change=lambda e, pid=id_problema: debounce_save(pid, e.control.value),
+                    on_focus=on_input_focus,
+                    on_blur=on_input_blur
                 )
 
                 draft = page.client_storage.get(f"respuesta_{id_problema}")
-                if draft:
-                    tf.value = draft
+                if draft: tf.value = draft
                 respuesta_container.controls.append(tf)
-
+                chat_draft = load_k(page, f"chat_draft_{id_problema}", "")
+                if user_input is not None: user_input.value = chat_draft
                 feedback_text.value = ""
                 status_row.visible = False
 
@@ -737,6 +741,7 @@ def main(page: ft.Page):
         )
 
         def send_message(e):
+            current_pid = problema_actual_id
             msg = (user_input.value or "").strip()
             if not msg:
                 chat_area.controls.append(
@@ -752,10 +757,12 @@ def main(page: ft.Page):
             # 1. Mostrar mensaje del usuario inmediatamente
             add_chat_bubble("user", msg)
             user_input.value = ""
+            save_k(page, f"chat_draft_{current_pid}", "")
+            user_input.focus()
             page.update()
             
             # Guardar en historial local
-            update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "user", "text": msg})
+            update_map(page, STATE_KEYS["chat"], current_pid, {"role": "user", "text": msg})
 
             # Datos para el backend
             payload = {
@@ -768,9 +775,9 @@ def main(page: ft.Page):
             def poll_loop():
                 # --- PASO A: Envío Inicial ---
                 try:
-                    print(f"[DEBUG] Enviando mensaje inicial al problema {problema_actual_id}...")
+                    print(f"[DEBUG] Enviando mensaje inicial al problema {current_pid}...")
                     r_init = requests.post(
-                        f"{BACKEND_URL_CHAT}/{problema_actual_id}",
+                        f"{BACKEND_URL_CHAT}/{current_pid}",
                         json=payload,
                         timeout=20 
                     )
@@ -779,7 +786,7 @@ def main(page: ft.Page):
                     print(f"❌ Error envío inicial: {ex}")
                     add_to_pending_queue(page, {
                         "type": "chat",
-                        "problema_id": problema_actual_id,
+                        "problema_id": current_pid,
                         "data": payload,
                     })
                     if page.is_alive:
@@ -804,12 +811,12 @@ def main(page: ft.Page):
                     
                     try:
                         current_ui_id = int(load_k(page, STATE_KEYS["current_problem"], 1))
-                        if current_ui_id != problema_actual_id:
+                        if current_ui_id != current_pid:
                             return 
 
                         # Preguntar al servidor
                         r = requests.post(
-                            f"{BASE}/check_new_messages/{problema_actual_id}",
+                            f"{BASE}/check_new_messages/{current_pid}",
                             json={"correo_identificacion": correo},
                             timeout=10
                         )
@@ -847,7 +854,7 @@ def main(page: ft.Page):
                                     pass # Si la estructura es diferente, simplemente no borramos y agregamos al final
                             
                             add_chat_bubble("assistant", final_response)
-                            update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": final_response})
+                            update_map(page, STATE_KEYS["chat"], current_pid, {"role": "assistant", "text": final_response})
                             page.update()
                             return 
                             
@@ -878,6 +885,8 @@ def main(page: ft.Page):
             color=COLORES["accento"],
             max_length=1000,
             on_submit=send_message,
+            on_focus=on_input_focus,
+            on_blur=on_input_blur
         )
 
         # ---- Problem area ----
