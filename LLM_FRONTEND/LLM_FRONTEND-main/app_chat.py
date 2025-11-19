@@ -506,8 +506,8 @@ def main(page: ft.Page):
 
         # ---- Funciones internas ----
         def cargar_problema(id_problema: int):
-            if user_input is not None: save_k(page, f"chat_draft_{problema_actual_id}", user_input.value)
             nonlocal problema_actual_id
+            if user_input is not None: save_k(page, f"chat_draft_{problema_actual_id}", user_input.value)
             problema_actual_id = id_problema
             save_k(page, STATE_KEYS["current_problem"], problema_actual_id)
             chat_area.controls.clear()
