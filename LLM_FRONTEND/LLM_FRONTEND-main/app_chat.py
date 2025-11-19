@@ -386,15 +386,10 @@ def main(page: ft.Page):
     def reiniciar_practica(e):
         try:
             reset_progress(page)
-            page.run_js("""
-                localStorage.clear();
-                sessionStorage.clear();
-                window.location.reload();
-            """)
+            page.launch_url("/", web_window_name="_self")
         except Exception as ex:
             print(f"[WARN] Reinicio fallido: {ex}")
-            page.launch_url("/", web_window_name="_self")
-        mostrar_pantalla_consentimiento()
+            mostrar_pantalla_consentimiento()
 
     # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
     def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
@@ -770,10 +765,10 @@ def main(page: ft.Page):
             }
 
             # 2. Función de POLLING (La magia para que no se congele)
+            # 2. Función de POLLING (La magia para que no se congele)
             def poll_loop():
                 # Paso A: Enviar el mensaje inicial
                 try:
-                    # Esta petición ahora responde muy rápido ("Procesando...")
                     r_init = requests.post(
                         f"{BACKEND_URL_CHAT}/{problema_actual_id}",
                         json=payload,
@@ -782,7 +777,6 @@ def main(page: ft.Page):
                     r_init.raise_for_status()
                 except Exception as ex:
                     print(f"Error envío inicial: {ex}")
-                    # Si falla el envío inicial, agregamos a la cola de reintentos
                     add_to_pending_queue(page, {
                         "type": "chat",
                         "problema_id": problema_actual_id,
@@ -799,22 +793,20 @@ def main(page: ft.Page):
                     add_chat_bubble("assistant", loading_text)
                     page.update()
 
-                # Paso B: Preguntar repetidamente si ya terminó
-                max_retries = 60  # 120 segundos máx
+                # Paso B: Preguntar repetidamente
+                max_retries = 60 
                 retry_count = 0
                 
                 while retry_count < max_retries:
-                    if not page.is_alive: return # Si el usuario cerró la pestaña
+                    if not page.is_alive: return
                     
-                    time.sleep(2) # Esperar 2 segundos entre preguntas
+                    time.sleep(2)
                     
                     try:
-                        # Verificar si el usuario cambió de problema mientras esperábamos
                         current_ui_id = int(load_k(page, STATE_KEYS["current_problem"], 1))
                         if current_ui_id != problema_actual_id:
-                            return # Ya no estamos en el problema correcto, abortar visualización
+                            return 
 
-                        # Preguntar al backend
                         r = requests.post(
                             f"{BASE}/check_new_messages/{problema_actual_id}",
                             json={"correo_identificacion": correo},
@@ -826,25 +818,26 @@ def main(page: ft.Page):
                             # ¡RESPUESTA LISTA!
                             final_response = data.get("response")
                             
-                            # Eliminar burbuja de "Escribiendo..."
-                            if chat_area.controls and chat_area.controls[-1].content.content.value == loading_text:
+                            # --- CORRECCIÓN 1: Quitar un .content ---
+                            # Antes: .content.content.value
+                            # Ahora: .content.value
+                            if chat_area.controls and chat_area.controls[-1].content.value == loading_text:
                                 chat_area.controls.pop()
                             
-                            # Mostrar respuesta final
                             add_chat_bubble("assistant", final_response)
                             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": final_response})
                             page.update()
-                            return # TERMINAMOS
+                            return 
                             
                     except Exception as e:
                         print(f"Polling error: {e}")
                     
                     retry_count += 1
                 
-                # Si llegamos aquí, es timeout
+                # Timeout
                 if page.is_alive:
-                    # Eliminar "Escribiendo..."
-                    if chat_area.controls and chat_area.controls[-1].content.content.value == loading_text:
+                    # --- CORRECCIÓN 2: Quitar un .content ---
+                    if chat_area.controls and chat_area.controls[-1].content.value == loading_text:
                         chat_area.controls.pop()
                     add_chat_bubble("system", "El tutor tardó demasiado. Por favor intenta de nuevo.")
                     page.update()
