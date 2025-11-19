@@ -135,6 +135,11 @@ def add_to_pending_queue(page, item: dict):
 
 
 def main(page: ft.Page):
+    page.is_alive = True  # Bandera personalizada para saber si la sesión vive
+    def on_disconnect_handler(e):
+        page.is_alive = False
+        print("El usuario se desconectó, deteniendo hilos...")
+    page.on_disconnect = on_disconnect_handler
     theme_name = load_k(page, "theme", "dark")  # "dark" o "light"
     COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
     page.title = "Grow Together"
@@ -783,14 +788,14 @@ def main(page: ft.Page):
                         "problema_id": problema_actual_id,
                         "data": payload,
                     })
-                    if not page.cleaned:
+                    if page.is_alive:
                         add_chat_bubble("system", "Sin conexión. Se reintentará automáticamente.")
                         page.update()
                     return
 
                 # Mostrar burbuja temporal de "Escribiendo..."
                 loading_text = "Escribiendo..."
-                if not page.cleaned:
+                if page.is_alive:
                     add_chat_bubble("assistant", loading_text)
                     page.update()
 
@@ -799,7 +804,7 @@ def main(page: ft.Page):
                 retry_count = 0
                 
                 while retry_count < max_retries:
-                    if page.cleaned: return # Si el usuario cerró la pestaña
+                    if not page.is_alive: return # Si el usuario cerró la pestaña
                     
                     time.sleep(2) # Esperar 2 segundos entre preguntas
                     
@@ -837,7 +842,7 @@ def main(page: ft.Page):
                     retry_count += 1
                 
                 # Si llegamos aquí, es timeout
-                if not page.cleaned:
+                if page.is_alive:
                     # Eliminar "Escribiendo..."
                     if chat_area.controls and chat_area.controls[-1].content.content.value == loading_text:
                         chat_area.controls.pop()
@@ -1063,11 +1068,10 @@ def main(page: ft.Page):
                 nonlocal timer_hidden, last_timer_string, last_timer_color, stop_timer
                 while getattr(page, "_is_loading_problem", False):
                     time.sleep(0.1)
-                    if page.cleaned: return 
+                    if not page.is_alive: return
                 t = remaining
                 while t > 0 and not stop_timer:
-                    if page.cleaned:
-                        return 
+                    if not page.is_alive: return
                     m, s = divmod(t, 60)
                     percent = t / TOTAL_SECONDS
                     next_color = COLORES["exito"] if percent > 0.5 else (COLORES["advertencia"] if percent > 0.25 else COLORES["error"])
@@ -1086,7 +1090,7 @@ def main(page: ft.Page):
                     time.sleep(1)
                     t -= 1
                 if not stop_timer:
-                    if page.cleaned: return
+                    if not page.is_alive: return
                     stop_timer = True
                     finish_text = "¡Tiempo terminado!"
                     last_timer_string = finish_text
@@ -1098,7 +1102,7 @@ def main(page: ft.Page):
                             page.update()
                         except Exception:
                             return
-                    if not page.cleaned:
+                    if page.is_alive:
                         mostrar_pantalla_encuesta_final()
             threading.Thread(target=cuenta, daemon=True).start()
         
@@ -1108,8 +1112,8 @@ def main(page: ft.Page):
             nonlocal is_retransmiting
             while not stop_timer:
                 time.sleep(15) # 15 segundos entre reintentos
-                if is_retransmiting:
-                    continue
+                if not page.is_alive: return
+                if is_retransmiting: continue
                 is_retransmiting = True
                 
                 queue: list = load_k(page, STATE_KEYS["pending_queue"], []) or []
