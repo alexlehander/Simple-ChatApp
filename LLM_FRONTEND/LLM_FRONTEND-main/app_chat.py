@@ -127,6 +127,8 @@ def reset_progress(page):
         print("❌ Error durante reset_progress:", e)
 
 def add_to_pending_queue(page, item: dict):
+     if "retry_count" not in item:
+        item["retry_count"] = 0
     queue = load_k(page, STATE_KEYS["pending_queue"], []) or []
     queue.append(item)
     save_k(page, STATE_KEYS["pending_queue"], queue)
@@ -695,7 +697,7 @@ def main(page: ft.Page):
                 
                 if is_success:
                     # Ocultar el estado "Guardado" después de 1.2s solo si fue exitoso
-                    threading.Timer(1.2, lambda: (setattr(status_row, "visible", False), page.update())).start()
+                    threading.Timer(1.5, lambda: (setattr(status_row, "visible", False), page.update())).start()
 
             except Exception as e:
                 # Caso de fallo inesperado (JSON malformado, etc.) que no es de red.
@@ -1055,41 +1057,46 @@ def main(page: ft.Page):
                 
                 if queue:
                     page.run_thread(lambda: flash(f"Reintentando {len(queue)} petición(es) pendiente(s)...", ok=True, ms=1500))
-
+                    
                 for item in queue:
                     payload = item["data"]
                     problema_id = item["problema_id"]
                     is_success = False
+                    MAX_RETRIES = 50
                     
                     try:
                         if item["type"] == "answer":
                             resp = requests.post(f"{BACKEND_URL_VERIFICAR}/{problema_id}", json=payload, timeout=10)
                             resp.raise_for_status()
                             is_success = True
-                            
                         elif item["type"] == "chat":
-                            # No necesitamos la respuesta del chat, solo asegurar el registro
                             resp = requests.post(f"{BACKEND_URL_CHAT}/{problema_id}", json=payload, timeout=10)
                             resp.raise_for_status()
                             is_success = True
-
+                            
+                    except requests.exceptions.HTTPError as http_err:
+                        item["retry_count"] = item.get("retry_count", 0) + 1 
+                        if item["retry_count"] < MAX_RETRIES:
+                            new_queue.append(item)
+                            print(f"⚠️ Reintento HTTP fallido {item['retry_count']}/{MAX_RETRIES} para {item['type']} {problema_id}. Error: {http_err}")
+                        else:
+                            page.run_thread(lambda: flash(f"❌ Descartando {item['type']} para problema {problema_id}. Falló {MAX_RETRIES} veces por error HTTP.", ok=False, ms=5000))
+                            print(f"❌ Descartando {item['type']} {problema_id}. Límite de reintentos ({MAX_RETRIES}) alcanzado.")
+                            
                     except requests.exceptions.RequestException as e:
-                        # Falló de nuevo, mantener en la cola
                         new_queue.append(item)
+                        
                     except Exception as e:
-                        # Error inesperado (ej. problema en el backend que no es de red), no reintentar
-                        print(f"⚠️ Error fatal en reintento de {item['type']}: {e}. Descartando.")
-
+                        print(f"⚠️ Error fatal en reintento de {item['type']}: {e}. Descartando permanentemente.")
+                        
                 if len(new_queue) < len(queue):
                     save_k(page, STATE_KEYS["pending_queue"], new_queue)
                     if not new_queue:
                          page.run_thread(lambda: flash("✅ Todas las peticiones pendientes han sido enviadas.", ok=True, ms=2000))
                     else:
                         page.run_thread(lambda: flash(f"Algunas peticiones enviadas. Quedan {len(new_queue)} pendientes.", ok=True, ms=2000))
-                        
                 is_retransmiting = False
-
-            
+                
         if page.session:
             threading.Thread(target=process_pending_queue, daemon=True).start()
         else:
