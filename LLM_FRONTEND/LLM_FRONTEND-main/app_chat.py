@@ -127,11 +127,12 @@ def reset_progress(page):
         print("❌ Error durante reset_progress:", e)
 
 def add_to_pending_queue(page, item: dict):
-     if "retry_count" not in item:
+    if "retry_count" not in item:
         item["retry_count"] = 0
     queue = load_k(page, STATE_KEYS["pending_queue"], []) or []
     queue.append(item)
     save_k(page, STATE_KEYS["pending_queue"], queue)
+
 
 def main(page: ft.Page):
     theme_name = load_k(page, "theme", "dark")  # "dark" o "light"
