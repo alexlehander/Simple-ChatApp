@@ -66,6 +66,7 @@ STATE_KEYS = {
     "answers": "answers_map",                  # dict: {problem_id: "answer text"}
     "chat": "chat_map",                        # dict: {problem_id: [{"role":"user|agent","text":"..."}]}
     "timer_start": "timer_start_epoch",        # int epoch seconds when Xmin started
+    "pending_queue": "pending_queue_list",     # list: [{"type": "chat|answer", "data": {...}}]
 }
 
 def listar_sesiones():
@@ -124,6 +125,11 @@ def reset_progress(page):
         print("✅ Limpieza interna de Flet completada.")
     except Exception as e:
         print("❌ Error durante reset_progress:", e)
+
+def add_to_pending_queue(page, item: dict):
+    queue = load_k(page, STATE_KEYS["pending_queue"], []) or []
+    queue.append(item)
+    save_k(page, STATE_KEYS["pending_queue"], queue)
 
 def main(page: ft.Page):
     theme_name = load_k(page, "theme", "dark")  # "dark" o "light"
@@ -389,6 +395,7 @@ def main(page: ft.Page):
         timer_hidden = False
         last_timer_string = ""
         last_timer_color = COLORES["primario"]
+        is_retransmiting = False
 
         # --- Align completion flags length with current total ---
         prev = load_k(page, "respuestas_enviadas", [])
@@ -584,6 +591,8 @@ def main(page: ft.Page):
                 
             cargar_problema(nuevo_id)
 
+        # app_chat.py (Reemplazar la función enviar_respuesta dentro de mostrar_pantalla_intervencion)
+
         def enviar_respuesta(e):
             if getattr(page, "_is_sending_response", False):
                 return
@@ -594,6 +603,7 @@ def main(page: ft.Page):
 
             try:
                 val = ""
+                # 1. Validación de respuesta no vacía (Lógica original - CORRECTA)
                 if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
                     val = (respuesta_container.controls[0].value or "").strip()
                 if not val:
@@ -601,31 +611,59 @@ def main(page: ft.Page):
                     feedback_text.color = COLORES["advertencia"]
                     enviar_button.disabled = False
                     page.update()
-                    return
+                    return # Detiene la ejecución si está vacío
 
                 practice_name = load_k(page, "selected_session_filename", "unknown_session.json")
-                resp = requests.post(
-                    f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
-                    json={
-                        "respuesta": val,
-                        "correo_identificacion": correo,
-                        "practice_name": practice_name
-                    },
-                    timeout=20,
-                )
+                
+                # DATOS DE LA PETICIÓN
+                payload = {
+                    "respuesta": val,
+                    "correo_identificacion": correo,
+                    "practice_name": practice_name
+                }
+                
+                is_success = False
 
-                resp.raise_for_status()
-
-                # ✅ Guardar y avanzar de forma segura
+                # 2. INTENTO DE ENVÍO y MANEJO de FALLO (AQUÍ ES DONDE FALTABA EL MANEJO DE LA COLA)
+                try:
+                    resp = requests.post(
+                        f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
+                        json=payload,
+                        timeout=20,
+                    )
+                    resp.raise_for_status()
+                    is_success = True
+                    
+                except requests.exceptions.RequestException as req_ex:
+                    # ⚠️ Fallo de conexión o timeout: Agregar a la cola
+                    print(f"❌ Falló el envío de respuesta. Agregando a cola. Error: {req_ex}")
+                    add_to_pending_queue(page, {
+                        "type": "answer",
+                        "problema_id": problema_actual_id,
+                        "data": payload,
+                    })
+                    # Muestra un mensaje temporal sin bloquear el avance
+                    # Usamos page.run_thread porque estamos en el thread principal, pero es buena práctica de Flet para UI
+                    page.run_thread(lambda: flash("¡Conexión perdida! La respuesta se guardó para reintentar", ok=False, ms=3000))
+                    
+                
+                # 3. Lógica de GUARDADO LOCAL y AVANCE (Se ejecuta siempre, independientemente del éxito del envío)
                 save_k(page, f"respuesta_{problema_actual_id}", val)
                 respuestas_enviadas[problema_actual_id - 1] = True
                 save_k(page, "respuestas_enviadas", respuestas_enviadas)
+                
                 # 🔄 Refrescar rótulos de Estado / Progreso
-                estado_text.value = "Estado: ✅ Entregado"
-                estado_text.color = COLORES["exito"]
+                if is_success:
+                    estado_text.value = "Estado: ✅ Entregado"
+                    estado_text.color = COLORES["exito"]
+                    save_snack.open = True
+                else:
+                    estado_text.value = "Estado: ⚠️ Pendiente de Envío"
+                    estado_text.color = COLORES["error"]
+                
+                # Esto es copiado de tu lógica original (Progreso - CORRECTO)
                 entregados = sum(1 for x in respuestas_enviadas if x)
                 progreso_text.value = f"Completados: {entregados} de {NUM_PROBLEMAS}"
-                # Dynamic color for Progreso
                 progreso_ratio = entregados / NUM_PROBLEMAS if NUM_PROBLEMAS > 0 else 0
                 if progreso_ratio < 0.33:
                     progreso_text.color = COLORES["error"]
@@ -633,17 +671,16 @@ def main(page: ft.Page):
                     progreso_text.color = COLORES["advertencia"]
                 else:
                     progreso_text.color = COLORES["exito"]
-                feedback_text.value = ""
-                save_snack.open = True
+
+                feedback_text.value = "" # Limpiar feedback
                 status_icon.visible = True
-                status_text.value = "Guardado"
+                status_text.value = "Guardado" if is_success else "Guardado (Pendiente de Envío)"
                 status_row.visible = True
+                
                 # 🔄 Refresh progress bar colors
                 barra_progreso.controls.clear()
                 barra_progreso.controls.extend(construir_barra_progreso().controls)
-                page.update()
-                threading.Timer(1.2, lambda: (setattr(status_row, "visible", False), page.update())).start()
-
+                
                 # --- Verificar existencia del siguiente problema ---
                 next_id = problema_actual_id + 1
                 if next_id <= NUM_PROBLEMAS:
@@ -653,15 +690,22 @@ def main(page: ft.Page):
                     feedback_text.value = "¡Este fue el último problema disponible! Presiona «Siguiente» para finalizar si ya entregaste todo"
                     feedback_text.color = COLORES["advertencia"]
                     enviar_button.disabled = False
-                    page.update()
+                
+                page.update()
+                
+                if is_success:
+                    # Ocultar el estado "Guardado" después de 1.2s solo si fue exitoso
+                    threading.Timer(1.2, lambda: (setattr(status_row, "visible", False), page.update())).start()
 
-            except Exception:
-                feedback_text.value = "Error al registrar o cargar el siguiente problema."
+            except Exception as e:
+                # Caso de fallo inesperado (JSON malformado, etc.) que no es de red.
+                print(f"Error inesperado en enviar_respuesta: {e}")
+                feedback_text.value = "Error inesperado al registrar o cargar el siguiente problema."
                 feedback_text.color = COLORES["error"]
                 enviar_button.disabled = False
                 page.update()
             finally:
-                # ✅ Siempre desbloquear
+                # Siempre desbloquear
                 page._is_sending_response = False
 
         # ---- Chat UI ----
@@ -694,37 +738,53 @@ def main(page: ft.Page):
                 page.update()
                 return
 
-            # Show user bubble
             add_chat_bubble("user", msg)
             user_input.value = ""
             page.update()
-            
             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "user", "text": msg})
             save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))  # ensure persisted
-            # ✅ Define un default para evitar NameError si hay excepción
             data = {"response": "Sin respuesta"}
 
             # Call backend
             try:
+                # 🌟 DATOS DE LA PETICIÓN
+                payload = {
+                    "message": msg,
+                    "correo_identificacion": correo,
+                    "practice_name": load_k(page, "selected_session_filename", "unknown_session.json")
+                }
+                
                 r = requests.post(
                     f"{BACKEND_URL_CHAT}/{problema_actual_id}",
-                    json={
-                        "message": msg,
-                        "correo_identificacion": correo,
-                        "practice_name": load_k(page, "selected_session_filename", "unknown_session.json")
-                    },
+                    json=payload,
                     timeout=30,
                 )
-                data = r.json() if r.ok else {"response": "Sin respuesta"}
-                add_chat_bubble("assistant", data.get("response", "Sin respuesta"))
-                chat_area.auto_scroll = True
-                chat_area.update()
-                chat_area.auto_scroll = False
+                r.raise_for_status() # Lanza excepción si el status no es 2xx
+
+                # ✅ Éxito
+                data = r.json()
+                response_text = data.get("response", "Sin respuesta")
+
+            except requests.exceptions.RequestException:
+                # ⚠️ Fallo de conexión o timeout: Agregar a la cola y usar respuesta de fallback
+                print("❌ Falló el envío de chat. Agregando a cola.")
+                add_to_pending_queue(page, {
+                    "type": "chat",
+                    "problema_id": problema_actual_id,
+                    "data": payload,
+                })
+                response_text = "Error de conexión con el servidor. Se reintentará tu mensaje automáticamente."
             except Exception:
-                add_chat_bubble("assistant","Error de conexión con el servidor.")
-            page.update()
+                response_text = "Error inesperado al procesar la respuesta."
+
+            # Show assistant bubble
+            add_chat_bubble("assistant", response_text)
+            chat_area.auto_scroll = True
+            chat_area.update()
+            chat_area.auto_scroll = False
             
-            update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": data.get('response','Sin respuesta')})
+            # Persistir el turno del asistente (LOCAL)
+            update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": response_text})
             save_k(page, STATE_KEYS["chat"], load_k(page, STATE_KEYS["chat"], {}))
 
         user_input = ft.TextField(
@@ -981,7 +1041,59 @@ def main(page: ft.Page):
                 print("[DEBUG] Flet page not ready — timer thread skipped.")
 
         iniciar_temporizador()
+        
+        def process_pending_queue():
+            nonlocal is_retransmiting
+            while not stop_timer:
+                time.sleep(15) # 15 segundos entre reintentos
+                if is_retransmiting:
+                    continue
+                is_retransmiting = True
+                
+                queue: list = load_k(page, STATE_KEYS["pending_queue"], []) or []
+                new_queue = []
+                
+                if queue:
+                    page.run_thread(lambda: flash(f"Reintentando {len(queue)} petición(es) pendiente(s)...", ok=True, ms=1500))
 
+                for item in queue:
+                    payload = item["data"]
+                    problema_id = item["problema_id"]
+                    is_success = False
+                    
+                    try:
+                        if item["type"] == "answer":
+                            resp = requests.post(f"{BACKEND_URL_VERIFICAR}/{problema_id}", json=payload, timeout=10)
+                            resp.raise_for_status()
+                            is_success = True
+                            
+                        elif item["type"] == "chat":
+                            # No necesitamos la respuesta del chat, solo asegurar el registro
+                            resp = requests.post(f"{BACKEND_URL_CHAT}/{problema_id}", json=payload, timeout=10)
+                            resp.raise_for_status()
+                            is_success = True
+
+                    except requests.exceptions.RequestException as e:
+                        # Falló de nuevo, mantener en la cola
+                        new_queue.append(item)
+                    except Exception as e:
+                        # Error inesperado (ej. problema en el backend que no es de red), no reintentar
+                        print(f"⚠️ Error fatal en reintento de {item['type']}: {e}. Descartando.")
+
+                if len(new_queue) < len(queue):
+                    save_k(page, STATE_KEYS["pending_queue"], new_queue)
+                    if not new_queue:
+                         page.run_thread(lambda: flash("✅ Todas las peticiones pendientes han sido enviadas.", ok=True, ms=2000))
+                    else:
+                        page.run_thread(lambda: flash(f"Algunas peticiones enviadas. Quedan {len(new_queue)} pendientes.", ok=True, ms=2000))
+                        
+                is_retransmiting = False
+
+            
+        if page.session:
+            threading.Thread(target=process_pending_queue, daemon=True).start()
+        else:
+            print("[DEBUG] Flet page not ready — retry thread skipped.")
 
     # =============== PANTALLA 5: ENCUESTA FINAL ===============
     def mostrar_pantalla_encuesta_final():
