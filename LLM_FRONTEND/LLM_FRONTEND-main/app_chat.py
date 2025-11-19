@@ -107,7 +107,7 @@ def update_map(page, key, problem_id, item):
 
 def reset_progress(page):
     try:
-        keys = list(page.client_storage.get_keys(""))
+        keys = page.client_storage.get_keys()
         print(f"🧹 Eliminando {len(keys)} claves del almacenamiento local...")
         for k in keys:
             try:
@@ -381,9 +381,14 @@ def main(page: ft.Page):
     def reiniciar_practica(e):
         try:
             reset_progress(page)
-            page.launch_url(JS_CLEAR_STORAGE)
+            page.run_js("""
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.reload();
+            """)
         except Exception as ex:
             print(f"[WARN] Reinicio fallido: {ex}")
+            page.launch_url("/", web_window_name="_self")
         mostrar_pantalla_consentimiento()
 
     # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
@@ -416,7 +421,10 @@ def main(page: ft.Page):
             if pid in debounce_timers and debounce_timers[pid] is not None:
                 debounce_timers[pid].cancel()
             def perform_save():
-                page.run_thread(lambda: save_k(page, f"respuesta_{id_problema}", value))
+                try:
+                    save_k(page, f"respuesta_{id_problema}", value)
+                except Exception as _:
+                    pass
             t = threading.Timer(DEBOUNCE_DELAY_SECONDS, perform_save)
             debounce_timers[pid] = t
             t.start()
@@ -647,7 +655,7 @@ def main(page: ft.Page):
                     })
                     # Muestra un mensaje temporal sin bloquear el avance
                     # Usamos page.run_thread porque estamos en el thread principal, pero es buena práctica de Flet para UI
-                    page.run_thread(lambda: flash("¡Conexión perdida! La respuesta se guardó para reintentar", ok=False, ms=3000))
+                    flash("Conexión perdida! La respuesta se guardó para reintentar", ok=False)
                     
                 
                 # 3. Lógica de GUARDADO LOCAL y AVANCE (Se ejecuta siempre, independientemente del éxito del envío)
@@ -779,7 +787,11 @@ def main(page: ft.Page):
                 response_text = "Error de conexión con el servidor. Se reintentará tu mensaje automáticamente."
             except Exception:
                 response_text = "Error inesperado al procesar la respuesta."
-
+            
+            current_id_on_ui = load_k(page, STATE_KEYS["current_problem"], 1)
+                if int(current_id_on_ui) != problema_actual_id:
+                    update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "assistant", "text": response_text})
+                    return
             # Show assistant bubble
             add_chat_bubble("assistant", response_text)
             chat_area.auto_scroll = True
@@ -1006,25 +1018,30 @@ def main(page: ft.Page):
                 nonlocal timer_hidden, last_timer_string, last_timer_color, stop_timer
                 while getattr(page, "_is_loading_problem", False):
                     time.sleep(0.1)
+                    if page.cleaned: return 
                 t = remaining
                 while t > 0 and not stop_timer:
+                    if page.cleaned:
+                        return 
                     m, s = divmod(t, 60)
                     percent = t / TOTAL_SECONDS
-                    # Compute next color and string
                     next_color = COLORES["exito"] if percent > 0.5 else (COLORES["advertencia"] if percent > 0.25 else COLORES["error"])
                     next_value = f"{m:02}:{s:02}"
-                    # Always keep latest values, but only paint UI if not hidden
                     last_timer_color = next_color
                     last_timer_string = next_value
                     if timer_hidden:
-                        temporizador_text.color = next_color  # let the label color follow the timer
+                        temporizador_text.color = next_color
                     else:
                         temporizador_text.color = next_color
                         temporizador_text.value = next_value
-                    page.update()
+                    try:
+                        page.update()
+                    except Exception:
+                        return 
                     time.sleep(1)
                     t -= 1
                 if not stop_timer:
+                    if page.cleaned: return
                     stop_timer = True
                     finish_text = "¡Tiempo terminado!"
                     last_timer_string = finish_text
@@ -1032,17 +1049,14 @@ def main(page: ft.Page):
                     if not timer_hidden:
                         temporizador_text.value = finish_text
                         temporizador_text.color = COLORES["error"]
-                        page.update()
-                    try:
-                        page.call_from_async(lambda: mostrar_pantalla_encuesta_final())
-                    except Exception:
-                        threading.Timer(0.5, lambda: mostrar_pantalla_encuesta_final()).start()
+                        try:
+                            page.update()
+                        except Exception:
+                            return
+                    if not page.cleaned:
+                        mostrar_pantalla_encuesta_final()
 
-            if page.session:
-                threading.Thread(target=cuenta, daemon=True).start()
-            else:
-                print("[DEBUG] Flet page not ready — timer thread skipped.")
-
+        threading.Thread(target=cuenta, daemon=True).start()
         iniciar_temporizador()
         
         def process_pending_queue():
@@ -1057,7 +1071,7 @@ def main(page: ft.Page):
                 new_queue = []
                 
                 if queue:
-                    page.run_thread(lambda: flash(f"Reintentando {len(queue)} petición(es) pendiente(s)...", ok=True, ms=1500))
+                    flash(f"Reintentando {len(queue)} petición(es) pendiente(s)...", ok=True, ms=2000)
                     
                 for item in queue:
                     payload = item["data"]
@@ -1081,7 +1095,7 @@ def main(page: ft.Page):
                             new_queue.append(item)
                             print(f"⚠️ Reintento HTTP fallido {item['retry_count']}/{MAX_RETRIES} para {item['type']} {problema_id}. Error: {http_err}")
                         else:
-                            page.run_thread(lambda: flash(f"❌ Descartando {item['type']} para problema {problema_id}. Falló {MAX_RETRIES} veces por error HTTP.", ok=False, ms=5000))
+                            flash(f"❌ Descartando {item['type']} para problema {problema_id}. Falló {MAX_RETRIES} veces por error HTTP.", ok=False)
                             print(f"❌ Descartando {item['type']} {problema_id}. Límite de reintentos ({MAX_RETRIES}) alcanzado.")
                             
                     except requests.exceptions.RequestException as e:
@@ -1093,15 +1107,12 @@ def main(page: ft.Page):
                 if len(new_queue) < len(queue):
                     save_k(page, STATE_KEYS["pending_queue"], new_queue)
                     if not new_queue:
-                         page.run_thread(lambda: flash("✅ Todas las peticiones pendientes han sido enviadas.", ok=True, ms=2000))
+                         flash("✅ Todas las peticiones pendientes han sido enviadas.", ok=True, ms=2000)
                     else:
-                        page.run_thread(lambda: flash(f"Algunas peticiones enviadas. Quedan {len(new_queue)} pendientes.", ok=True, ms=2000))
+                        flash(f"Algunas peticiones enviadas. Quedan {len(new_queue)} pendientes.", ok=True, ms=2000)
                 is_retransmiting = False
                 
-        if page.session:
-            threading.Thread(target=process_pending_queue, daemon=True).start()
-        else:
-            print("[DEBUG] Flet page not ready — retry thread skipped.")
+        threading.Thread(target=process_pending_queue, daemon=True).start()
 
     # =============== PANTALLA 5: ENCUESTA FINAL ===============
     def mostrar_pantalla_encuesta_final():
