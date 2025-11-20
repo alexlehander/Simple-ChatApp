@@ -775,7 +775,7 @@ def main(page: ft.Page):
             def poll_loop():
                 # --- PASO A: Envío Inicial ---
                 try:
-                    print(f"[DEBUG] Enviando mensaje inicial al problema {current_pid}...")
+                    print(f"[DEBUG] Enviando mensaje | Usuario: {correo} | Práctica: {payload['practice_name']} | Problema: {current_pid}")
                     r_init = requests.post(
                         f"{BACKEND_URL_CHAT}/{current_pid}",
                         json=payload,
