@@ -771,28 +771,6 @@ def main(page: ft.Page):
 
             # 2. POLLING
             def poll_loop():
-                # --- PASO A: Envío Inicial ---
-                try:
-                    print(f"[DEBUG] Enviando mensaje | Usuario: {correo} | Práctica: {payload['practice_name']} | Problema: {current_pid}")
-                    r_init = requests.post(
-                        f"{BACKEND_URL_CHAT}/{current_pid}",
-                        json=payload,
-                        timeout=60 
-                    )
-                    r_init.raise_for_status()
-                except Exception as ex:
-                    print(f"❌ Error envío inicial: {ex}")
-                    add_to_pending_queue(page, {
-                        "type": "chat",
-                        "problema_id": current_pid,
-                        "data": payload,
-                    })
-                    if page.is_alive:
-                        add_chat_bubble("system", "Sin conexión. Se reintentará automáticamente.")
-                        page.update()
-                    return
-
-                # UI: Mostrar "Escribiendo..."
                 loading_text = "Escribiendo..."
                 loading_bubble = ft.Container(
                     content=ft.Text(loading_text, color=COLORES["subtitulo"], italic=True),
@@ -803,14 +781,35 @@ def main(page: ft.Page):
                 if page.is_alive:
                     chat_area.controls.append(loading_bubble)
                     page.update()
-
+                # --- PASO A: Envío Inicial ---
+                try:
+                    print(f"[DEBUG] Enviando mensaje | Usuario: {correo} | Práctica: {payload['practice_name']} | Problema: {current_pid}")
+                    r_init = requests.post(
+                        f"{BACKEND_URL_CHAT}/{current_pid}",
+                        json=payload,
+                        timeout=60 
+                    )
+                    r_init.raise_for_status()
+                except Exception as ex:
+                    if page.is_alive and loading_bubble in chat_area.controls:
+                        chat_area.controls.remove(loading_bubble)
+                    print(f"❌ Error envío inicial: {ex}")
+                    add_to_pending_queue(page, {
+                        "type": "chat",
+                        "problema_id": current_pid,
+                        "data": payload,
+                    })
+                    if page.is_alive:
+                        add_chat_bubble("system", "Sin conexión. Se reintentará automáticamente.")
+                        page.update()
+                    return
+                    
                 # --- PASO B: Bucle de Espera ---
                 max_retries = 80 
                 retry_count = 0
-                
                 while retry_count < max_retries:
                     if not page.is_alive: return
-                    time.sleep(3) # Espera de 1 segundo
+                    time.sleep(3)
                     try:
                         current_ui_id = int(load_k(page, STATE_KEYS["current_problem"], 1))
                         if current_ui_id != current_pid:
@@ -847,12 +846,12 @@ def main(page: ft.Page):
                         
                     retry_count += 1
                     
-                if page.is_alive:
-                    if loading_bubble in chat_area.controls:
-                        chat_area.controls.remove(loading_bubble)
-                    add_chat_bubble("system", "El sistema tardó demasiado en responder. Por favor recarga la página o intenta preguntar de nuevo.")
-                    page.update()
-                    
+                    if page.is_alive:
+                        if loading_bubble in chat_area.controls:
+                            chat_area.controls.remove(loading_bubble)
+                        add_chat_bubble("system", "El sistema tardó demasiado. Intenta preguntar de nuevo.")
+                        page.update()
+                        
             threading.Thread(target=poll_loop, daemon=True).start()
             
         user_input = ft.TextField(
