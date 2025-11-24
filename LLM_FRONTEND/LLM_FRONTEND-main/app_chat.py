@@ -801,11 +801,11 @@ def main(page: ft.Page):
                         
                     retry_count += 1
                     
-                    if page.is_alive:
-                        if loading_bubble in chat_area.controls:
-                            chat_area.controls.remove(loading_bubble)
-                        add_chat_bubble("system", "El sistema tardó demasiado. Intenta preguntar de nuevo.")
-                        page.update()
+                if page.is_alive:
+                    if loading_bubble in chat_area.controls:
+                        chat_area.controls.remove(loading_bubble)
+                    add_chat_bubble("system", "El sistema tardó demasiado. Intenta preguntar de nuevo.")
+                    page.update()
                         
             threading.Thread(target=poll_loop, daemon=True).start()
             
