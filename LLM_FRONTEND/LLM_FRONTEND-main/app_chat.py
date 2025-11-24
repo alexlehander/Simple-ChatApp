@@ -760,8 +760,6 @@ def main(page: ft.Page):
             save_k(page, f"chat_draft_{current_pid}", "")
             user_input.focus()
             page.update()
-            
-            # Guardar en historial local
             update_map(page, STATE_KEYS["chat"], current_pid, {"role": "user", "text": msg})
 
             # Datos para el backend
@@ -771,7 +769,7 @@ def main(page: ft.Page):
                 "practice_name": load_k(page, "selected_session_filename", "unknown_session.json")
             }
 
-            # 2. Función de POLLING (Versión Blindada con Debug)
+            # 2. POLLING
             def poll_loop():
                 # --- PASO A: Envío Inicial ---
                 try:
@@ -796,25 +794,27 @@ def main(page: ft.Page):
 
                 # UI: Mostrar "Escribiendo..."
                 loading_text = "Escribiendo..."
+                loading_bubble = ft.Container(
+                    content=ft.Text(loading_text, color=COLORES["subtitulo"], italic=True),
+                    padding=ft.padding.symmetric(horizontal=10, vertical=10),
+                    alignment=ft.alignment.center_left,
+                    border_radius=ft.border_radius.all(10),
+                )
                 if page.is_alive:
-                    add_chat_bubble("assistant", loading_text)
+                    chat_area.controls.append(loading_bubble)
                     page.update()
 
                 # --- PASO B: Bucle de Espera ---
-                max_retries = 60 
+                max_retries = 80 
                 retry_count = 0
                 
                 while retry_count < max_retries:
                     if not page.is_alive: return
-                    
-                    time.sleep(1) # Espera de 1 segundo
-                    
+                    time.sleep(3) # Espera de 1 segundo
                     try:
                         current_ui_id = int(load_k(page, STATE_KEYS["current_problem"], 1))
                         if current_ui_id != current_pid:
                             return 
-
-                        # Preguntar al servidor
                         r = requests.post(
                             f"{BASE}/check_new_messages/{current_pid}",
                             json={"correo_identificacion": correo},
@@ -822,59 +822,39 @@ def main(page: ft.Page):
                         )
                         r.raise_for_status()
                         data = r.json()
-                        
-                        # [DEBUG] Ver qué nos dice el servidor
                         status = data.get("status")
-                        # print(f"[DEBUG] Intento {retry_count}: Status = {status}") 
-
                         if status == "error":
-                            # El servidor reportó un error interno
                             if page.is_alive:
-                                # Borrar "Escribiendo..." si existe
-                                if chat_area.controls and chat_area.controls[-1].content.value == loading_text:
-                                    chat_area.controls.pop()
+                                if loading_bubble in chat_area.controls:
+                                    chat_area.controls.remove(loading_bubble)
                                 add_chat_bubble("system", f"Error del tutor: {data.get('message', 'Desconocido')}")
                                 page.update()
                             return
 
                         if status == "completed":
-                            # ¡ÉXITO! El servidor ya tiene la respuesta
                             final_response = data.get("response")
                             print(f"[DEBUG] ¡Respuesta recibida! Longitud: {len(final_response)} caracteres.")
-                            
-                            # --- AQUÍ OCURRÍA EL ERROR ANTES ---
-                            # Verificamos con cuidado antes de borrar
-                            if chat_area.controls:
-                                last_msg = chat_area.controls[-1]
-                                # Acceso seguro a la propiedad .value
-                                try:
-                                    if last_msg.content.value == loading_text:
-                                        chat_area.controls.pop()
-                                except AttributeError:
-                                    pass # Si la estructura es diferente, simplemente no borramos y agregamos al final
-                            
-                            add_chat_bubble("assistant", final_response)
-                            update_map(page, STATE_KEYS["chat"], current_pid, {"role": "assistant", "text": final_response})
-                            page.update()
-                            return 
+                            if page.is_alive:
+                                if loading_bubble in chat_area.controls:
+                                    chat_area.controls.remove(loading_bubble)
+                                add_chat_bubble("assistant", final_response)
+                                update_map(page, STATE_KEYS["chat"], current_pid, {"role": "assistant", "text": final_response})
+                                page.update()
+                            return
                             
                     except Exception as e:
-                        # Si ves este print en tu consola, es que el Frontend se está rompiendo
                         print(f"❌ Polling CRASH en intento {retry_count}: {e}")
-                    
+                        
                     retry_count += 1
-                
-                # Timeout (Solo si llegamos aquí es culpa del tiempo)
+                    
                 if page.is_alive:
-                    print("[WARN] Timeout alcanzado sin respuesta 'completed'.")
-                    if chat_area.controls and chat_area.controls[-1].content.value == loading_text:
-                        chat_area.controls.pop()
-                    add_chat_bubble("system", "El sistema no respondió a tiempo. Intenta reenviar tu mensaje.")
+                    if loading_bubble in chat_area.controls:
+                        chat_area.controls.remove(loading_bubble)
+                    add_chat_bubble("system", "El sistema tardó demasiado en responder. Por favor recarga la página o intenta preguntar de nuevo.")
                     page.update()
-
-            # 3. Iniciar el proceso en un hilo aparte
+                    
             threading.Thread(target=poll_loop, daemon=True).start()
-
+            
         user_input = ft.TextField(
             hint_text="Escribe tu mensaje aqui, presionando «Enter» para enviarlo",
             bgcolor=COLORES["secundario"],
