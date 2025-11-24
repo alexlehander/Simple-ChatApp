@@ -644,7 +644,7 @@ def main(page: ft.Page):
                     resp = requests.post(
                         f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
                         json=payload,
-                        timeout=20,
+                        timeout=60,
                     )
                     resp.raise_for_status()
                     is_success = True
