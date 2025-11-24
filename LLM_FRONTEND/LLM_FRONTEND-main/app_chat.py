@@ -777,7 +777,7 @@ def main(page: ft.Page):
                     r_init = requests.post(
                         f"{BACKEND_URL_CHAT}/{current_pid}",
                         json=payload,
-                        timeout=20 
+                        timeout=60 
                     )
                     r_init.raise_for_status()
                 except Exception as ex:
