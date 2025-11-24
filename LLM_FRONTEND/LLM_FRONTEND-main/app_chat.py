@@ -599,7 +599,7 @@ def main(page: ft.Page):
                     resp = requests.post(
                         f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
                         json=payload,
-                        timeout=60,
+                        timeout=5,
                     )
                     resp.raise_for_status()
                     is_success = True
@@ -614,7 +614,7 @@ def main(page: ft.Page):
                     })
                     # Muestra un mensaje temporal sin bloquear el avance
                     # Usamos page.run_thread porque estamos en el thread principal, pero es buena práctica de Flet para UI
-                    flash("Conexión perdida! La respuesta se guardó para reintentar", ok=False)
+                    flash("Guardando en segundo plano... puedes continuar :)", ok=True)
                     
                 
                 # 3. Lógica de GUARDADO LOCAL y AVANCE (Se ejecuta siempre, independientemente del éxito del envío)
@@ -1089,11 +1089,11 @@ def main(page: ft.Page):
                     
                     try:
                         if item["type"] == "answer":
-                            resp = requests.post(f"{BACKEND_URL_VERIFICAR}/{problema_id}", json=payload, timeout=10)
+                            resp = requests.post(f"{BACKEND_URL_VERIFICAR}/{problema_id}", json=payload, timeout=60)
                             resp.raise_for_status()
                             is_success = True
                         elif item["type"] == "chat":
-                            resp = requests.post(f"{BACKEND_URL_CHAT}/{problema_id}", json=payload, timeout=10)
+                            resp = requests.post(f"{BACKEND_URL_CHAT}/{problema_id}", json=payload, timeout=60)
                             resp.raise_for_status()
                             is_success = True
                             
