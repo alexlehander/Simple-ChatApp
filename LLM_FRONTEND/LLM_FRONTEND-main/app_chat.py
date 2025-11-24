@@ -1,11 +1,5 @@
 import flet as ft
-import requests
-import time
-import threading
-import os
-import json
-
-EXERCISES_PATH = "exercises"
+import requests, time, threading, os, json
 
 # Paleta CLARA
 LIGHT_COLORS = {
@@ -37,32 +31,16 @@ DARK_COLORS = {
     "advertencia":"#F6A721",
 }
 
-JS_CLEAR_STORAGE = (
-    "javascript:(() => {"
-    "  try {"
-    "    localStorage && localStorage.clear && localStorage.clear();"
-    "    sessionStorage && sessionStorage.clear && sessionStorage.clear();"
-    "    if (window.indexedDB) {"
-    "      if (indexedDB.databases) {"
-    "        indexedDB.databases().then(dbs => dbs.forEach(db => indexedDB.deleteDatabase(db.name)));"
-    "      } else {"
-    "        ['_flet', 'flet_client_storage'].forEach(n => { try { indexedDB.deleteDatabase(n); } catch(e){} });"
-    "      }"
-    "    }"
-    "  } catch(e) { console.error('Error clearing storage', e); }"
-    "  finally { location.reload(); }"
-    "})();"
-)
-
-BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
-BACKEND_URL_CHAT              = f"{BASE}/chat"
-BACKEND_URL_VERIFICAR         = f"{BASE}/verificar_respuesta"
+EXERCISES_PATH          = "exercises"
+BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+BACKEND_URL_CHAT        = f"{BASE}/chat"
+BACKEND_URL_VERIFICAR   = f"{BASE}/verificar_respuesta"
 
 # ---- Persistence helpers (top of file) ----
 STATE_KEYS = {
     "screen": "ui_screen",                     # "consent", "instructions", "survey", "problems", "final"
-    "code": "correo_identificacion",           # you already use this key
-    "current_problem": "current_problem_id",   # int
+    "code": "correo_identificacion",           # unique identification code of the user
+    "current_problem": "current_problem_id",   # which problem is being worked on
     "answers": "answers_map",                  # dict: {problem_id: "answer text"}
     "chat": "chat_map",                        # dict: {problem_id: [{"role":"user|agent","text":"..."}]}
     "timer_start": "timer_start_epoch",        # int epoch seconds when Xmin started
@@ -70,14 +48,12 @@ STATE_KEYS = {
 }
 
 def listar_sesiones():
-    #Returns a list of available session files
     try:
         return [f for f in os.listdir(EXERCISES_PATH) if f.endswith(".json")]
     except FileNotFoundError:
         return []
-
+        
 def cargar_sesion(nombre_archivo):
-    #Loads a specific session file (list of problems)
     try:
         with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -85,26 +61,26 @@ def cargar_sesion(nombre_archivo):
     except Exception as e:
         print(f"⚠️ Error al cargar sesión {nombre_archivo}: {e}")
         return nombre_archivo, []
-
+        
 def save_k(page, k, v):
     page.client_storage.set(k, v)
-
+    
 def load_k(page, k, default=None):
     try:
         v = page.client_storage.get(k)
         return v if v is not None else default
     except Exception:
         return default
-
+        
 def update_map(page, key, problem_id, item):
     m = load_k(page, key, {}) or {}
     pid = str(problem_id)
     if key == STATE_KEYS["answers"]:
-        m[pid] = item  # item is text
+        m[pid] = item
     elif key == STATE_KEYS["chat"]:
-        m.setdefault(pid, []).append(item)  # item is {"role": "...", "text": "..."}
+        m.setdefault(pid, []).append(item)
     save_k(page, key, m)
-
+    
 def reset_progress(page):
     try:
         keys = page.client_storage.get_keys("")
@@ -125,20 +101,21 @@ def reset_progress(page):
         print("✅ Limpieza interna de Flet completada.")
     except Exception as e:
         print("❌ Error durante reset_progress:", e)
-
+        
 def add_to_pending_queue(page, item: dict):
     if "retry_count" not in item:
         item["retry_count"] = 0
     queue = load_k(page, STATE_KEYS["pending_queue"], []) or []
     queue.append(item)
     save_k(page, STATE_KEYS["pending_queue"], queue)
-
-
+    
 def main(page: ft.Page):
-    page.is_alive = True  # Bandera personalizada para saber si la sesión vive
+    page.is_alive = True
+    
     def on_disconnect_handler(e):
         page.is_alive = False
         print("El usuario se desconectó, deteniendo hilos...")
+        
     page.on_disconnect = on_disconnect_handler
     theme_name = load_k(page, "theme", "dark")  # "dark" o "light"
     COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
@@ -149,7 +126,6 @@ def main(page: ft.Page):
     page.padding = 20
     page.bgcolor = COLORES["fondo"]
     page.theme_mode = ft.ThemeMode.DARK if theme_name == "dark" else ft.ThemeMode.LIGHT
-
     
     page.theme = ft.Theme(
         scrollbar_theme=ft.ScrollbarTheme(
@@ -160,7 +136,6 @@ def main(page: ft.Page):
         )
     )
     
-    # Global snack (Saved)
     save_snack = ft.SnackBar(
         content=ft.Text("Respuesta guardada", color=COLORES["accento"]),
         bgcolor=COLORES["exito"], open=False, duration=1000
@@ -177,12 +152,8 @@ def main(page: ft.Page):
         nonlocal theme_name, COLORES
         theme_name = load_k(page, "theme", "dark")
         COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
-
-        # Aplicar a nivel de Page
         page.bgcolor = COLORES["fondo"]
         page.theme_mode = ft.ThemeMode.DARK if theme_name == "dark" else ft.ThemeMode.LIGHT
-
-        # Redibujar según pantalla persistida
         _render_current_screen()
 
     def _render_current_screen():
@@ -202,10 +173,8 @@ def main(page: ft.Page):
             mostrar_pantalla_consentimiento()
             
     def toggle_theme(e=None):
-        # Cambiar valor y persistir
         new_theme = "light" if load_k(page, "theme", "dark") == "dark" else "dark"
         save_k(page, "theme", new_theme)
-        # Reaplicar paleta y redibujar la pantalla actual
         _apply_theme_and_redraw()
 
     page.overlay.append(save_snack)
@@ -285,13 +254,13 @@ def main(page: ft.Page):
         save_k(page, STATE_KEYS["screen"], "instructions")
         page.clean()
         archivos = listar_sesiones()
-
+        
         if not archivos:
             page.add(ft.Text("No hay sesiones disponibles en la carpeta 'exercises/'.", color=ft.colors.RED))
             return
-
+            
         opciones = [ft.dropdown.Option(a) for a in archivos]
-
+        
         email_input = ft.TextField(
             label=ft.Container(
                 content=ft.Text("Correo institucional", text_align=ft.TextAlign.CENTER),
@@ -317,8 +286,7 @@ def main(page: ft.Page):
                 page.update()
             except Exception as err:
                 print(f"⚠️ Error al leer descripción de {nombre_archivo}: {err}")
-
-        # 🔹 crea el Dropdown ANTES de iniciar_sesion
+                
         sesion_dropdown = ft.Dropdown(
             label="Selecciona una actividad para resolver",
             options=opciones,
@@ -330,7 +298,7 @@ def main(page: ft.Page):
             "Descripción de la práctica:",
             size=18, weight="bold", color=COLORES["primario"]
         )
-
+        
         descripcion_text = ft.Text(
             "Selecciona una práctica para ver su descripción.",
             color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY
@@ -345,7 +313,6 @@ def main(page: ft.Page):
             if not nombre_archivo:
                 flash("Selecciona una actividad antes de continuar")
                 return
-
             page.client_storage.set("correo_identificacion", correo)
             titulo, problemas = cargar_sesion(nombre_archivo)
             with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
@@ -355,7 +322,7 @@ def main(page: ft.Page):
             save_k(page, "selected_session_problems", problemas)
             save_k(page, "selected_session_filename", nombre_archivo)
             mostrar_pantalla_intervencion(titulo, problemas)
-
+            
         iniciar_button = ft.ElevatedButton(
             "Comenzar la actividad",
             icon=ft.Icons.PLAY_ARROW,
@@ -363,7 +330,7 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             on_click=iniciar_sesion,
         )
-
+        
         layout = ft.Column(
             [
                 ft.Text(
@@ -380,9 +347,9 @@ def main(page: ft.Page):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=20,
         )
-
+        
         page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))
-
+        
     def reiniciar_practica(e):
         try:
             reset_progress(page)
@@ -390,8 +357,8 @@ def main(page: ft.Page):
         except Exception as ex:
             print(f"[WARN] Reinicio fallido: {ex}")
             mostrar_pantalla_consentimiento()
-
-    # =============== PANTALLA 4: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
+            
+    # =============== PANTALLA 3: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
     def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
         save_k(page, STATE_KEYS["screen"], "problems")
         user_input = None
@@ -400,29 +367,22 @@ def main(page: ft.Page):
         page.input_is_focused = False
         def on_input_focus(e): page.input_is_focused = True
         def on_input_blur(e): page.input_is_focused = False
-        def on_global_keyboard(e: ft.KeyboardEvent):
-            if e.key and len(e.key) == 1 and not page.input_is_focused:
-                user_input.focus()
+        def on_global_keyboard(e):
+            if e.key and len(e.key) == 1 and not page.input_is_focused: user_input.focus()
         page.on_keyboard_event = on_global_keyboard
         problema_actual_id = 1
         NUM_PROBLEMAS = len(PROBLEMAS)
-        # --- Timer toggle state ---
         timer_hidden = False
         last_timer_string = ""
         last_timer_color = COLORES["primario"]
         is_retransmiting = False
-
-        # --- Align completion flags length with current total ---
         prev = load_k(page, "respuestas_enviadas", [])
-        if not isinstance(prev, list) or len(prev) != NUM_PROBLEMAS:
-            respuestas_enviadas = [False] * NUM_PROBLEMAS
-        else:
-            respuestas_enviadas = prev
+        if not isinstance(prev, list) or len(prev) != NUM_PROBLEMAS: respuestas_enviadas = [False] * NUM_PROBLEMAS
+        else: respuestas_enviadas = prev
         save_k(page, "respuestas_enviadas", respuestas_enviadas)
-        
-        # --- DEBOUNCING ---
         debounce_timers = {}
         DEBOUNCE_DELAY_SECONDS = 1.0
+        
         def debounce_save(id_problema: int, value: str):
             pid = str(id_problema)
             if pid in debounce_timers and debounce_timers[pid] is not None:
@@ -435,14 +395,11 @@ def main(page: ft.Page):
             t = threading.Timer(DEBOUNCE_DELAY_SECONDS, perform_save)
             debounce_timers[pid] = t
             t.start()
-
-        # === PROGRESS BAR OF PROBLEMS ===
+            
         def construir_barra_progreso():
             progress_squares = []
             for i in range(1, NUM_PROBLEMAS + 1):
-                color = COLORES["primario"] if i == problema_actual_id else (
-                    COLORES["exito"] if respuestas_enviadas[i - 1] else COLORES["advertencia"]
-                )
+                color = COLORES["primario"] if i == problema_actual_id else (COLORES["exito"] if respuestas_enviadas[i - 1] else COLORES["advertencia"])
                 square = ft.Container(
                     width=25,
                     height=25,
@@ -460,16 +417,14 @@ def main(page: ft.Page):
                 )
                 progress_squares.append(square)
             return ft.Row(progress_squares, spacing=5, alignment=ft.MainAxisAlignment.CENTER)
-
+            
         barra_progreso = construir_barra_progreso()
-
+        
         def guardar_respuesta_actual():
-            #Guarda el texto actual antes de cambiar de problema.
             if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
                 texto = (respuesta_container.controls[0].value or "").strip()
                 save_k(page, f"respuesta_{problema_actual_id}", texto)
                 
-        # Unified function for consistent chat bubble alignment
         def add_chat_bubble(role, text):
             is_user = role == "user"
             chat_area.controls.append(
@@ -1157,12 +1112,15 @@ def main(page: ft.Page):
                     except Exception as e:
                         print(f"⚠️ Error fatal en reintento de {item['type']}: {e}. Descartando permanentemente.")
                         
-                if len(new_queue) < len(queue):
-                    save_k(page, STATE_KEYS["pending_queue"], new_queue)
-                    if not new_queue:
+                current_queue_on_disk = load_k(page, STATE_KEYS["pending_queue"], []) or []
+                items_added_during_process = current_queue_on_disk[len(queue):]
+                final_queue = new_queue + items_added_during_process
+                if len(final_queue) < len(current_queue_on_disk):
+                     save_k(page, STATE_KEYS["pending_queue"], final_queue)
+                     if not final_queue:
                          flash("✅ Todas las peticiones pendientes han sido enviadas.", ok=True, ms=2000)
-                    else:
-                        flash(f"Algunas peticiones enviadas. Quedan {len(new_queue)} pendientes.", ok=True, ms=2000)
+                     else:
+                         flash(f"Se enviaron peticiones. Quedan {len(final_queue)} pendientes.", ok=True, ms=2000)
                 is_retransmiting = False
                 
         threading.Thread(target=process_pending_queue, daemon=True).start()
