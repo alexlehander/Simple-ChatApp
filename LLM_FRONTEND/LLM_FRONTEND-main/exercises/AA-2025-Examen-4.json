@@ -1,7 +1,7 @@
 {
   "title": "Unidad IV: Introducción a la Teoría de la Computación",
   "description": "Evaluación sobre Clases de complejidad (P, NP, NPC), relación entre problemas de decisión y optimización, algoritmos de verificación y demostraciones de NP-Completitud mediante reducciones polinomiales.",
-  "max_time": 72,
+  "max_time": 7200,
   "problemas": [
     {
       "id": 1,

@@ -1132,7 +1132,7 @@ def main(page: ft.Page):
         if not finish_epoch:
             finish_epoch = int(time.time())
             save_k(page, "finish_epoch", finish_epoch)
-        remaining = 60 - (int(time.time()) - finish_epoch)
+        remaining = 600 - (int(time.time()) - finish_epoch)
         if remaining <= 0:
             reiniciar_practica(None)
             return
