@@ -1128,6 +1128,19 @@ def main(page: ft.Page):
     # =============== PANTALLA 5: ENCUESTA FINAL ===============
     def mostrar_pantalla_encuesta_final():
         save_k(page, STATE_KEYS["screen"], "final")
+        finish_epoch = load_k(page, "finish_epoch")
+        if not finish_epoch:
+            finish_epoch = int(time.time())
+            save_k(page, "finish_epoch", finish_epoch)
+        remaining = 60 - (int(time.time()) - finish_epoch)
+        if remaining <= 0:
+            reiniciar_practica(None)
+            return
+        def auto_restart_thread():
+            time.sleep(remaining)
+            if page.is_alive and load_k(page, STATE_KEYS["screen"]) == "final":
+                reiniciar_practica(None)
+        threading.Thread(target=auto_restart_thread, daemon=True).start()
         def copiar_codigo_final(e):
             # Retrieve the identification code from persistent storage
             correo_guardado = page.client_storage.get("correo_identificacion") or "No disponible"
