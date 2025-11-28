@@ -128,9 +128,6 @@ def main(page: ft.Page):
         print(f"⚠️ Error verificando sesión: {e}")
         
     def on_disconnect_handler(e):
-        # ... (resto de tu código sigue igual)
-        
-    def on_disconnect_handler(e):
         page.is_alive = False
         print("El usuario se desconectó, deteniendo hilos...")
         
