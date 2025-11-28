@@ -6,6 +6,7 @@ from typing import List, Dict
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
+from pinecone import Pinecone
 
 # ------------------------------------------------------------------------------------
 # LLM Setup
@@ -14,6 +15,11 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_SITE_URL = os.getenv("OPENROUTER_SITE_URL", "https://example.com")
 OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "GrowTogether")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_INDEX_NAME = "evatutor"
+pc_client = Pinecone(api_key=PINECONE_API_KEY)
+pinecone_index = pc_client.Index(PINECONE_INDEX_NAME)
+HF_EMBED_URL = os.getenv("HF_EMBED_URL", "https://EmbeddingsAPI.hf.space/embed")
 
 # If you want to implement a second layer of security / verification mechanism for LLM-generated answers - uncomment the next line and delete False (The quality of life improvement is very little)
 QC_ENABLED = False  #os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
@@ -154,28 +160,22 @@ def get_or_create_user(correo_identificacion: str | None) -> Usuario:
     db.session.commit()
     return u
 
-def history_for_chat(correo_identificacion: str | None, problema_id: int, practice_name: str | None) -> List[Dict]:
-    """Build conversation history with a dynamic system prompt including the problem enunciado."""
+def history_for_chat(correo_identificacion: str | None, problema_id: int, practice_name: str | None, rag_context: str = "") -> List[Dict]:
     logs = (
         ChatLog.query
         .filter_by(correo_identificacion=correo_identificacion, practice_name=practice_name, problema_id=problema_id)
         .order_by(ChatLog.created_at.asc())
         .all()
     )
-    # Determine problem text
     if not practice_name:
-        last_resp = (
-            RespuestaUsuario.query
-            .filter_by(correo_identificacion=correo_identificacion, practice_name=practice_name, problema_id=problema_id)
-            .order_by(RespuestaUsuario.created_at.desc())
-            .first()
-        )
-        if last_resp and last_resp.practice_name:
-            practice_name = last_resp.practice_name
+        last_resp = RespuestaUsuario.query.filter_by(correo_identificacion=correo_identificacion, problema_id=problema_id).first()
+        if last_resp: practice_name = last_resp.practice_name
     problem_text = get_problem_enunciado(practice_name, problema_id) if practice_name else ""
-    sys_prompt = DEFAULT_SYSTEM_PROMPT + (
-        f"El usuario está trabajando con el siguiente problema: {problem_text}" if problem_text else ""
-    )
+    sys_prompt = DEFAULT_SYSTEM_PROMPT
+    if problem_text:
+        sys_prompt += f"\n\nEL PROBLEMA QUE EL USUARIO INTENTA RESUELVER ES:\n{problem_text}"
+    if rag_context:
+        sys_prompt += f"\n\nLA INFORMACIÓN DE REFERENCIA (DEL LIBRO DE TEXTO) ES (Usa esta información para guiar al estudiante si es relevante, pero NO les des la respuesta directa):\n{rag_context}"
     messages = [{"role": "system", "content": sys_prompt}]
     for row in logs:
         role = "assistant" if row.role == "assistant" else "user"
@@ -193,12 +193,45 @@ def save_chat_turn(user: Usuario | None, correo: str | None, practice_name: str 
     )
     db.session.add(log)
     db.session.commit()
-
+    
+def get_rag_context(user_query: str) -> str:
+    try:
+        response = requests.post(
+            HF_EMBED_URL,
+            json={"text": user_query},
+            timeout=10
+        )
+        response.raise_for_status()
+        query_vector = response.json()['vector']
+        results = pinecone_index.query(
+            vector=query_vector,
+            top_k=3,
+            include_metadata=True,
+            namespace="default"
+        )
+        context_text = ""
+        for match in results['matches']:
+            text_chunk = match['metadata'].get('text', '')
+            page_num = match['metadata'].get('page_number', '?')
+            context_text += f"--- (Página {page_num}) ---\n{text_chunk}\n\n"
+        return context_text
+    except Exception as e:
+        print(f"⚠️ Error Retrieving Context: {e}")
+        return ""
+        
 def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id):
     with app_obj.app_context():
         print(f"🤖 [Background] Procesando mensaje para {correo}...")
         try:
-            messages = history_for_chat(correo, problema_id, practice_name)
+            last_user_msg = ChatLog.query.filter_by(
+                correo_identificacion=correo, 
+                problema_id=problema_id, 
+                role="user"
+            ).order_by(ChatLog.created_at.desc()).first()
+            user_query_text = last_user_msg.content if last_user_msg else ""
+            print("🔍 Searching Pinecone...")
+            context = get_rag_context(user_query_text)
+            messages = history_for_chat(correo, problema_id, practice_name, rag_context=context)
             bot_response = call_mistral(messages)
             usuario = Usuario.query.get(usuario_id)
             save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", bot_response)
@@ -207,7 +240,7 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
             print(f"❌ [Background] Error generando respuesta: {e}")
             usuario = Usuario.query.get(usuario_id)
             save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", "Lo siento, tuve un error técnico al pensar mi respuesta.")
-            
+                   
 # ------------------------------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------------------------------
