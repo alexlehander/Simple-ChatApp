@@ -64,6 +64,10 @@ def cargar_sesion(nombre_archivo):
         
 def save_k(page, k, v):
     page.client_storage.set(k, v)
+    try:
+        page.client_storage.set("last_heartbeat", time.time())
+    except Exception:
+        pass
     
 def load_k(page, k, default=None):
     try:
@@ -112,6 +116,20 @@ def add_to_pending_queue(page, item: dict):
 def main(page: ft.Page):
     page.is_alive = True
     
+    try:
+        last_heartbeat = page.client_storage.get("last_heartbeat")
+        now = time.time()
+        should_reset = False
+        if last_heartbeat and (now - last_heartbeat > 3600):
+            print(f"🕒 Sesión expirada por inactividad ({int(now - last_heartbeat)}s). Reseteando...")
+            reset_progress(page)
+            page.client_storage.set("last_heartbeat", now)
+    except Exception as e:
+        print(f"⚠️ Error verificando sesión: {e}")
+        
+    def on_disconnect_handler(e):
+        # ... (resto de tu código sigue igual)
+        
     def on_disconnect_handler(e):
         page.is_alive = False
         print("El usuario se desconectó, deteniendo hilos...")
