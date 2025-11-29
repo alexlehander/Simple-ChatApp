@@ -214,7 +214,7 @@ def get_rag_context(user_query: str) -> str:
             text_chunk = match['metadata'].get('text', '')
             page_num = match['metadata'].get('page_number', '?')
             score = match.get('score', 0.0)
-            print(f"📄 [Chunk {i+1} | Score: {score:.2f} | Pág {page_num}] {text_chunk[:33]}...")
+            print(f"📄 [Chunk {i+1} | Score: {score:.2f} | Pág {page_num}] {text_chunk[:100]}...")
             context_text += f"--- (Página {page_num}) ---\n{text_chunk}\n\n"
         return context_text
     except Exception as e:

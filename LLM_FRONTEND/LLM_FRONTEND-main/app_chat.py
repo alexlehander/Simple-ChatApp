@@ -550,7 +550,17 @@ def main(page: ft.Page):
                 barra_progreso.controls.clear()
                 barra_progreso.controls.extend(construir_barra_progreso().controls)
                 page.update()
-
+        
+        def mostrar_aviso(mensaje):
+            feedback_text.value = mensaje
+            feedback_text.color = COLORES["advertencia"]
+            page.update()
+            def limpiar():
+                if feedback_text.value == mensaje:
+                    feedback_text.value = ""
+                    page.update()
+            threading.Timer(3.0, limpiar).start()
+        
         def ir_a_problema(delta):
             nonlocal problema_actual_id
             guardar_respuesta_actual()
@@ -558,9 +568,7 @@ def main(page: ft.Page):
 
             # ⛔ Si intenta ir antes del primer problema
             if nuevo_id < 1:
-                feedback_text.value = "¡Estás en el primer problema!"
-                feedback_text.color = COLORES["advertencia"]
-                page.update()
+                mostrar_aviso("¡Estás en el primer problema!")
                 return
 
             # ⛔ Si intenta ir después del último problema
@@ -569,9 +577,7 @@ def main(page: ft.Page):
                     stop_timer = True
                     mostrar_pantalla_encuesta_final()
                 else:
-                    feedback_text.value = "¡Aún tienes problemas pendientes por contestar!"
-                    feedback_text.color = COLORES["advertencia"]
-                    page.update()
+                    mostrar_aviso("¡Aún tienes problemas pendientes por contestar!")
                 return
                 
             cargar_problema(nuevo_id)
@@ -592,11 +598,9 @@ def main(page: ft.Page):
                 if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
                     val = (respuesta_container.controls[0].value or "").strip()
                 if not val:
-                    feedback_text.value = "¡La respuesta no puede estar vacía!"
-                    feedback_text.color = COLORES["advertencia"]
+                    mostrar_aviso("¡La respuesta no puede estar vacía!")
                     enviar_button.disabled = False
-                    page.update()
-                    return # Detiene la ejecución si está vacío
+                    return
 
                 practice_name = load_k(page, "selected_session_filename", "unknown_session.json")
                 
