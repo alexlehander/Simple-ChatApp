@@ -210,9 +210,10 @@ def get_rag_context(user_query: str) -> str:
             namespace="default"
         )
         context_text = ""
-        for match in results['matches']:
+        for i, match in enumerate(results['matches']):
             text_chunk = match['metadata'].get('text', '')
             page_num = match['metadata'].get('page_number', '?')
+            score = match.get('score', 0.0)
             print(f"📄 [Chunk {i+1} | Score: {score:.2f} | Pág {page_num}] {text_chunk[:33]}...")
             context_text += f"--- (Página {page_num}) ---\n{text_chunk}\n\n"
         return context_text
