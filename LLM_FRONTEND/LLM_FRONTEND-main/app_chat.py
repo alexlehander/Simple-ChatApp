@@ -253,12 +253,18 @@ def main(page: ft.Page):
         
         container = ft.Container(
             content=layout,
+            constraints=ft.BoxConstraints(max_width=600),
+            width=None,
+            expand=False,
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
             shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
-            width=600,
-            expand=True,
+        )
+        
+        final_view = ft.Row(
+            [container], 
+            alignment=ft.MainAxisAlignment.CENTER
         )
         
         page.clean()
@@ -282,7 +288,8 @@ def main(page: ft.Page):
                 alignment=ft.alignment.center
             ),
             hint_text="nombre@uabc.edu.mx",
-            width=400,
+            width=None,
+            expand=True,
             text_align=ft.TextAlign.CENTER,
             color=COLORES["texto"],
             bgcolor=COLORES["accento"],
@@ -305,7 +312,7 @@ def main(page: ft.Page):
         sesion_dropdown = ft.Dropdown(
             label="Selecciona una actividad para resolver",
             options=opciones,
-            width=400,
+            expand=True,
             on_change=on_change_sesion,
         )
         
@@ -363,7 +370,17 @@ def main(page: ft.Page):
             spacing=20,
         )
         
-        page.add(ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10))
+        container = ft.Container(
+            content=layout,
+            constraints=ft.BoxConstraints(max_width=600), # Keeps it proportional
+            width=None,
+            padding=20, 
+            bgcolor=COLORES["accento"], 
+            border_radius=10
+        )
+
+        # 2. Add the container, not just the layout
+        page.add(ft.Row([container], alignment=ft.MainAxisAlignment.CENTER))
         
     def reiniciar_practica(e):
         try:
@@ -431,7 +448,12 @@ def main(page: ft.Page):
                     )
                 )
                 progress_squares.append(square)
-            return ft.Row(progress_squares, spacing=5, alignment=ft.MainAxisAlignment.CENTER)
+            return ft.Wrap(
+                controls=progress_squares,
+                spacing=5,
+                run_spacing=5,
+                alignment=ft.WrapAlignment.CENTER,
+            )
             
         barra_progreso = construir_barra_progreso()
         
@@ -701,16 +723,18 @@ def main(page: ft.Page):
         chat_area = ft.ListView(
             spacing=20,
             padding=20,
-            height=475,
+            height=None,
             auto_scroll=True,
         )
 
         chat_container = ft.Container(
             content=chat_area,
+            constraints=ft.BoxConstraints(max_height=400),
+            width=None,
+            expand=False,
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
-            height=475,
             clip_behavior=ft.ClipBehavior.HARD_EDGE,
         )
 
@@ -945,27 +969,21 @@ def main(page: ft.Page):
                 temporizador_text.color = last_timer_color
             page.update()
  
-        left_panel = ft.Container(
-            content=ft.Column([chat_container, user_input], spacing=20, expand=True),
-            expand=1,
+        left_panel = ft.Column(
+            [chat_container, user_input], 
+            col={"sm": 12, "md": 6, "xl": 5} # Chat slightly smaller on huge screens
         )
-        
+
         right_panel = ft.Container(
-            content=ft.Container(
-                content=problemas_area,
-                padding=20,
-                bgcolor=COLORES["accento"],
-                border_radius=10,
-                expand=True,
-            ),
-            expand=1,
+            content=problemas_area,
+            padding=20,
+            col={"sm": 12, "md": 6, "xl": 7} # Problems slightly wider on huge screens
         )
-        
-        main_row = ft.Row(
+
+        main_layout = ft.ResponsiveRow(
             [left_panel, right_panel],
             spacing=20,
-            expand=True,
-            vertical_alignment=ft.CrossAxisAlignment.START,
+            vertical_alignment=ft.CrossAxisAlignment.START
         )
             
         reiniciar_button = ft.ElevatedButton(
@@ -1005,7 +1023,7 @@ def main(page: ft.Page):
         
         page.add(
             ft.Column(
-                [header_row, main_row],
+                [header_row, main_layout],
                 spacing=20,
                 expand=True,
                 alignment=ft.MainAxisAlignment.START,
@@ -1204,7 +1222,16 @@ def main(page: ft.Page):
         )
         
         layout = ft.Column([instruccion, ft.Divider(10), codigo_btn, ft.Divider(20), link_final, ft.Divider(30)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
-        container = ft.Container(content=layout, padding=30, bgcolor=COLORES["accento"], border_radius=10, shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]), width=600)
+        container = ft.Container(
+            content=layout,
+            constraints=ft.BoxConstraints(max_width=600),
+            width=None,
+            expand=False,
+            padding=20,
+            bgcolor=COLORES["accento"],
+            border_radius=10,
+            shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
+        )
         
         reiniciar_button_final = ft.ElevatedButton(
             "Reiniciar 🔄 Práctica",
