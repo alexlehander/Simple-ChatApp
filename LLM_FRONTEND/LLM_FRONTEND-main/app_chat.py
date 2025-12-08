@@ -377,7 +377,7 @@ def main(page: ft.Page):
         )
 
         # 2. Add the container, not just the layout
-        page.add(ft.Row([container], alignment=ft.MainAxisAlignment.CENTER))
+        page.add(ft.ResponsiveRow([container], alignment=ft.MainAxisAlignment.CENTER))
         
     def reiniciar_practica(e):
         try:
