@@ -1037,11 +1037,23 @@ def main(page: ft.Page):
         )
         
         # Layout principal con el botón de reinicio en la esquina
-        header_row = ft.Row(
-            [
-                ft.Row([theme_icon_btn, titulo_label], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                ft.Container(barra_progreso, alignment=ft.alignment.center),
-                ft.Row([
+        header_group_1 = ft.Container(
+            content=ft.Row([theme_icon_btn, titulo_label], spacing=8),
+            col={"xs": 12, "md": 4}, # Full width on mobile, 1/3 on PC
+            alignment=ft.alignment.center_left,
+        )
+
+        # Group 2: Progress Bar (Center)
+        header_group_2 = ft.Container(
+            content=barra_progreso,
+            col={"xs": 12, "md": 4}, # Full width on mobile, 1/3 on PC
+            alignment=ft.alignment.center,
+        )
+
+        # Group 3: Timer & Restart (Right)
+        header_group_3 = ft.Container(
+            content=ft.Row(
+                [
                     ft.GestureDetector(
                         content=ft.Container(
                             temporizador_text,
@@ -1051,15 +1063,22 @@ def main(page: ft.Page):
                         on_tap=toggle_timer,
                     ),
                     reiniciar_button,
-                ], spacing=10)
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            wrap=True,
-            run_spacing=10,
-            spacing=10,
+                ], 
+                spacing=10, 
+                alignment=ft.MainAxisAlignment.END # Internal alignment
+            ),
+            col={"xs": 12, "md": 4}, # Full width on mobile, 1/3 on PC
+            alignment=ft.alignment.center_right, # Container alignment
         )
 
+        # The Main Responsive Header
+        header_row = ft.ResponsiveRow(
+            [header_group_1, header_group_2, header_group_3],
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=10,
+            run_spacing=10,
+        )
+        
         page.clean()
         
         page.add(
