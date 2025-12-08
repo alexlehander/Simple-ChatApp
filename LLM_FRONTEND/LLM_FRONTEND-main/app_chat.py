@@ -494,13 +494,17 @@ def main(page: ft.Page):
                 
         def add_chat_bubble(role, text):
             is_user = role == "user"
+            text_color = COLORES["primario"] if is_user else COLORES["texto"]
             chat_area.controls.append(
                 ft.Container(
-                    content=ft.Text(
-                        text,
-                        color=COLORES["primario"] if is_user else COLORES["texto"],
-                        size=16,
-                        selectable=True
+                    content=ft.Markdown(
+                        value=text,
+                        selectable=True,
+                        extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+                        on_tap_link=lambda e: page.launch_url(e.data),
+                        style_sheet=ft.MarkdownStyleSheet(
+                            p=ft.TextStyle(color=text_color, size=16),
+                        ),
                     ),
                     padding=ft.padding.symmetric(horizontal=10, vertical=10),
                     alignment=ft.alignment.center_right if is_user else ft.alignment.center_left,
@@ -897,7 +901,14 @@ def main(page: ft.Page):
         )
 
         # ---- Problem area ----
-        ejercicio_text = ft.Text("Aquí aparecerá el enunciado del problema", size=20, weight="bold", color=COLORES["texto"])
+        ejercicio_text = ft.Markdown(
+            value="Aquí aparecerá el enunciado del problema",
+            extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+            selectable=True,
+            style_sheet=ft.MarkdownStyleSheet(
+                p=ft.TextStyle(size=20, weight="bold", color=COLORES["texto"]),
+            ),
+        )
         respuesta_container = ft.Column(spacing=20)
         feedback_text = ft.Text("", size=16, color=COLORES["exito"], text_align=ft.TextAlign.CENTER)
         status_icon = ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=COLORES["exito"], size=18, visible=False)
