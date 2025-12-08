@@ -266,7 +266,7 @@ def main(page: ft.Page):
         )
         
         page.clean()
-        page.add(container)
+        page.add(final_view)
         
     # =============== PANTALLA 2: INSTRUCCIONES =============== 
     def mostrar_pantalla_seleccion_sesion():
