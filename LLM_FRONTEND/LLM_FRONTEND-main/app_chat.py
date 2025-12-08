@@ -152,12 +152,28 @@ def main(page: ft.Page):
     )
     
     save_snack = ft.SnackBar(
-        content=ft.Text("Respuesta guardada", color=COLORES["accento"]),
-        bgcolor=COLORES["exito"], open=False, duration=1000
+        content=ft.Text("Respuesta guardada",
+        color=COLORES["accento"]),
+        bgcolor=COLORES["exito"],
+        open=False,
+        behavior=ft.SnackBarBehavior.FLOATING,
+        duration=1000,
+        width=400,
+        shape=ft.RoundedRectangleBorder(radius=10),
+        show_close_icon=False,
     )
     
     def flash(msg: str, ok: bool = False, ms: int = 2000):
-        save_snack.content = ft.Text(msg, color=COLORES["accento"])
+        save_snack.content = ft.Container(
+            content=ft.Text(
+                msg, 
+                color=COLORES["accento"], 
+                size=18, 
+                weight="bold", 
+                text_align=ft.TextAlign.CENTER
+            ),
+            alignment=ft.alignment.center
+        )
         save_snack.bgcolor = COLORES["exito"] if ok else COLORES["error"]
         save_snack.duration = ms
         save_snack.open = True
@@ -319,7 +335,6 @@ def main(page: ft.Page):
             options=opciones,
             expand=True,
             on_change=on_change_sesion,
-            alignment=ft.alignment.center,
             text_style=ft.TextStyle(size=16),
         )
         
@@ -335,7 +350,7 @@ def main(page: ft.Page):
             "Selecciona una práctica para ver su descripción",
             color=COLORES["texto"],
             size=16,
-            text_align=ft.TextAlign.CENTER,
+            text_align=ft.TextAlign.JUSTIFY,
         )
         
         def iniciar_sesion(e):
@@ -987,13 +1002,16 @@ def main(page: ft.Page):
  
         left_panel = ft.Column(
             [chat_container, user_input], 
-            col={"sm": 12, "md": 6, "xl": 5} # Chat slightly smaller on huge screens
+            col={"sm": 12, "md": 6, "xl": 6},
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
         right_panel = ft.Container(
             content=problemas_area,
             padding=20,
-            col={"sm": 12, "md": 6, "xl": 7} # Problems slightly wider on huge screens
+            col={"sm": 12, "md": 6, "xl": 6},
+            bgcolor=COLORES["accento"],
+            border_radius=10,
         )
 
         main_layout = ft.ResponsiveRow(
