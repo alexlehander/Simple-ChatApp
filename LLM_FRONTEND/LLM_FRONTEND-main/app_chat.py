@@ -468,7 +468,7 @@ def main(page: ft.Page):
                 wrap=True,
                 spacing=5,
                 run_spacing=5,
-                alignment=ft.WrapAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.CENTER,
             )
             
         barra_progreso = construir_barra_progreso()
