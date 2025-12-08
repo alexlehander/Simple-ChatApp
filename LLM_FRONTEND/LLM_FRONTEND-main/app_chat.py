@@ -503,7 +503,7 @@ def main(page: ft.Page):
                         extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
                         on_tap_link=lambda e: page.launch_url(e.data),
                         style_sheet=ft.MarkdownStyleSheet(
-                            p=ft.TextStyle(color=text_color, size=16),
+                            p_text_style=ft.TextStyle(color=text_color, size=16),
                         ),
                     ),
                     padding=ft.padding.symmetric(horizontal=10, vertical=10),
@@ -906,7 +906,7 @@ def main(page: ft.Page):
             extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
             selectable=True,
             style_sheet=ft.MarkdownStyleSheet(
-                p=ft.TextStyle(size=20, weight="bold", color=COLORES["texto"]),
+                p_text_style=ft.TextStyle(size=20, weight="bold", color=COLORES["texto"]),
             ),
         )
         respuesta_container = ft.Column(spacing=20)
