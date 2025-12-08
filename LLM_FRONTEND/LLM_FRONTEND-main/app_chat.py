@@ -253,16 +253,14 @@ def main(page: ft.Page):
         
         container = ft.Container(
             content=layout,
-            constraints=ft.BoxConstraints(max_width=600),
-            width=None,
-            expand=False,
+            col={"xs": 12, "sm": 10, "md": 8, "lg": 6, "xl": 5}, # Acts as max-width
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
             shadow=ft.BoxShadow(blur_radius=10, color=COLORES["borde"]),
         )
         
-        final_view = ft.Row(
+        final_view = ft.ResponsiveRow(
             [container], 
             alignment=ft.MainAxisAlignment.CENTER
         )
@@ -372,8 +370,7 @@ def main(page: ft.Page):
         
         container = ft.Container(
             content=layout,
-            constraints=ft.BoxConstraints(max_width=600), # Keeps it proportional
-            width=None,
+            col={"xs": 12, "sm": 10, "md": 8, "lg": 6, "xl": 5}, # Acts as max-width
             padding=20, 
             bgcolor=COLORES["accento"], 
             border_radius=10
@@ -729,7 +726,7 @@ def main(page: ft.Page):
 
         chat_container = ft.Container(
             content=chat_area,
-            constraints=ft.BoxConstraints(max_height=400),
+            height=400, 
             width=None,
             expand=False,
             padding=20,
@@ -1195,6 +1192,7 @@ def main(page: ft.Page):
             "Después de terminar los problemas, te agradecería mucho que respondieras la siguiente encuesta, ya que es muy importante conocer tu experiencia con la app. Por favor, copia y pega tu correo en esta última encuesta. Al finalizarla, habrás completado exitosamente tu actividad y podrás cerrar todas las pestañas utilizadas.",
             size=18, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.JUSTIFY,
         )
+        
         codigo_btn = ft.TextButton(
             content=ft.Text(
                 page.client_storage.get("correo_identificacion"),
@@ -1209,6 +1207,7 @@ def main(page: ft.Page):
                 bgcolor=COLORES["accento"]
             ),
         )
+        
         link_final = ft.TextButton(
             "Encuesta de Satisfacción",
             url="https://forms.gle/HiByXT1jHUQhWnzg9",
@@ -1221,12 +1220,23 @@ def main(page: ft.Page):
             ),
         )
         
-        layout = ft.Column([instruccion, ft.Divider(10), codigo_btn, ft.Divider(20), link_final, ft.Divider(30)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
+        layout = ft.Column(
+            [
+                instruccion,
+                ft.Divider(10),
+                codigo_btn,
+                ft.Divider(20),
+                link_final,
+                ft.Divider(30)
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=15,
+        )
+        
         container = ft.Container(
             content=layout,
-            constraints=ft.BoxConstraints(max_width=600),
-            width=None,
-            expand=False,
+            col={"xs": 12, "sm": 10, "md": 8, "lg": 6, "xl": 5},
             padding=20,
             bgcolor=COLORES["accento"],
             border_radius=10,
@@ -1241,6 +1251,7 @@ def main(page: ft.Page):
         )
 
         page.clean()
+        
         header_row = ft.Row(
             [ft.Container(), reiniciar_button_final],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -1248,7 +1259,10 @@ def main(page: ft.Page):
 
         page.add(
             ft.Column(
-                [header_row, container],
+                [
+                    header_row, 
+                    ft.ResponsiveRow([container], alignment=ft.MainAxisAlignment.CENTER)
+                ],
                 alignment=ft.MainAxisAlignment.START,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=20,
