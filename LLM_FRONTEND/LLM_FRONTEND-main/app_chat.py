@@ -318,7 +318,6 @@ def main(page: ft.Page):
             expand=True,
             on_change=on_change_sesion,
             alignment=ft.alignment.center,
-            text_style=ft.TextStyle(text_align=ft.TextAlign.CENTER),
         )
         
         descripcion_label = ft.Text(
