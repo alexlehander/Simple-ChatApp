@@ -1226,7 +1226,7 @@ def main(page: ft.Page):
                 
         threading.Thread(target=process_pending_queue, daemon=True).start()
 
-    # =============== PANTALLA 5: ENCUESTA FINAL ===============
+    # =============== PANTALLA ENCUESTA FINAL ===============
     def mostrar_pantalla_encuesta_final():
         
         save_k(page, STATE_KEYS["screen"], "final")
@@ -1235,6 +1235,7 @@ def main(page: ft.Page):
         if not finish_epoch:
             finish_epoch = int(time.time())
             save_k(page, "finish_epoch", finish_epoch)
+            
         remaining = 600 - (int(time.time()) - finish_epoch)
         
         if remaining <= 0:
@@ -1245,38 +1246,40 @@ def main(page: ft.Page):
             time.sleep(remaining)
             if page.is_alive and load_k(page, STATE_KEYS["screen"]) == "final":
                 reiniciar_practica(None)
+                
         threading.Thread(target=auto_restart_thread, daemon=True).start()
         
         def copiar_codigo_final(e):
-            # Retrieve the identification code from persistent storage
             correo_guardado = page.client_storage.get("correo_identificacion") or "No disponible"
-            # Copy to clipboard
             page.set_clipboard(correo_guardado)
-            # Reuse the same snackbar pattern as the working function
             page.snack_bar = save_snack
             page.snack_bar.content = ft.Text("Correo copiado al portapapeles", color=COLORES["accento"])
             page.snack_bar.bgcolor = COLORES["exito"]
             page.snack_bar.open = True
-            # Refresh the UI
             page.update()
 
         instruccion = ft.Text(
             "Después de terminar los problemas, te agradecería mucho que respondieras la siguiente encuesta, ya que es muy importante conocer tu experiencia con la app. Por favor, copia y pega tu correo en esta última encuesta. Al finalizarla, habrás completado exitosamente tu actividad y podrás cerrar todas las pestañas utilizadas.",
-            size=18, weight="bold", color=COLORES["primario"], text_align=ft.TextAlign.JUSTIFY,
+            size=18,
+            weight="bold",
+            color=COLORES["primario"],
+            text_align=ft.TextAlign.JUSTIFY,
         )
         
         codigo_btn = ft.TextButton(
             content=ft.Text(
                 page.client_storage.get("correo_identificacion"),
-                size=26, weight="bold",
-                color=COLORES["texto"], text_align=ft.TextAlign.CENTER
+                size=26,
+                weight="bold",
+                color=COLORES["texto"],
+                text_align=ft.TextAlign.CENTER,
             ),
             on_click=copiar_codigo_final,
             style=ft.ButtonStyle(
                 padding=ft.padding.symmetric(20, 10),
                 side=ft.BorderSide(1.5, COLORES["boton"]),
-                shape=ft.RoundedRectangleBorder(radius=8),
-                bgcolor=COLORES["accento"]
+                shape=ft.RoundedRectangleBorder(radius=10),
+                bgcolor=COLORES["accento"],
             ),
         )
         
@@ -1288,7 +1291,7 @@ def main(page: ft.Page):
                 color=COLORES["accento"],
                 bgcolor=COLORES["exito"],
                 padding=ft.padding.symmetric(20, 10),
-                shape=ft.RoundedRectangleBorder(radius=8)
+                shape=ft.RoundedRectangleBorder(radius=10),
             ),
         )
         
@@ -1296,7 +1299,7 @@ def main(page: ft.Page):
             [
                 instruccion, ft.Divider(20),
                 codigo_btn, ft.Divider(20),
-                link_final, ft.Divider(20)
+                link_final, ft.Divider(20),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -1335,18 +1338,18 @@ def main(page: ft.Page):
             ft.Column(
                 [
                     header_row, 
-                    ft.ResponsiveRow([container], alignment=ft.MainAxisAlignment.CENTER)
+                    ft.ResponsiveRow([container], alignment=ft.MainAxisAlignment.CENTER),
                 ],
                 alignment=ft.MainAxisAlignment.START,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=20,
             )
         )
-
+        
     _apply_theme_and_redraw()
-
+    
 if __name__ == "__main__":
     import os
-    os.environ["FLET_FORCE_WEB"] = "1"  # 👈 forces web mode instead of desktop
+    os.environ["FLET_FORCE_WEB"] = "1"
     port = int(os.getenv("PORT", "3000"))
     ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=port)
