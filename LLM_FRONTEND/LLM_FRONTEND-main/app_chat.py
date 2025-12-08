@@ -403,13 +403,12 @@ def main(page: ft.Page):
         
         container = ft.Container(
             content=layout,
-            col={"xs": 12, "sm": 10, "md": 8, "lg": 6, "xl": 5}, # Acts as max-width
+            col={"xs": 12, "sm": 10, "md": 8, "lg": 6, "xl": 5},
             padding=20, 
             bgcolor=COLORES["accento"], 
             border_radius=10
         )
 
-        # 2. Add the container, not just the layout
         page.add(ft.ResponsiveRow([container], alignment=ft.MainAxisAlignment.CENTER))
         
     def reiniciar_practica(e):
@@ -938,9 +937,14 @@ def main(page: ft.Page):
         botones_row = ft.Row(
             [retroceder_button, enviar_button, siguiente_button],
             alignment=ft.MainAxisAlignment.CENTER,
-            spacing=30,        # Reduced spacing to help fit on mobile
-            wrap=True,         # 👈 THE FIX: Allows buttons to flow to next line
-            run_spacing=10     # 👈 Vertical spacing when they wrap
+            spacing=30,
+            wrap=True,
+            run_spacing=10,
+        )
+        
+        botones_container = ft.Container(
+            content=botones_row,
+            alignment=ft.alignment.center
         )
 
         numero_text = ft.Text(
@@ -977,7 +981,7 @@ def main(page: ft.Page):
                 progreso_text,
                 ejercicio_text,
                 respuesta_container,
-                botones_row,
+                botones_container,
                 feedback_text,
                 status_row,
             ],
@@ -1224,20 +1228,25 @@ def main(page: ft.Page):
 
     # =============== PANTALLA 5: ENCUESTA FINAL ===============
     def mostrar_pantalla_encuesta_final():
+        
         save_k(page, STATE_KEYS["screen"], "final")
         finish_epoch = load_k(page, "finish_epoch")
+        
         if not finish_epoch:
             finish_epoch = int(time.time())
             save_k(page, "finish_epoch", finish_epoch)
         remaining = 600 - (int(time.time()) - finish_epoch)
+        
         if remaining <= 0:
             reiniciar_practica(None)
             return
+            
         def auto_restart_thread():
             time.sleep(remaining)
             if page.is_alive and load_k(page, STATE_KEYS["screen"]) == "final":
                 reiniciar_practica(None)
         threading.Thread(target=auto_restart_thread, daemon=True).start()
+        
         def copiar_codigo_final(e):
             # Retrieve the identification code from persistent storage
             correo_guardado = page.client_storage.get("correo_identificacion") or "No disponible"
@@ -1285,16 +1294,13 @@ def main(page: ft.Page):
         
         layout = ft.Column(
             [
-                instruccion,
-                ft.Divider(10),
-                codigo_btn,
-                ft.Divider(20),
-                link_final,
-                ft.Divider(30)
+                instruccion, ft.Divider(20),
+                codigo_btn, ft.Divider(20),
+                link_final, ft.Divider(20)
             ],
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=15,
+            spacing=20,
         )
         
         container = ft.Container(
@@ -1315,11 +1321,14 @@ def main(page: ft.Page):
 
         page.clean()
         
-        header_row = ft.Row(
-            [ft.Container(), reiniciar_button_final],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            wrap=True,
-            run_spacing=10,
+        header_row = ft.ResponsiveRow(
+            [
+                ft.Container(
+                    content=reiniciar_button_final,
+                    col={"xs": 12},
+                    alignment=ft.alignment.center_right,
+                )
+            ]
         )
 
         page.add(
