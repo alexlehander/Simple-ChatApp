@@ -293,7 +293,7 @@ def main(page: ft.Page):
             bgcolor=COLORES["accento"],
             border_color=COLORES["borde"],
         )
-
+        
         def on_change_sesion(e):
             nombre_archivo = e.control.value
             if not nombre_archivo:
@@ -306,22 +306,34 @@ def main(page: ft.Page):
                 page.update()
             except Exception as err:
                 print(f"⚠️ Error al leer descripción de {nombre_archivo}: {err}")
-                
+        
+        dropdown_label_text = ft.Text(
+            "Selecciona una actividad para resolver", 
+            color=COLORES["primario"],
+            text_align=ft.TextAlign.CENTER
+        )
+        
         sesion_dropdown = ft.Dropdown(
-            label="Selecciona una actividad para resolver",
             options=opciones,
             expand=True,
             on_change=on_change_sesion,
+            alignment=ft.alignment.center,
+            text_style=ft.TextStyle(text_align=ft.TextAlign.CENTER),
         )
         
         descripcion_label = ft.Text(
-            "Descripción de la práctica:",
-            size=18, weight="bold", color=COLORES["primario"]
+            "Descripción de la práctica",
+            size=18,
+            weight="bold",
+            color=COLORES["primario"],
+            text_align=ft.TextAlign.CENTER,
         )
         
         descripcion_text = ft.Text(
-            "Selecciona una práctica para ver su descripción.",
-            color=COLORES["texto"], size=16, text_align=ft.TextAlign.JUSTIFY
+            "Selecciona una práctica para ver su descripción",
+            color=COLORES["texto"],
+            size=16,
+            text_align=ft.TextAlign.CENTER,
         )
         
         def iniciar_sesion(e):
@@ -355,9 +367,13 @@ def main(page: ft.Page):
             [
                 ft.Text(
                     "Inicia sesión con tu correo institucional y selecciona una actividad de la lista",
-                    size=22, weight="bold", color=COLORES["primario"]
+                    size=22,
+                    weight="bold",
+                    color=COLORES["primario"],
+                    text_align=ft.TextAlign.CENTER,
                 ),
                 email_input,
+                dropdown_label_text,
                 sesion_dropdown,
                 descripcion_label,
                 descripcion_text,
