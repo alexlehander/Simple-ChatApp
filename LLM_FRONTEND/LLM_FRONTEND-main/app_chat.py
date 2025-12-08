@@ -308,7 +308,9 @@ def main(page: ft.Page):
                 print(f"⚠️ Error al leer descripción de {nombre_archivo}: {err}")
         
         dropdown_label_text = ft.Text(
-            "Selecciona una actividad para resolver", 
+            "Selecciona una actividad para resolver",
+            size=18,
+            weight="bold",
             color=COLORES["primario"],
             text_align=ft.TextAlign.CENTER
         )
@@ -318,6 +320,7 @@ def main(page: ft.Page):
             expand=True,
             on_change=on_change_sesion,
             alignment=ft.alignment.center,
+            text_style=ft.TextStyle(size=16),
         )
         
         descripcion_label = ft.Text(
@@ -460,8 +463,9 @@ def main(page: ft.Page):
                     )
                 )
                 progress_squares.append(square)
-            return ft.Wrap(
+            return ft.Row(
                 controls=progress_squares,
+                wrap=True,
                 spacing=5,
                 run_spacing=5,
                 alignment=ft.WrapAlignment.CENTER,
