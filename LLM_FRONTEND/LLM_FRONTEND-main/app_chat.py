@@ -934,11 +934,13 @@ def main(page: ft.Page):
             ),
             on_click=lambda e: ir_a_problema(+1)
         )
-
+        
         botones_row = ft.Row(
             [retroceder_button, enviar_button, siguiente_button],
             alignment=ft.MainAxisAlignment.CENTER,
-            spacing=30
+            spacing=30,        # Reduced spacing to help fit on mobile
+            wrap=True,         # 👈 THE FIX: Allows buttons to flow to next line
+            run_spacing=10     # 👈 Vertical spacing when they wrap
         )
 
         numero_text = ft.Text(
@@ -1038,19 +1040,24 @@ def main(page: ft.Page):
         header_row = ft.Row(
             [
                 ft.Row([theme_icon_btn, titulo_label], spacing=8, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-                ft.Container(barra_progreso, expand=True, alignment=ft.alignment.center),
-                ft.GestureDetector(
-                    content=ft.Container(
-                        temporizador_text,
-                        alignment=ft.alignment.center,
-                        padding=ft.padding.symmetric(horizontal=12),
+                ft.Container(barra_progreso, alignment=ft.alignment.center),
+                ft.Row([
+                    ft.GestureDetector(
+                        content=ft.Container(
+                            temporizador_text,
+                            alignment=ft.alignment.center,
+                            padding=ft.padding.symmetric(horizontal=12),
+                        ),
+                        on_tap=toggle_timer,
                     ),
-                    on_tap=toggle_timer,
-                ),
-                reiniciar_button,
+                    reiniciar_button,
+                ], spacing=10)
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            wrap=True,
+            run_spacing=10,
+            spacing=10,
         )
 
         page.clean()
@@ -1292,6 +1299,8 @@ def main(page: ft.Page):
         header_row = ft.Row(
             [ft.Container(), reiniciar_button_final],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            wrap=True,
+            run_spacing=10,
         )
 
         page.add(
