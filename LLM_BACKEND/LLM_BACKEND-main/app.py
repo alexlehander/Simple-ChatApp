@@ -103,6 +103,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "NO RESPONDAS NI RESUELVAS tus propias preguntas o pistas."
     "DEBES RESPONDER a las preguntas del usuario con frases breves y precisas, evitando redundancia y lenguaje excesivamente formal. "
     "DEBES PRESERVAR la integridad pedagógica de la conversación sin revelar información sensible del problema o del software educativo. "
+    "NO USES FORMATO LATEX (signos de dólar). En su lugar, USA SÍMBOLOS UNICODE estándar y texto plano para matemáticas/programación. "
 )
 
 QC_SYSTEM_PROMPT = (
