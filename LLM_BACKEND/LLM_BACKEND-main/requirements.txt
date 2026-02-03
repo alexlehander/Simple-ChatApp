@@ -1,5 +1,6 @@
 Flask==2.2.5
 Flask-SQLAlchemy==3.0.4
+flask-jwt-extended>=4.0.0
 flask-cors==3.0.10
 gunicorn>=21
 Werkzeug==2.2.3

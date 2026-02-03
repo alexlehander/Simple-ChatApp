@@ -7,6 +7,8 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from pinecone import Pinecone
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
 # ------------------------------------------------------------------------------------
 # LLM Setup
@@ -55,7 +57,10 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "mysql+pymysql://app:app@db:3306/llmapp"
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key-change-in-prod")
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = dt.timedelta(hours=12)
 db = SQLAlchemy(app)
+jwt = JWTManager(app)
 
 # ------------------------------------------------------------------------------------
 # Data Models
@@ -86,6 +91,20 @@ class ChatLog(db.Model):
     role = db.Column(db.String(16), nullable=False)  # "user" or "assistant" or "system"
     content = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
+
+class Profesor(db.Model):
+    __tablename__ = "railway_profesor"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    email = db.Column(db.String(128), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    nombre = db.Column(db.String(128), nullable=True)
+
+class ListaClase(db.Model):
+    __tablename__ = "railway_lista_clase"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    profesor_id = db.Column(db.Integer, db.ForeignKey("railway_profesor.id"), nullable=False)
+    student_email = db.Column(db.String(128), nullable=False)
+    __table_args__ = (db.UniqueConstraint('profesor_id', 'student_email', name='_profesor_student_uc'),)
 
 with app.app_context():
     db.create_all()
@@ -301,6 +320,106 @@ def check_new_messages(problema_id):
         return jsonify({"status": "completed", "response": last_msg.content})
     else:
         return jsonify({"status": "waiting"})
+
+@app.route("/api/teacher/register", methods=["POST"])
+def teacher_register():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+    nombre = data.get("nombre", "Profesor")
+    
+    if not email or not password:
+        return jsonify({"msg": "Faltan datos"}), 400
+    
+    if Profesor.query.filter_by(email=email).first():
+        return jsonify({"msg": "El usuario ya existe"}), 400
+        
+    hashed = generate_password_hash(password)
+    new_prof = Profesor(email=email, password_hash=hashed, nombre=nombre)
+    db.session.add(new_prof)
+    db.session.commit()
+    
+    return jsonify({"msg": "Profesor registrado exitosamente"}), 201
+
+@app.route("/api/teacher/login", methods=["POST"])
+def teacher_login():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+    prof = Profesor.query.filter_by(email=email).first()
+    
+    if not prof or not check_password_hash(prof.password_hash, password):
+        return jsonify({"msg": "Credenciales inválidas"}), 401
+        
+    access_token = create_access_token(identity=prof.id)
+    
+    return jsonify(access_token=access_token, nombre=prof.nombre), 200
+
+@app.route("/api/teacher/students", methods=["GET", "POST", "DELETE"])
+@jwt_required()
+def manage_students():
+    profesor_id = get_jwt_identity()
+    
+    if request.method == "GET":
+        students = ListaClase.query.filter_by(profesor_id=profesor_id).all()
+        return jsonify([s.student_email for s in students]), 200
+        
+    if request.method == "POST":
+        data = request.get_json()
+        emails = data.get("emails", [])
+        if isinstance(emails, str): emails = [emails]
+        added = 0
+        for email in emails:
+            email = email.strip()
+            if not email: continue
+            exists = ListaClase.query.filter_by(profesor_id=profesor_id, student_email=email).first()
+            if not exists:
+                db.session.add(ListaClase(profesor_id=profesor_id, student_email=email))
+                added += 1
+        db.session.commit()
+        return jsonify({"msg": f"Se agregaron {added} estudiantes"}), 200
+
+    if request.method == "DELETE":
+        data = request.get_json()
+        email = data.get("email")
+        ListaClase.query.filter_by(profesor_id=profesor_id, student_email=email).delete()
+        db.session.commit()
+        return jsonify({"msg": "Eliminado"}), 200
+
+@app.route("/api/teacher/dashboard-data", methods=["GET"])
+@jwt_required()
+def dashboard_data():
+    profesor_id = get_jwt_identity()
+    
+    student_records = ListaClase.query.filter_by(profesor_id=profesor_id).all()
+    student_emails = [s.student_email for s in student_records]
+    
+    if not student_emails:
+        return jsonify({"respuestas": [], "chats": []}), 200
+    
+    respuestas_db = RespuestaUsuario.query.filter(RespuestaUsuario.correo_identificacion.in_(student_emails)).order_by(RespuestaUsuario.created_at.desc()).all()
+    chats_db = ChatLog.query.filter(ChatLog.correo_identificacion.in_(student_emails)).order_by(ChatLog.created_at.desc()).limit(500).all() # Limite de seguridad
+    
+    respuestas_data = [{
+        "correo": r.correo_identificacion,
+        "problema_id": r.problema_id,
+        "practica": r.practice_name,
+        "respuesta": r.respuesta,
+        "fecha": r.created_at.isoformat()
+    } for r in respuestas_db]
+    
+    chat_data = [{
+        "correo": c.correo_identificacion,
+        "problema_id": c.problema_id,
+        "role": c.role,
+        "content": c.content,
+        "fecha": c.created_at.isoformat()
+    } for c in chats_db]
+    
+    return jsonify({
+        "respuestas": respuestas_data,
+        "chats": chat_data
+    }), 200
 
 # ------------------------------------------------------------------------------------
 # Entrypoint
