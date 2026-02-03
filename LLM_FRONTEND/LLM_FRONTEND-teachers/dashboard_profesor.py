@@ -49,8 +49,9 @@ STATE_KEYS = {
 
 def main(page: ft.Page):
     page.title = "GrowTogether - Portal Docente"
-    page.bgcolor = THEME["bg"]
-    page.theme_mode = ft.ThemeMode.DARK
+    COLORES = DARK_COLORS
+    page.bgcolor = COLORES["fondo"]
+    page.theme_mode = ft.ThemeMode.DARK if COLORES == DARK_COLORS else ft.ThemeMode.LIGHT
     page.padding = 20
     
     # Estado Global
@@ -60,8 +61,8 @@ def main(page: ft.Page):
         "dashboard_data": {}
     }
 
-    def flash(msg, color=THEME["success"]):
-        snack = ft.SnackBar(ft.Text(msg), bgcolor=color)
+    def flash(msg, color=COLORES["exito"]):
+        snack = ft.SnackBar(ft.Text(msg, color="white"), bgcolor=color)
         page.overlay.append(snack)
         snack.open = True
         page.update()
@@ -71,12 +72,24 @@ def main(page: ft.Page):
     def show_login():
         page.clean()
         
-        email_field = ft.TextField(label="Correo Docente", width=300)
-        pass_field = ft.TextField(label="Contraseña", password=True, width=300, can_reveal_password=True)
+        email_field = ft.TextField(
+            label="Correo Docente", 
+            width=300,
+            border_color=COLORES["primario"],
+            color=COLORES["texto"]
+        )
+        pass_field = ft.TextField(
+            label="Contraseña", 
+            password=True, 
+            width=300, 
+            can_reveal_password=True,
+            border_color=COLORES["primario"],
+            color=COLORES["texto"]
+        )
         
         def login_action(e):
             try:
-                res = requests.post(f"{API_URL}/api/teacher/login", json={
+                res = requests.post(f"{BASE}/api/teacher/login", json={
                     "email": email_field.value,
                     "password": pass_field.value
                 })
@@ -87,38 +100,39 @@ def main(page: ft.Page):
                     flash(f"Bienvenido, {data.get('nombre', 'Profesor')}")
                     show_dashboard()
                 else:
-                    flash("Credenciales incorrectas", THEME["danger"])
+                    flash("Credenciales incorrectas", COLORES["error"])
             except Exception as ex:
-                flash(f"Error de conexión: {ex}", THEME["danger"])
+                flash(f"Error de conexión: {ex}", COLORES["error"])
 
         def register_action(e):
              # Simple registro rápido
             try:
-                res = requests.post(f"{API_URL}/api/teacher/register", json={
+                res = requests.post(f"{BASE}/api/teacher/register", json={
                     "email": email_field.value,
                     "password": pass_field.value
                 })
                 if res.status_code == 201:
                     flash("Cuenta creada. Inicia sesión.")
                 else:
-                    flash(res.json().get("msg", "Error"), THEME["danger"])
+                    flash(res.json().get("msg", "Error"), COLORES["error"])
             except Exception as ex:
-                flash(f"Error: {ex}", THEME["danger"])
+                flash(f"Error: {ex}", COLORES["error"])
 
         card = ft.Container(
             content=ft.Column([
-                ft.Text("Acceso Docente", size=24, weight="bold", color=THEME["text"]),
+                ft.Text("Acceso Docente", size=24, weight="bold", color=COLORES["texto"]),
                 email_field,
                 pass_field,
                 ft.Row([
-                    ft.ElevatedButton("Entrar", on_click=login_action, bgcolor=THEME["primary"], color="white"),
-                    ft.TextButton("Crear Cuenta", on_click=register_action)
+                    ft.ElevatedButton("Entrar", on_click=login_action, bgcolor=COLORES["boton"], color="white"),
+                    ft.TextButton("Crear Cuenta", on_click=register_action, style=ft.ButtonStyle(color=COLORES["primario"]))
                 ], alignment=ft.MainAxisAlignment.CENTER)
             ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
-            bgcolor=THEME["card"],
+            bgcolor=COLORES["accento"],
             padding=40,
             border_radius=10,
-            alignment=ft.alignment.center
+            alignment=ft.alignment.center,
+            border=ft.border.all(1, COLORES["borde"])
         )
         
         page.add(ft.Center(card, expand=True))
@@ -129,13 +143,18 @@ def main(page: ft.Page):
         # --- COMPONENTES DEL DASHBOARD ---
         
         # 1. Gestión de Estudiantes
-        new_student_mail = ft.TextField(hint_text="estudiante@uabc.edu.mx", expand=True)
+        new_student_mail = ft.TextField(
+            hint_text="estudiante@uabc.edu.mx", 
+            expand=True,
+            border_color=COLORES["borde"],
+            color=COLORES["texto"]
+        )
         students_list_view = ft.ListView(expand=True, spacing=10)
 
         def load_students():
             headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                res = requests.get(f"{API_URL}/api/teacher/students", headers=headers)
+                res = requests.get(f"{BASE}/api/teacher/students", headers=headers)
                 if res.status_code == 200:
                     state["students"] = res.json()
                     render_students_list()
@@ -145,17 +164,17 @@ def main(page: ft.Page):
         def add_student(e):
             if not new_student_mail.value: return
             headers = {"Authorization": f"Bearer {state['token']}"}
-            res = requests.post(f"{API_URL}/api/teacher/students", headers=headers, json={"emails": [new_student_mail.value]})
+            res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [new_student_mail.value]})
             if res.status_code == 200:
                 new_student_mail.value = ""
                 flash("Estudiante agregado")
                 load_students()
             else:
-                flash("Error al agregar", THEME["danger"])
+                flash("Error al agregar", COLORES["error"])
 
         def delete_student(email):
             headers = {"Authorization": f"Bearer {state['token']}"}
-            requests.delete(f"{API_URL}/api/teacher/students", headers=headers, json={"email": email})
+            requests.delete(f"{BASE}/api/teacher/students", headers=headers, json={"email": email})
             load_students()
 
         def render_students_list():
@@ -164,23 +183,27 @@ def main(page: ft.Page):
                 students_list_view.controls.append(
                     ft.Container(
                         content=ft.Row([
-                            ft.Icon(ft.Icons.PERSON, color=THEME["primary"]),
-                            ft.Text(email, expand=True, size=16),
-                            ft.IconButton(ft.Icons.DELETE, icon_color=THEME["danger"], on_click=lambda e, mail=email: delete_student(mail))
+                            ft.Icon(ft.Icons.PERSON, color=COLORES["primario"]),
+                            ft.Text(email, expand=True, size=16, color=COLORES["texto"]),
+                            ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, mail=email: delete_student(mail))
                         ]),
-                        bgcolor=THEME["bg"],
+                        bgcolor=COLORES["fondo"],
                         padding=10,
-                        border_radius=5
+                        border_radius=5,
+                        border=ft.border.all(1, COLORES["borde"])
                     )
                 )
             page.update()
 
         tab_students = ft.Container(
             content=ft.Column([
-                ft.Text("Gestionar mi Lista de Clase", size=20, weight="bold"),
-                ft.Text("Agrega los correos de los estudiantes que deseas monitorear."),
-                ft.Row([new_student_mail, ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=THEME["success"], on_click=add_student)]),
-                ft.Divider(),
+                ft.Text("Gestionar mi Lista de Clase", size=20, weight="bold", color=COLORES["texto"]),
+                ft.Text("Agrega los correos de los estudiantes que deseas monitorear.", color=COLORES["subtitulo"]),
+                ft.Row([
+                    new_student_mail, 
+                    ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"], on_click=add_student)
+                ]),
+                ft.Divider(color=COLORES["borde"]),
                 students_list_view
             ]),
             padding=20
@@ -193,7 +216,7 @@ def main(page: ft.Page):
         def load_data():
             headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                res = requests.get(f"{API_URL}/api/teacher/dashboard-data", headers=headers)
+                res = requests.get(f"{BASE}/api/teacher/dashboard-data", headers=headers)
                 if res.status_code == 200:
                     data = res.json()
                     render_data(data)
@@ -201,44 +224,49 @@ def main(page: ft.Page):
                     state["token"] = None
                     show_login()
             except Exception as e:
-                flash(f"Error cargando datos: {e}", THEME["danger"])
+                flash(f"Error cargando datos: {e}", COLORES["error"])
 
         def render_data(data):
             # Render Respuestas
             answers_col.controls.clear()
             if not data["respuestas"]:
-                answers_col.controls.append(ft.Text("No hay respuestas registradas de tus alumnos."))
+                answers_col.controls.append(ft.Text("No hay respuestas registradas.", color=COLORES["subtitulo"]))
             
-            for r in data["respuestas"]:
+            for r in data.get("respuestas", []):
                 answers_col.controls.append(
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text(r['correo'], weight="bold", color=THEME["primary"]),
-                                ft.Text(f"Prob: {r['problema_id']}", size=12),
-                                ft.Text(r['fecha'][:16], size=12, color=THEME["subtext"])
+                                ft.Text(r['correo'], weight="bold", color=COLORES["primario"]),
+                                ft.Text(f"Prob: {r['problema_id']}", size=12, color=COLORES["texto"]),
+                                ft.Text(r['fecha'][:16], size=12, color=COLORES["subtitulo"])
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Text(r['respuesta'], selectable=True)
+                            ft.Text(r['respuesta'], selectable=True, color=COLORES["texto"])
                         ]),
-                        bgcolor=THEME["bg"], padding=15, border_radius=8, border=ft.border.all(1, "#374151")
+                        bgcolor=COLORES["fondo"], 
+                        padding=15, 
+                        border_radius=8, 
+                        border=ft.border.all(1, COLORES["borde"])
                     )
                 )
 
             # Render Chats
             chats_col.controls.clear()
-            if not data["chats"]:
-                chats_col.controls.append(ft.Text("No hay historial de chat."))
+            if not data.get("chats"):
+                chats_col.controls.append(ft.Text("No hay historial de chat.", color=COLORES["subtitulo"]))
 
-            for c in data["chats"]:
+            for c in data.get("chats", []):
                 is_bot = c['role'] == 'assistant'
                 align = ft.CrossAxisAlignment.START if is_bot else ft.CrossAxisAlignment.END
-                color_bg = "#374151" if is_bot else "#1E3A8A"
+                # Usamos colores diferenciados para chat
+                color_bg = COLORES["borde"] if is_bot else COLORES["primario"]
+                text_col = COLORES["texto"] if is_bot else "#FFFFFF" # Texto blanco si es azul primario
                 
                 chats_col.controls.append(
                     ft.Column([
-                        ft.Text(f"{'Tutor' if is_bot else c['correo']} - {c['fecha'][:16]}", size=10, color=THEME["subtext"]),
+                        ft.Text(f"{'Tutor' if is_bot else c['correo']} - {c['fecha'][:16]}", size=10, color=COLORES["subtitulo"]),
                         ft.Container(
-                            content=ft.Text(c['content'], size=14),
+                            content=ft.Text(c['content'], size=14, color=text_col),
                             bgcolor=color_bg, padding=10, border_radius=10, width=400
                         )
                     ], horizontal_alignment=align)
@@ -247,27 +275,24 @@ def main(page: ft.Page):
 
         tab_monitor = ft.Container(
             content=ft.Row([
-                # Columna Izquierda: Respuestas
                 ft.Container(
                     content=ft.Column([
-                        ft.Text("Respuestas Entregadas", size=18, weight="bold"),
+                        ft.Text("Respuestas Entregadas", size=18, weight="bold", color=COLORES["texto"]),
                         answers_col
                     ], expand=True),
-                    expand=1, bgcolor=THEME["card"], padding=10, border_radius=10
+                    expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10
                 ),
-                # Columna Derecha: Feed de Chats
                 ft.Container(
                     content=ft.Column([
-                        ft.Text("Feed de Conversaciones (Tiempo Real)", size=18, weight="bold"),
+                        ft.Text("Feed de Conversaciones", size=18, weight="bold", color=COLORES["texto"]),
                         chats_col
                     ], expand=True),
-                    expand=1, bgcolor=THEME["card"], padding=10, border_radius=10, margin=ft.margin.only(left=10)
+                    expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10)
                 )
             ], expand=True),
             padding=20, expand=True
         )
 
-        # Tabs Layout
         tabs = ft.Tabs(
             selected_index=0,
             animation_duration=300,
@@ -276,24 +301,36 @@ def main(page: ft.Page):
                 ft.Tab(text="Monitoreo", icon=ft.Icons.MONITOR_HEART, content=tab_monitor),
             ],
             expand=True,
-            on_change=lambda e: load_data() if e.control.selected_index == 1 else None
+            on_change=lambda e: load_data() if e.control.selected_index == 1 else None,
+            label_color=COLORES["primario"],
+            unselected_label_color=COLORES["subtitulo"],
+            indicator_color=COLORES["primario"]
         )
 
-        logout_btn = ft.IconButton(ft.Icons.LOGOUT, tooltip="Cerrar Sesión", on_click=lambda e: (page.client_storage.remove("teacher_token"), show_login()))
+        logout_btn = ft.IconButton(
+            ft.Icons.LOGOUT, 
+            tooltip="Cerrar Sesión", 
+            icon_color=COLORES["error"],
+            on_click=lambda e: (page.client_storage.remove("teacher_token"), show_login())
+        )
         
         page.add(
-            ft.Row([ft.Text("Panel Profesor", size=20, weight="bold"), logout_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Row([
+                ft.Text("Panel Profesor", size=20, weight="bold", color=COLORES["texto"]), 
+                logout_btn
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             tabs
         )
         
-        # Carga inicial
         load_students()
 
-    # Inicio de App
     if state["token"]:
         show_dashboard()
     else:
         show_login()
 
 if __name__ == "__main__":
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.getenv("PORT_TEACHER", "3001")))
+    import os
+    os.environ["FLET_FORCE_WEB"] = "1"
+    port = int(os.getenv("PORT", "3001"))
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=port)
