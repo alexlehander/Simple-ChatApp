@@ -163,14 +163,37 @@ def main(page: ft.Page):
 
         def add_student(e):
             if not new_student_mail.value: return
+            
+            e.control.disabled = True
+            page.update()
+            
             headers = {"Authorization": f"Bearer {state['token']}"}
-            res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [new_student_mail.value]})
-            if res.status_code == 200:
-                new_student_mail.value = ""
-                flash("Estudiante agregado")
-                load_students()
-            else:
-                flash("Error al agregar", COLORES["error"])
+            try:
+                print(f"Enviando solicitud a: {BASE}/api/teacher/students") # Debug log
+                res = requests.post(
+                    f"{BASE}/api/teacher/students", 
+                    headers=headers, 
+                    json={"emails": [new_student_mail.value]},
+                    timeout=10
+                )
+                
+                if res.status_code == 200:
+                    new_student_mail.value = ""
+                    flash(f"Estudiante agregado: {res.json().get('msg')}")
+                    load_students()
+                else:
+                    error_msg = res.json().get('msg', 'Error desconocido') if res.content else f"Error {res.status_code}"
+                    flash(f"Error del servidor: {error_msg}", COLORES["error"])
+                    print(f"Error Backend: {res.text}")
+                    
+            except requests.exceptions.ConnectionError:
+                flash("No se pudo conectar con el Backend. Verifica la URL.", COLORES["error"])
+            except Exception as ex:
+                flash(f"Error técnico: {ex}", COLORES["error"])
+                print(f"Excepción: {ex}")
+            finally:
+                e.control.disabled = False
+                page.update()
 
         def delete_student(email):
             headers = {"Authorization": f"Bearer {state['token']}"}
