@@ -351,7 +351,7 @@ def teacher_login():
     if not prof or not check_password_hash(prof.password_hash, password):
         return jsonify({"msg": "Credenciales inválidas"}), 401
         
-    access_token = create_access_token(identity=prof.id)
+    access_token = create_access_token(identity=str(prof.id))
     
     return jsonify(access_token=access_token, nombre=prof.nombre), 200
 
