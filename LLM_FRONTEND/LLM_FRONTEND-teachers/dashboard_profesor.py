@@ -1,5 +1,5 @@
 import flet as ft
-import requests, time, threading, os, 
+import requests, time, threading, os, json
 
 # Paleta CLARA
 LIGHT_COLORS = {
