@@ -135,7 +135,7 @@ def main(page: ft.Page):
             border=ft.border.all(1, COLORES["borde"])
         )
         
-        page.add(ft.Center(card, expand=True))
+        page.add(ft.Container(content=card, alignment=ft.alignment.center, expand=True))
 
     def show_dashboard():
         page.clean()
