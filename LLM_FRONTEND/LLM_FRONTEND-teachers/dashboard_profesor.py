@@ -382,7 +382,7 @@ def main(page: ft.Page):
                 ),
                 ft.Divider(color="transparent", height=10),
                 # Columnas de Datos
-                ft.Expanded(
+                ft.Row([
                     content=ft.Row([
                         ft.Container(
                             content=ft.Column([
