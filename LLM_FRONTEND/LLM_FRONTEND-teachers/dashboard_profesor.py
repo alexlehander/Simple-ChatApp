@@ -382,24 +382,23 @@ def main(page: ft.Page):
                 ),
                 ft.Divider(color="transparent", height=10),
                 # Columnas de Datos
+                # Columnas de Datos
                 ft.Row([
-                    content=ft.Row([
-                        ft.Container(
-                            content=ft.Column([
-                                ft.Text("Respuestas Entregadas", size=18, weight="bold", color=COLORES["texto"]),
-                                answers_col
-                            ], expand=True),
-                            expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10
-                        ),
-                        ft.Container(
-                            content=ft.Column([
-                                ft.Text("Feed de Conversaciones", size=18, weight="bold", color=COLORES["texto"]),
-                                chats_col
-                            ], expand=True),
-                            expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10)
-                        )
-                    ], expand=True)
-                )
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Text("Respuestas Entregadas", size=18, weight="bold", color=COLORES["texto"]),
+                            answers_col
+                        ], expand=True),
+                        expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10
+                    ),
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Text("Feed de Conversaciones", size=18, weight="bold", color=COLORES["texto"]),
+                            chats_col
+                        ], expand=True),
+                        expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10)
+                    )
+                ], expand=True)
             ]),
             padding=20, expand=True
         )
