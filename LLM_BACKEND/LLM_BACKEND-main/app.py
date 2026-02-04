@@ -386,20 +386,58 @@ def manage_students():
         db.session.commit()
         return jsonify({"msg": "Eliminado"}), 200
 
+@app.route("/api/teacher/exercises", methods=["GET"])
+@jwt_required()
+def get_teacher_exercises():
+    """
+    Devuelve la lista de nombres de archivos de ejercicios disponibles
+    en el directorio configurado.
+    """
+    try:
+        # Escanea el directorio de ejercicios definido globalmente
+        files = [f for f in os.listdir(EXERCISES_PATH) if f.endswith('.json') and os.path.isfile(os.path.join(EXERCISES_PATH, f))]
+        return jsonify(files), 200
+    except Exception as e:
+        print(f"Error leyendo directorio de ejercicios: {e}")
+        return jsonify({"msg": "Error al leer ejercicios del servidor"}), 500
+
 @app.route("/api/teacher/dashboard-data", methods=["GET"])
 @jwt_required()
 def dashboard_data():
+    """
+    Recupera actividad (respuestas y chats) de los estudiantes del profesor.
+    Permite filtrado opcional por 'student_email' y 'practice_name'.
+    """
     profesor_id = get_jwt_identity()
     
+    target_student = request.args.get('student_email')
+    target_practice = request.args.get('practice_name')
+
     student_records = ListaClase.query.filter_by(profesor_id=profesor_id).all()
-    student_emails = [s.student_email for s in student_records]
+    my_student_emails = [s.student_email for s in student_records]
     
-    if not student_emails:
+    if not my_student_emails:
         return jsonify({"respuestas": [], "chats": []}), 200
     
-    respuestas_db = RespuestaUsuario.query.filter(RespuestaUsuario.correo_identificacion.in_(student_emails)).order_by(RespuestaUsuario.created_at.desc()).all()
-    chats_db = ChatLog.query.filter(ChatLog.correo_identificacion.in_(student_emails)).order_by(ChatLog.created_at.desc()).limit(500).all() # Limite de seguridad
+    if target_student:
+        if target_student not in my_student_emails:
+             return jsonify({"msg": "Acceso denegado a este estudiante"}), 403
+        emails_to_query = [target_student]
+    else:
+        emails_to_query = my_student_emails
+
+    resp_query = RespuestaUsuario.query.filter(RespuestaUsuario.correo_identificacion.in_(emails_to_query))
+    if target_practice:
+        resp_query = resp_query.filter(RespuestaUsuario.practice_name == target_practice)
     
+    respuestas_db = resp_query.order_by(RespuestaUsuario.created_at.desc()).all()
+    
+    chat_query = ChatLog.query.filter(ChatLog.correo_identificacion.in_(emails_to_query))
+    if target_practice:
+        chat_query = chat_query.filter(ChatLog.practice_name == target_practice)
+        
+    chats_db = chat_query.order_by(ChatLog.created_at.desc()).limit(500).all()
+
     respuestas_data = [{
         "correo": r.correo_identificacion,
         "problema_id": r.problema_id,
@@ -411,6 +449,7 @@ def dashboard_data():
     chat_data = [{
         "correo": c.correo_identificacion,
         "problema_id": c.problema_id,
+        "practica": c.practice_name, # Aseguramos enviar esto al frontend
         "role": c.role,
         "content": c.content,
         "fecha": c.created_at.isoformat()

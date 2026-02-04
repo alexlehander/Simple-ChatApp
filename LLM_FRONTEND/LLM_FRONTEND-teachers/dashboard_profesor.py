@@ -137,12 +137,16 @@ def main(page: ft.Page):
         
         page.add(ft.Container(content=card, alignment=ft.alignment.center, expand=True))
 
+    # --- Reemplazar TODA la función show_dashboard existente ---
     def show_dashboard():
         page.clean()
         
-        # --- COMPONENTES DEL DASHBOARD ---
-        
-        # 1. Gestión de Estudiantes
+        # Inicializar estado extra para esta vista
+        state["exercises"] = []
+
+        # =========================================
+        # PESTAÑA 1: Gestión de Estudiantes
+        # =========================================
         new_student_mail = ft.TextField(
             hint_text="estudiante@uabc.edu.mx", 
             expand=True,
@@ -158,42 +162,26 @@ def main(page: ft.Page):
                 if res.status_code == 200:
                     state["students"] = res.json()
                     render_students_list()
+                    update_dropdowns() # Actualizar filtros
             except Exception as e:
                 print(e)
 
         def add_student(e):
             if not new_student_mail.value: return
-            
-            e.control.disabled = True
-            page.update()
-            
+            e.control.disabled = True; page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                print(f"Enviando solicitud a: {BASE}/api/teacher/students") # Debug log
-                res = requests.post(
-                    f"{BASE}/api/teacher/students", 
-                    headers=headers, 
-                    json={"emails": [new_student_mail.value]},
-                    timeout=10
-                )
-                
+                res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [new_student_mail.value]}, timeout=10)
                 if res.status_code == 200:
                     new_student_mail.value = ""
                     flash(f"Estudiante agregado: {res.json().get('msg')}")
                     load_students()
                 else:
-                    error_msg = res.json().get('msg', 'Error desconocido') if res.content else f"Error {res.status_code}"
-                    flash(f"Error del servidor: {error_msg}", COLORES["error"])
-                    print(f"Error Backend: {res.text}")
-                    
-            except requests.exceptions.ConnectionError:
-                flash("No se pudo conectar con el Backend. Verifica la URL.", COLORES["error"])
+                    flash(f"Error: {res.json().get('msg', 'Error desconocido')}", COLORES["error"])
             except Exception as ex:
                 flash(f"Error técnico: {ex}", COLORES["error"])
-                print(f"Excepción: {ex}")
             finally:
-                e.control.disabled = False
-                page.update()
+                e.control.disabled = False; page.update()
 
         def delete_student(email):
             headers = {"Authorization": f"Bearer {state['token']}"}
@@ -210,10 +198,7 @@ def main(page: ft.Page):
                             ft.Text(email, expand=True, size=16, color=COLORES["texto"]),
                             ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, mail=email: delete_student(mail))
                         ]),
-                        bgcolor=COLORES["fondo"],
-                        padding=10,
-                        border_radius=5,
-                        border=ft.border.all(1, COLORES["borde"])
+                        bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])
                     )
                 )
             page.update()
@@ -222,109 +207,224 @@ def main(page: ft.Page):
             content=ft.Column([
                 ft.Text("Gestionar mi Lista de Clase", size=20, weight="bold", color=COLORES["texto"]),
                 ft.Text("Agrega los correos de los estudiantes que deseas monitorear.", color=COLORES["subtitulo"]),
-                ft.Row([
-                    new_student_mail, 
-                    ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"], on_click=add_student)
-                ]),
+                ft.Row([new_student_mail, ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"], on_click=add_student)]),
                 ft.Divider(color=COLORES["borde"]),
                 students_list_view
-            ]),
-            padding=20
+            ]), padding=20
         )
 
-        # 2. Visualización de Datos (Respuestas y Chat)
-        answers_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
-        chats_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+        # =========================================
+        # PESTAÑA 2: Mis Tareas (NUEVA)
+        # =========================================
+        exercises_list_view = ft.ListView(expand=True, spacing=10)
 
-        def load_data():
+        def load_exercises():
             headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                res = requests.get(f"{BASE}/api/teacher/dashboard-data", headers=headers)
+                res = requests.get(f"{BASE}/api/teacher/exercises", headers=headers)
+                if res.status_code == 200:
+                    state["exercises"] = res.json()
+                    render_exercises_list()
+                    update_dropdowns() # Actualizar filtros
+                else:
+                    flash("No se pudieron cargar los ejercicios", COLORES["advertencia"])
+            except Exception as e:
+                print(f"Error loading exercises: {e}")
+
+        def render_exercises_list():
+            exercises_list_view.controls.clear()
+            if not state["exercises"]:
+                 exercises_list_view.controls.append(ft.Text("No se encontraron ejercicios en el servidor.", color=COLORES["subtitulo"]))
+            
+            for ex_name in state["exercises"]:
+                exercises_list_view.controls.append(
+                     ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.ASSIGNMENT, color=COLORES["secundario"]),
+                            ft.Text(ex_name, expand=True, size=16, color=COLORES["texto"]),
+                        ]),
+                        bgcolor=COLORES["fondo"], padding=15, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                    )
+                )
+            page.update()
+
+        tab_exercises = ft.Container(
+             content=ft.Column([
+                ft.Text("Mis Tareas Disponibles", size=20, weight="bold", color=COLORES["texto"]),
+                ft.Text("Estos son los ejercicios configurados en el servidor.", color=COLORES["subtitulo"]),
+                ft.Divider(color=COLORES["borde"]),
+                exercises_list_view
+            ]), padding=20
+        )
+
+        # =========================================
+        # PESTAÑA 3: Monitoreo (ACTUALIZADA)
+        # =========================================
+        answers_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+        chats_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+        
+        # Controles de Filtro
+        student_filter = ft.Dropdown(
+            label="Filtrar por Estudiante", 
+            width=250,
+            options=[ft.dropdown.Option("todos", "Todos los Estudiantes")],
+            value="todos",
+            border_color=COLORES["primario"], color=COLORES["texto"]
+        )
+        exercise_filter = ft.Dropdown(
+            label="Filtrar por Tarea", 
+            width=250,
+            options=[ft.dropdown.Option("todos", "Todas las Tareas")],
+            value="todos",
+            border_color=COLORES["primario"], color=COLORES["texto"]
+        )
+
+        def update_dropdowns():
+            # Actualiza las opciones de los dropdowns basado en datos cargados
+            stu_opts = [ft.dropdown.Option("todos", "Todos los Estudiantes")]
+            stu_opts.extend([ft.dropdown.Option(email) for email in state["students"]])
+            student_filter.options = stu_opts
+            
+            ex_opts = [ft.dropdown.Option("todos", "Todas las Tareas")]
+            ex_opts.extend([ft.dropdown.Option(ex) for ex in state["exercises"]])
+            exercise_filter.options = ex_opts
+            page.update()
+
+        def load_data_filtered(e=None):
+            # Carga datos aplicando los filtros seleccionados
+            headers = {"Authorization": f"Bearer {state['token']}"}
+            params = {}
+            
+            selected_student = student_filter.value
+            if selected_student and selected_student != "todos":
+                params["student_email"] = selected_student
+                
+            selected_exercise = exercise_filter.value
+            if selected_exercise and selected_exercise != "todos":
+                params["practice_name"] = selected_exercise
+            
+            try:
+                # Usamos 'params' para enviar datos en la URL (?key=val)
+                res = requests.get(f"{BASE}/api/teacher/dashboard-data", headers=headers, params=params, timeout=15)
                 if res.status_code == 200:
                     data = res.json()
                     render_data(data)
+                    if e: flash("Datos actualizados", COLORES["exito"])
                 elif res.status_code == 401:
-                    state["token"] = None
-                    show_login()
-            except Exception as e:
-                flash(f"Error cargando datos: {e}", COLORES["error"])
+                    state["token"] = None; show_login()
+                else:
+                    flash(f"Error del servidor: {res.status_code}", COLORES["error"])
+            except Exception as ex:
+                flash(f"Error de conexión: {ex}", COLORES["error"])
 
         def render_data(data):
             # Render Respuestas
             answers_col.controls.clear()
-            if not data["respuestas"]:
-                answers_col.controls.append(ft.Text("No hay respuestas registradas.", color=COLORES["subtitulo"]))
+            respuestas = data.get("respuestas", [])
+            if not respuestas:
+                answers_col.controls.append(ft.Text("No se encontraron respuestas con los filtros actuales.", color=COLORES["subtitulo"]))
             
-            for r in data.get("respuestas", []):
+            for r in respuestas:
                 answers_col.controls.append(
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text(r['correo'], weight="bold", color=COLORES["primario"]),
-                                ft.Text(f"Prob: {r['problema_id']}", size=12, color=COLORES["texto"]),
-                                ft.Text(r['fecha'][:16], size=12, color=COLORES["subtitulo"])
+                                ft.Text(r['correo'], weight="bold", color=COLORES["primario"], size=12),
+                                ft.Text(r['practica'], size=12, color=COLORES["secundario"]),
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Text(r['respuesta'], selectable=True, color=COLORES["texto"])
+                            ft.Row([
+                                ft.Text(f"Prob ID: {r['problema_id']}", size=11, color=COLORES["subtitulo"]),
+                                ft.Text(r['fecha'][:16], size=11, color=COLORES["subtitulo"])
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            ft.Divider(height=5, color="transparent"),
+                            ft.Text(r['respuesta'], selectable=True, color=COLORES["texto"], size=13)
                         ]),
-                        bgcolor=COLORES["fondo"], 
-                        padding=15, 
-                        border_radius=8, 
-                        border=ft.border.all(1, COLORES["borde"])
+                        bgcolor=COLORES["fondo"], padding=15, border_radius=8, border=ft.border.all(1, COLORES["borde"])
                     )
                 )
 
-            # Render Chats
+            # Render Chats (ARREGLO DEL ESPACIO MUERTO AQUI)
             chats_col.controls.clear()
-            if not data.get("chats"):
-                chats_col.controls.append(ft.Text("No hay historial de chat.", color=COLORES["subtitulo"]))
+            chats = data.get("chats", [])
+            if not chats:
+                chats_col.controls.append(ft.Text("No hay historial de chat para los filtros actuales.", color=COLORES["subtitulo"]))
 
-            for c in data.get("chats", []):
+            for c in chats:
                 is_bot = c['role'] == 'assistant'
                 align = ft.CrossAxisAlignment.START if is_bot else ft.CrossAxisAlignment.END
-                # Usamos colores diferenciados para chat
                 color_bg = COLORES["borde"] if is_bot else COLORES["primario"]
-                text_col = COLORES["texto"] if is_bot else "#FFFFFF" # Texto blanco si es azul primario
+                text_col = COLORES["texto"] if is_bot else "#FFFFFF"
                 
                 chats_col.controls.append(
                     ft.Column([
-                        ft.Text(f"{'Tutor' if is_bot else c['correo']} - {c['fecha'][:16]}", size=10, color=COLORES["subtitulo"]),
+                        # Mostramos correo y práctica para contexto
+                        ft.Text(f"{'IA Tutor' if is_bot else c['correo'][:15]+'...'} [{c.get('practica','?')}] {c['fecha'][11:16]}", size=10, color=COLORES["subtitulo"]),
                         ft.Container(
                             content=ft.Text(c['content'], size=14, color=text_col),
-                            bgcolor=color_bg, padding=10, border_radius=10, width=400
+                            bgcolor=color_bg, padding=10, border_radius=10, 
+                            # width=400  <--- ELIMINADO para que se expanda
                         )
                     ], horizontal_alignment=align)
                 )
             page.update()
 
         tab_monitor = ft.Container(
-            content=ft.Row([
+            content=ft.Column([
+                # Fila de Filtros
                 ft.Container(
-                    content=ft.Column([
-                        ft.Text("Respuestas Entregadas", size=18, weight="bold", color=COLORES["texto"]),
-                        answers_col
-                    ], expand=True),
-                    expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.FILTER_ALT, color=COLORES["primario"]),
+                        student_filter,
+                        exercise_filter,
+                        ft.ElevatedButton("Filtrar Resultados", icon=ft.Icons.SEARCH, on_click=load_data_filtered, bgcolor=COLORES["boton"], color="white")
+                    ], wrap=True, spacing=15),
+                    padding=10, bgcolor=COLORES["fondo"], border_radius=10, border=ft.border.all(1, COLORES["borde"])
                 ),
-                ft.Container(
-                    content=ft.Column([
-                        ft.Text("Feed de Conversaciones", size=18, weight="bold", color=COLORES["texto"]),
-                        chats_col
-                    ], expand=True),
-                    expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10)
+                ft.Divider(color="transparent", height=10),
+                # Columnas de Datos
+                ft.Expanded(
+                    content=ft.Row([
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text("Respuestas Entregadas", size=18, weight="bold", color=COLORES["texto"]),
+                                answers_col
+                            ], expand=True),
+                            expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10
+                        ),
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text("Feed de Conversaciones", size=18, weight="bold", color=COLORES["texto"]),
+                                chats_col
+                            ], expand=True),
+                            expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10)
+                        )
+                    ], expand=True)
                 )
-            ], expand=True),
+            ]),
             padding=20, expand=True
         )
+
+        # =========================================
+        # NAVEGACIÓN Y CARGA INICIAL
+        # =========================================
+        def on_tab_change(e):
+            idx = e.control.selected_index
+            if idx == 1: # Pestaña Tareas
+                 load_exercises()
+            elif idx == 2: # Pestaña Monitoreo
+                 # Cargar datos con filtros actuales (o iniciales "todos")
+                 load_data_filtered()
 
         tabs = ft.Tabs(
             selected_index=0,
             animation_duration=300,
             tabs=[
                 ft.Tab(text="Mis Estudiantes", icon=ft.Icons.PEOPLE, content=tab_students),
+                ft.Tab(text="Mis Tareas", icon=ft.Icons.ASSIGNMENT, content=tab_exercises), # Nueva Pestaña
                 ft.Tab(text="Monitoreo", icon=ft.Icons.MONITOR_HEART, content=tab_monitor),
             ],
             expand=True,
-            on_change=lambda e: load_data() if e.control.selected_index == 1 else None,
+            on_change=on_tab_change,
             label_color=COLORES["primario"],
             unselected_label_color=COLORES["subtitulo"],
             indicator_color=COLORES["primario"]
@@ -345,7 +445,9 @@ def main(page: ft.Page):
             tabs
         )
         
+        # Carga inicial de datos esenciales
         load_students()
+        load_exercises() # Cargar ejercicios para llenar el dropdown de filtros
 
     if state["token"]:
         show_dashboard()
