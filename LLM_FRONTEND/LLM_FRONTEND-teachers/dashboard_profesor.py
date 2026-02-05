@@ -442,17 +442,18 @@ def main(page: ft.Page):
                 
             page.update()
 
-        msg_problem_id = ft.TextField(
-            label="Problema número...", 
-            width=100, 
-            value="1", 
-            keyboard_type=ft.KeyboardType.NUMBER,
+        msg_problem_selector = ft.Dropdown(
+            label="Problema No.", 
+            width=150, 
+            options=[],
             border_color=COLORES["primario"],
             color=COLORES["texto"]
         )
+        
         msg_text_field = ft.TextField(
             label="Escribe tu mensaje...", 
             multiline=True, 
+            min_lines=5, # Hacemos el área de texto más alta
             expand=True,
             border_color=COLORES["primario"],
             color=COLORES["texto"]
@@ -465,32 +466,44 @@ def main(page: ft.Page):
         def send_direct_message(e):
             # Validar selección previa
             stu = student_filter.value
-            ex = exercise_filter.value
+            ex_filename = exercise_filter.value
             
-            if not stu or stu == "Todos los Estudiantes" or not ex or ex == "Todas las Tareas":
-                flash("Selecciona un estudiante y una tarea primero.", COLORES["advertencia"])
+            if not stu or stu == "Todos los Estudiantes" or not ex_filename or ex_filename == "Todas las Tareas":
+                flash("Para enviar un mensaje, primero filtra por UN estudiante y UNA tarea específica.", COLORES["advertencia"])
                 return
+
+            # Buscar la info de la tarea seleccionada para saber cuántos problemas tiene
+            # Buscamos en 'my_exercises' el objeto que coincida con el filename seleccionado
+            target_exercise = next((item for item in state["my_exercises"] if isinstance(item, dict) and item["filename"] == ex_filename), None)
+            
+            num_problems = 1
+            if target_exercise:
+                num_problems = target_exercise.get("num_problems", 1)
+            
+            # Llenar el dropdown dinámicamente (1, 2, 3... N)
+            msg_problem_selector.options = [ft.dropdown.Option(str(i)) for i in range(1, num_problems + 1)]
+            msg_problem_selector.value = "1" # Resetear a 1 por defecto
 
             dialog_msg.open = True
             page.update()
 
         def confirm_send(e):
-            if not msg_text_field.value or not msg_problem_id.value: 
-                flash("Escribe un mensaje y un número de problema", COLORES["advertencia"])
+            if not msg_text_field.value or not msg_problem_selector.value: 
+                flash("Escribe un mensaje y selecciona un problema", COLORES["advertencia"])
                 return
             
             # Enviar datos explícitos al backend
             res = auth_request("POST", "/api/teacher/send-message", json={
                 "student_email": student_filter.value,
                 "practice_name": exercise_filter.value,
-                "problema_id": int(msg_problem_id.value), # <--- ENVIAMOS EL ID MANUAL
+                "problema_id": int(msg_problem_selector.value), # Usamos el valor del dropdown
                 "message": msg_text_field.value
             })
             
             if res and res.status_code == 200:
                 msg_text_field.value = ""
                 dialog_msg.open = False
-                flash(f"Mensaje enviado al Problema {msg_problem_id.value}")
+                flash(f"Mensaje enviado al Problema {msg_problem_selector.value}")
                 load_data_filtered() 
             else:
                 flash("Error al enviar", COLORES["error"])
@@ -499,14 +512,18 @@ def main(page: ft.Page):
 
         dialog_msg = ft.AlertDialog(
             title=ft.Text("Mensaje al Estudiante"),
-            content=ft.Column([
-                ft.Text("Selecciona el problema destino:", size=12),
-                msg_problem_id, # Campo nuevo
-                msg_text_field
-            ], tight=True, width=400),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text("Selecciona el problema destino:", size=12, color=COLORES["subtitulo"]),
+                    msg_problem_selector, # Ahora es un dropdown
+                    msg_text_field
+                ], tight=True),
+                width=600, # Aumentamos el ancho de la ventana (antes 400)
+                height=300
+            ),
             actions=[
                 ft.TextButton("Cancelar", on_click=close_dialog),
-                ft.ElevatedButton("Enviar", on_click=confirm_send)
+                ft.ElevatedButton("Enviar", on_click=confirm_send, bgcolor=COLORES["primario"], color=COLORES["fondo"])
             ]
         )
         page.overlay.append(dialog_msg)
