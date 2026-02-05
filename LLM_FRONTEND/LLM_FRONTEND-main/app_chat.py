@@ -494,20 +494,34 @@ def main(page: ft.Page):
                 
         def add_chat_bubble(role, text):
             is_user = role == "user"
-            chat_area.controls.append(
-                ft.Container(
-                    content=ft.Text(
-                        text,
-                        color=COLORES["primario"] if is_user else COLORES["texto"],
-                        size=16,
-                        selectable=True
-                    ),
-                    padding=ft.padding.symmetric(horizontal=10, vertical=10),
-                    alignment=ft.alignment.center_right if is_user else ft.alignment.center_left,
-                    border_radius=ft.border_radius.all(10),
-                    width=float("inf"),
-                )
+            is_teacher = role == "teacher"
+            
+            if is_user:
+                txt_color = COLORES["primario"]
+                align = ft.alignment.center_right
+                bg_color = None
+            elif is_teacher:
+                txt_color = "#FFFFFF"
+                align = ft.alignment.center_left
+                bg_color = "#7C3AED"
+            else:
+                txt_color = COLORES["texto"]
+                align = ft.alignment.center_left
+                bg_color = None
+
+            bubble_container = ft.Container(
+                content=ft.Column([
+                    ft.Text("Profesor dice:" if is_teacher else "", size=10, color="white", weight="bold") if is_teacher else ft.Container(),
+                    ft.Text(text, color=txt_color, size=16, selectable=True)
+                ]),
+                padding=ft.padding.symmetric(horizontal=10, vertical=10),
+                alignment=align,
+                bgcolor=bg_color,
+                border_radius=ft.border_radius.all(10),
+                width=float("inf"),
             )
+            
+            chat_area.controls.append(bubble_container)
             chat_area.auto_scroll = True
             chat_area.update()
             chat_area.auto_scroll = False
@@ -860,13 +874,18 @@ def main(page: ft.Page):
 
                         if status == "completed":
                             final_response = data.get("response")
-                            print(f"[DEBUG] ¡Respuesta recibida! Longitud: {len(final_response)} caracteres.")
+                            final_role = data.get("role", "assistant") 
+                            print(f"[DEBUG] ¡Respuesta recibida! Rol: {final_role}")
+                            
                             if page.is_alive:
                                 if loading_bubble in chat_area.controls:
                                     chat_area.controls.remove(loading_bubble)
-                                add_chat_bubble("assistant", final_response)
-                                update_map(page, STATE_KEYS["chat"], current_pid, {"role": "assistant", "text": final_response})
+                                
+                                # Pasamos el rol correcto a la burbuja
+                                add_chat_bubble(final_role, final_response)
+                                update_map(page, STATE_KEYS["chat"], current_pid, {"role": final_role, "text": final_response})
                                 page.update()
+                                
                             return
                             
                     except Exception as e:
@@ -1167,6 +1186,44 @@ def main(page: ft.Page):
             threading.Thread(target=cuenta, daemon=True).start()
         
         iniciar_temporizador()
+        
+        def background_listener():
+            """Busca mensajes nuevos cada 10s en el problema ACTUAL"""
+            while not stop_timer: 
+                time.sleep(10) # Costo bajo para el servidor
+                if not page.is_alive: return 
+                
+                try:
+                    # Solo preguntamos por el problema que el alumno está viendo AHORA
+                    r = requests.post(
+                        f"{BASE}/check_new_messages/{problema_actual_id}",
+                        json={"correo_identificacion": correo},
+                        timeout=5
+                    )
+                    
+                    if r.status_code == 200:
+                        data = r.json()
+                        if data.get("status") == "completed":
+                            texto = data.get("response")
+                            rol = data.get("role")
+                            
+                            # Validar que sea un mensaje NUEVO (comparando con lo que ya tenemos en pantalla)
+                            chats_locales = load_k(page, STATE_KEYS["chat"], {}).get(str(problema_actual_id), [])
+                            ultimo_texto = chats_locales[-1]["text"] if chats_locales else ""
+                            
+                            if texto != ultimo_texto and rol in ["teacher", "assistant"]:
+                                # ¡Nuevo mensaje detectado! Lo inyectamos.
+                                add_chat_bubble(rol, texto)
+                                update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": rol, "text": texto})
+                                page.update()
+                                
+                                # Feedback visual opcional
+                                flash("🔔 Nuevo mensaje recibido", ok=True)
+
+                except Exception as e:
+                    print(f"[Listener] Silent fail: {e}")
+
+        threading.Thread(target=background_listener, daemon=True).start()
         
         def process_pending_queue():
             nonlocal is_retransmiting

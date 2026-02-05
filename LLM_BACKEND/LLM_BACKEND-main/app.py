@@ -61,6 +61,7 @@ app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key-cha
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = dt.timedelta(hours=12)
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
+EXERCISES_PATH = os.getenv("EXERCISES_PATH", "exercises")
 
 # ------------------------------------------------------------------------------------
 # Data Models
@@ -106,6 +107,13 @@ class ListaClase(db.Model):
     student_email = db.Column(db.String(128), nullable=False)
     __table_args__ = (db.UniqueConstraint('profesor_id', 'student_email', name='_profesor_student_uc'),)
 
+class ListaEjercicios(db.Model):
+    __tablename__ = "railway_lista_ejercicios"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    profesor_id = db.Column(db.Integer, db.ForeignKey("railway_profesor.id"), nullable=False)
+    exercise_filename = db.Column(db.String(255), nullable=False)
+    __table_args__ = (db.UniqueConstraint('profesor_id', 'exercise_filename', name='_profesor_exercise_uc'),)
+
 with app.app_context():
     db.create_all()
 
@@ -135,8 +143,6 @@ QC_SYSTEM_PROMPT = (
 # ------------------------------------------------------------------------------------
 # System Helpers
 # ------------------------------------------------------------------------------------
-
-EXERCISES_PATH = os.getenv("EXERCISES_PATH", "exercises")
 
 def review_with_qc(original_answer: str, problem_text: str, system_rules: str, user_message: str) -> str:
     messages = [
@@ -316,8 +322,9 @@ def check_new_messages(problema_id):
         correo_identificacion=correo, 
         problema_id=problema_id
     ).order_by(ChatLog.created_at.desc()).first()
-    if last_msg and last_msg.role == "assistant":
-        return jsonify({"status": "completed", "response": last_msg.content})
+    if last_msg and last_msg.role in ["assistant", "teacher"]:
+        # Agregamos 'role' a la respuesta para que el frontend sepa quién habla
+        return jsonify({"status": "completed", "response": last_msg.content, "role": last_msg.role})
     else:
         return jsonify({"status": "waiting"})
 
@@ -386,28 +393,62 @@ def manage_students():
         db.session.commit()
         return jsonify({"msg": "Eliminado"}), 200
 
-@app.route("/api/teacher/exercises", methods=["GET"])
+@app.route("/api/exercises/available", methods=["GET"])
 @jwt_required()
-def get_teacher_exercises():
-    """
-    Devuelve la lista de nombres de archivos de ejercicios disponibles
-    en el directorio configurado.
-    """
+def get_all_server_exercises():
     try:
-        # Escanea el directorio de ejercicios definido globalmente
-        files = [f for f in os.listdir(EXERCISES_PATH) if f.endswith('.json') and os.path.isfile(os.path.join(EXERCISES_PATH, f))]
+        files = [f for f in os.listdir(EXERCISES_PATH) if f.endswith('.json')]
         return jsonify(files), 200
-    except Exception as e:
-        print(f"Error leyendo directorio de ejercicios: {e}")
-        return jsonify({"msg": "Error al leer ejercicios del servidor"}), 500
+    except Exception:
+        return jsonify([]), 500
+
+@app.route("/api/teacher/my-exercises", methods=["GET", "POST", "DELETE"])
+@jwt_required()
+def manage_my_exercises():
+    prof_id = get_jwt_identity()
+    
+    if request.method == "GET":
+        # Devuelve solo los ejercicios de ESTE profesor
+        exs = ListaEjercicios.query.filter_by(profesor_id=prof_id).all()
+        return jsonify([e.exercise_filename for e in exs]), 200
+        
+    if request.method == "POST":
+        # Agrega ejercicio a la lista personal
+        filename = request.get_json().get("filename")
+        if not ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=filename).first():
+            db.session.add(ListaEjercicios(profesor_id=prof_id, exercise_filename=filename))
+            db.session.commit()
+        return jsonify({"msg": "Agregado"}), 200
+        
+    if request.method == "DELETE":
+        # Elimina de la lista personal
+        filename = request.get_json().get("filename")
+        ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=filename).delete()
+        db.session.commit()
+        return jsonify({"msg": "Eliminado"}), 200
+
+@app.route("/api/teacher/send-message", methods=["POST"])
+@jwt_required()
+def teacher_send_message():
+    data = request.get_json()
+    student_email = data.get("student_email")
+    practice_name = data.get("practice_name")
+    problema_id = data.get("problema_id")
+    message = data.get("message")
+    
+    if not all([student_email, practice_name, problema_id, message]):
+        return jsonify({"msg": "Faltan datos (incluyendo ID del problema)"}), 400
+    
+    usuario = get_or_create_user(student_email)
+    save_chat_turn(usuario, student_email, practice_name, int(problema_id), "teacher", message)
+    
+    print(f" Mensaje enviado a {student_email} [Práctica: {practice_name} | ID: {problema_id}]")
+    
+    return jsonify({"msg": "Mensaje enviado"}), 200
 
 @app.route("/api/teacher/dashboard-data", methods=["GET"])
 @jwt_required()
 def dashboard_data():
-    """
-    Recupera actividad (respuestas y chats) de los estudiantes del profesor.
-    Permite filtrado opcional por 'student_email' y 'practice_name'.
-    """
     profesor_id = get_jwt_identity()
     
     target_student = request.args.get('student_email')
