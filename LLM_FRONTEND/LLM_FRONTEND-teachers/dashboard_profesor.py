@@ -198,18 +198,22 @@ def main(page: ft.Page):
                 res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [new_student_mail.value]}, timeout=10)
                 if res.status_code == 200:
                     new_student_mail.value = ""
-                    flash(f"Estudiante agregado: {res.json().get('msg')}")
+                    flash("Estudiante agegado correctamente", COLORES["exito"])
                     load_students()
                 else:
-                    flash(f"Error: {res.json().get('msg', 'Error desconocido')}", COLORES["error"])
+                    flash("Error al agregar estudiante", COLORES["error"])
             except Exception as ex:
-                flash(f"Error técnico: {ex}", COLORES["error"])
+                flash("Error técnico", COLORES["error"])
             finally:
                 e.control.disabled = False; page.update()
 
         def delete_student(email):
             headers = {"Authorization": f"Bearer {state['token']}"}
-            requests.delete(f"{BASE}/api/teacher/students", headers=headers, json={"email": email})
+            res = requests.delete(f"{BASE}/api/teacher/students", headers=headers, json={"email": email})
+            if res.status_code == 200:
+                flash("Estudiante eliminado correctamente", COLORES["exito"])
+            else:
+                flash("Error al eliminar estudiante", COLORES["error"])
             load_students()
 
         def render_students_list():
@@ -257,10 +261,12 @@ def main(page: ft.Page):
 
         def add_exercise(filename):
             auth_request("POST", "/api/teacher/my-exercises", json={"filename": filename})
+            flash("Tarea agregada a tu lista", COLORES["exito"])
             load_exercises()
 
         def remove_exercise(filename):
             auth_request("DELETE", "/api/teacher/my-exercises", json={"filename": filename})
+            flash("Tarea eliminada de tu lista", COLORES["exito"])
             load_exercises()
 
         def render_exercises():
@@ -343,14 +349,14 @@ def main(page: ft.Page):
         chats_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
         
         student_filter = ft.Dropdown(
-            width=200, 
+            width=400, 
             options=[ft.dropdown.Option("Todos los Estudiantes")], 
             value="Todos los Estudiantes",
             border_color=COLORES["primario"],
             color=COLORES["texto"]
         )
         exercise_filter = ft.Dropdown(
-            width=200, 
+            width=400, 
             options=[ft.dropdown.Option("Todas las Tareas")], 
             value="Todas las Tareas",
             border_color=COLORES["primario"],
