@@ -305,7 +305,7 @@ def main(page: ft.Page):
                         
                         ft.Text(ex_data.get("description", ""), size=12, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                         
-                        ft.Divider(height=5, color="transparent"),
+                        ft.Container(height=5),
                         
                         ft.Row([
                             ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
@@ -342,8 +342,20 @@ def main(page: ft.Page):
         answers_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
         chats_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
         
-        student_filter = ft.Dropdown(width=200, options=[ft.dropdown.Option("Todos los Estudiantes")], value="Todos los Estudiantes")
-        exercise_filter = ft.Dropdown(width=200, options=[ft.dropdown.Option("Todas las Tareas")], value="Todas las Tareas")
+        student_filter = ft.Dropdown(
+            width=200, 
+            options=[ft.dropdown.Option("Todos los Estudiantes")], 
+            value="Todos los Estudiantes",
+            border_color=COLORES["primario"],
+            color=COLORES["texto"]
+        )
+        exercise_filter = ft.Dropdown(
+            width=200, 
+            options=[ft.dropdown.Option("Todas las Tareas")], 
+            value="Todas las Tareas",
+            border_color=COLORES["primario"],
+            color=COLORES["texto"]
+        )
 
         def update_dropdowns():
             # Actualiza el filtro de estudiantes (sin cambios)
@@ -360,86 +372,85 @@ def main(page: ft.Page):
             col_available.controls.clear()
             col_mine.controls.clear()
             
-            # Creamos un set de los nombres de archivo que YA tengo para filtrar duplicados visualmente
-            my_filenames = {e["filename"] for e in state["my_exercises"]}
+            safe_my_exercises = []
+            for item in state["my_exercises"]:
+                if isinstance(item, str):
+                    safe_my_exercises.append({
+                        "filename": item, "title": item, 
+                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0
+                    })
+                else:
+                    safe_my_exercises.append(item)
             
-            # --- Función para crear la TARJETA DE DETALLE ---
+            safe_all_exercises = []
+            for item in state["all_exercises"]:
+                if isinstance(item, str):
+                    safe_all_exercises.append({
+                        "filename": item, "title": item, 
+                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0
+                    })
+                else:
+                    safe_all_exercises.append(item)
+
+            my_filenames = {e["filename"] for e in safe_my_exercises}
+            
             def create_exercise_card(ex_data, is_mine):
-                # Convertir segundos a minutos para mostrar (ej: 10800s -> 180 min)
                 minutes = ex_data.get('max_time', 0) // 60
-                
                 return ft.Container(
                     content=ft.Column([
-                        # TÍTULO Y BOTÓN DE ACCIÓN
                         ft.Row([
                             ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=16, expand=True, color=COLORES["texto"]),
                             ft.IconButton(
                                 ft.Icons.DELETE if is_mine else ft.Icons.ADD_CIRCLE, 
                                 icon_color=COLORES["error"] if is_mine else COLORES["exito"],
-                                tooltip="Quitar de mi lista" if is_mine else "Agregar a mi lista", 
+                                tooltip="Quitar" if is_mine else "Agregar", 
                                 on_click=lambda e, f=ex_data["filename"]: remove_exercise(f) if is_mine else add_exercise(f)
                             )
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         
-                        # DESCRIPCIÓN
-                        ft.Text(
-                            ex_data.get("description", ""), 
-                            size=12, 
-                            italic=True, 
-                            color=COLORES["subtitulo"], 
-                            max_lines=3, 
-                            overflow=ft.TextOverflow.ELLIPSIS
-                        ),
+                        ft.Text(ex_data.get("description", ""), size=12, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                         
-                        ft.Divider(height=10, color="transparent"),
+                        ft.Divider(height=5, color="transparent"),
                         
-                        # METADATOS (TIEMPO Y CANTIDAD DE PROBLEMAS)
                         ft.Row([
-                            ft.Container(
-                                content=ft.Row([
-                                    ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
-                                    ft.Text(f"{minutes} min", size=12, color=COLORES["subtitulo"]),
-                                ]),
-                                padding=5, bgcolor=COLORES["accento"], border_radius=5
-                            ),
-                            ft.Container(
-                                content=ft.Row([
-                                    ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
-                                    ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
-                                ]),
-                                padding=5, bgcolor=COLORES["accento"], border_radius=5
-                            )
-                        ], spacing=10)
-                        
-                    ], spacing=5),
+                            ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
+                            ft.Text(f"{minutes} min", size=12, color=COLORES["subtitulo"]),
+                            ft.Container(width=10),
+                            ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
+                            ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
+                        ])
+                    ], spacing=2),
                     bgcolor=COLORES["fondo"], 
                     padding=15, 
                     border_radius=10, 
                     border=ft.border.all(1, COLORES["borde"]),
-                    shadow=ft.BoxShadow(blur_radius=5, color=ft.colors.with_opacity(0.1, "black"))
+                    shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"]) 
                 )
 
-            # 1. Renderizar Columna Izquierda (Catálogo Global)
-            # Solo mostramos los que NO están ya en mi lista personal
-            for ex in state["all_exercises"]:
+            for ex in safe_all_exercises:
                 if ex["filename"] not in my_filenames:
                     col_available.controls.append(create_exercise_card(ex, False))
 
-            # 2. Renderizar Columna Derecha (Mis Tareas)
-            for ex in state["my_exercises"]:
+            for ex in safe_my_exercises:
                 col_mine.controls.append(create_exercise_card(ex, True))
-            
-            # Mensaje si las listas están vacías
-            if not col_available.controls:
-                col_available.controls.append(ft.Text("No hay nuevas tareas disponibles.", color=COLORES["subtitulo"], italic=True))
-            if not col_mine.controls:
-                col_mine.controls.append(ft.Text("Aún no has agregado tareas.", color=COLORES["subtitulo"], italic=True))
                 
             page.update()
 
-        # DIALOG PARA ENVIAR MENSAJE
-        msg_problem_id = ft.TextField(label="Problema número...", width=100, value="1", keyboard_type=ft.KeyboardType.NUMBER)
-        msg_text_field = ft.TextField(label="Escribe tu mensaje...", multiline=True, expand=True)
+        msg_problem_id = ft.TextField(
+            label="Problema número...", 
+            width=100, 
+            value="1", 
+            keyboard_type=ft.KeyboardType.NUMBER,
+            border_color=COLORES["primario"],
+            color=COLORES["texto"]
+        )
+        msg_text_field = ft.TextField(
+            label="Escribe tu mensaje...", 
+            multiline=True, 
+            expand=True,
+            border_color=COLORES["primario"],
+            color=COLORES["texto"]
+        )
         
         def close_dialog(e):
             dialog_msg.open = False
@@ -509,7 +520,7 @@ def main(page: ft.Page):
             for r in data.get("respuestas", []):
                 answers_col.controls.append(ft.Container(content=ft.Column([
                     ft.Text(f"{r['correo']} - P{r['problema_id']}", size=12, color=COLORES["primario"]),
-                    ft.Text(r['respuesta'], selectable=True)
+                    ft.Text(r['respuesta'], selectable=True, color=COLORES["texto"])
                 ]), bgcolor=COLORES["fondo"], padding=10, border_radius=5))
 
             for c in data.get("chats", []):
@@ -560,9 +571,10 @@ def main(page: ft.Page):
             ], expand=True
         )
 
-        page.add(ft.Row([ft.Text("Panel Profesor", size=20, weight="bold"), 
-                         ft.IconButton(ft.Icons.LOGOUT, on_click=lambda e: (page.client_storage.remove("teacher_token"), show_login()))], 
-                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN), tabs)
+        page.add(ft.Row([
+            ft.Text("Panel Profesor", size=20, weight="bold", color=COLORES["texto"]), 
+            ft.IconButton(ft.Icons.LOGOUT, icon_color=COLORES["error"], on_click=lambda e: (page.client_storage.remove("teacher_token"), show_login()))
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), tabs)
         load_students()
 
     if state["token"]:
