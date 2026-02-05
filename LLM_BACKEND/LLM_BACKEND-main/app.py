@@ -114,9 +114,6 @@ class ListaEjercicios(db.Model):
     exercise_filename = db.Column(db.String(255), nullable=False)
     __table_args__ = (db.UniqueConstraint('profesor_id', 'exercise_filename', name='_profesor_exercise_uc'),)
 
-with app.app_context():
-    db.create_all()
-
 # ------------------------------------------------------------------------------------
 # System Prompts
 # ------------------------------------------------------------------------------------
