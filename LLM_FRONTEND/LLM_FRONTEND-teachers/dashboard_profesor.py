@@ -300,12 +300,12 @@ def main(page: ft.Page):
         answers_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
         chats_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
         
-        student_filter = ft.Dropdown(width=200, options=[ft.dropdown.Option("todos")], value="todos")
-        exercise_filter = ft.Dropdown(width=200, options=[ft.dropdown.Option("todos")], value="todos")
+        student_filter = ft.Dropdown(width=200, options=[ft.dropdown.Option("Todos los Estudiantes")], value="Todos los Estudiantes")
+        exercise_filter = ft.Dropdown(width=200, options=[ft.dropdown.Option("Todas las Tareas")], value="Todas las Tareas")
 
         def update_dropdowns():
-            student_filter.options = [ft.dropdown.Option("todos")] + [ft.dropdown.Option(e) for e in state["students"]]
-            exercise_filter.options = [ft.dropdown.Option("todos")] + [ft.dropdown.Option(e) for e in state["my_exercises"]]
+            student_filter.options = [ft.dropdown.Option("Todos los Estudiantes")] + [ft.dropdown.Option(e) for e in state["students"]]
+            exercise_filter.options = [ft.dropdown.Option("Todas las Tareas")] + [ft.dropdown.Option(e) for e in state["my_exercises"]]
             page.update()
 
         # DIALOG PARA ENVIAR MENSAJE
@@ -321,7 +321,7 @@ def main(page: ft.Page):
             stu = student_filter.value
             ex = exercise_filter.value
             
-            if not stu or stu == "todos" or not ex or ex == "todos":
+            if not stu or stu == "Todos los Estudiantes" or not ex or ex == "Todas las Tareas":
                 flash("Selecciona un estudiante y una tarea primero.", COLORES["advertencia"])
                 return
 
@@ -367,8 +367,8 @@ def main(page: ft.Page):
 
         def load_data_filtered(e=None):
             params = {}
-            if student_filter.value != "todos": params["student_email"] = student_filter.value
-            if exercise_filter.value != "todos": params["practice_name"] = exercise_filter.value
+            if student_filter.value != "Todos los Estudiantes": params["student_email"] = student_filter.value
+            if exercise_filter.value != "Todas las Tareas": params["practice_name"] = exercise_filter.value
             
             res = auth_request("GET", "/api/teacher/dashboard-data", params=params)
             if res and res.status_code == 200:
