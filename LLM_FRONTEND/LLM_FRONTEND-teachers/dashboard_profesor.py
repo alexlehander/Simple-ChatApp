@@ -64,7 +64,7 @@ def main(page: ft.Page):
     }
 
     def flash(msg, color=COLORES["exito"]):
-        snack = ft.SnackBar(ft.Text(msg, color="white"), bgcolor=color)
+        snack = ft.SnackBar(ft.Text(msg, color=COLORES["fondo"]), bgcolor=color)
         page.overlay.append(snack)
         snack.open = True
         page.update()
@@ -150,7 +150,7 @@ def main(page: ft.Page):
                 email_field,
                 pass_field,
                 ft.Row([
-                    ft.ElevatedButton("Entrar", on_click=login_action, bgcolor=COLORES["boton"], color="white"),
+                    ft.ElevatedButton("Entrar", on_click=login_action, bgcolor=COLORES["boton"], color=COLORES["fondo"]),
                     ft.TextButton("Crear Cuenta", on_click=register_action, style=ft.ButtonStyle(color=COLORES["primario"]))
                 ], alignment=ft.MainAxisAlignment.CENTER)
             ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
@@ -267,26 +267,68 @@ def main(page: ft.Page):
             col_available.controls.clear()
             col_mine.controls.clear()
             
-            # Columna izquierda: Disponibles (que no tengo ya)
-            for ex in state["all_exercises"]:
-                if ex not in state["my_exercises"]:
-                    col_available.controls.append(ft.Container(
-                        content=ft.Row([
-                            ft.Text(ex, size=12, expand=True),
-                            ft.IconButton(ft.Icons.ARROW_FORWARD, tooltip="Agregar a mi lista", 
-                                          on_click=lambda e, f=ex: add_exercise(f))
-                        ]), bgcolor=COLORES["fondo"], padding=5, border_radius=5
-                    ))
+            safe_my_exercises = []
+            for item in state["my_exercises"]:
+                if isinstance(item, str):
+                    safe_my_exercises.append({
+                        "filename": item, "title": item, 
+                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0
+                    })
+                else:
+                    safe_my_exercises.append(item)
+            
+            safe_all_exercises = []
+            for item in state["all_exercises"]:
+                if isinstance(item, str):
+                    safe_all_exercises.append({
+                        "filename": item, "title": item, 
+                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0
+                    })
+                else:
+                    safe_all_exercises.append(item)
 
-            # Columna derecha: Mis ejercicios
-            for ex in state["my_exercises"]:
-                col_mine.controls.append(ft.Container(
-                    content=ft.Row([
-                        ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], tooltip="Quitar",
-                                      on_click=lambda e, f=ex: remove_exercise(f)),
-                        ft.Text(ex, size=12, expand=True, weight="bold")
-                    ]), bgcolor=COLORES["fondo"], padding=5, border_radius=5, border=ft.border.all(1, COLORES["primario"])
-                ))
+            my_filenames = {e["filename"] for e in safe_my_exercises}
+            
+            def create_exercise_card(ex_data, is_mine):
+                minutes = ex_data.get('max_time', 0) // 60
+                return ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=16, expand=True, color=COLORES["texto"]),
+                            ft.IconButton(
+                                ft.Icons.DELETE if is_mine else ft.Icons.ADD_CIRCLE, 
+                                icon_color=COLORES["error"] if is_mine else COLORES["exito"],
+                                tooltip="Quitar" if is_mine else "Agregar", 
+                                on_click=lambda e, f=ex_data["filename"]: remove_exercise(f) if is_mine else add_exercise(f)
+                            )
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        
+                        ft.Text(ex_data.get("description", ""), size=12, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                        
+                        ft.Divider(height=5, color="transparent"),
+                        
+                        ft.Row([
+                            ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
+                            ft.Text(f"{minutes} min", size=12, color=COLORES["subtitulo"]),
+                            ft.Container(width=10),
+                            ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
+                            ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
+                        ])
+                    ], spacing=2),
+                    bgcolor=COLORES["fondo"], 
+                    padding=10, 
+                    border_radius=8, 
+                    border=ft.border.all(1, COLORES["borde"]),
+                    shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"]) 
+                )
+
+            for ex in safe_all_exercises:
+                if ex["filename"] not in my_filenames:
+                    col_available.controls.append(create_exercise_card(ex, False))
+
+            for ex in safe_my_exercises:
+                col_mine.controls.append(create_exercise_card(ex, True))
+                
             page.update()
 
         tab_exercises = ft.Row([
@@ -476,14 +518,19 @@ def main(page: ft.Page):
                 is_teacher = role == 'teacher'
                 
                 align = ft.CrossAxisAlignment.START if (is_bot or is_teacher) else ft.CrossAxisAlignment.END
-                # Color distintivo para el profesor
-                if is_teacher: bg = "#6D28D9" # Morado
-                elif is_bot: bg = COLORES["borde"]
-                else: bg = COLORES["primario"]
                 
+                if is_teacher: 
+                    bg = COLORES["secundario"]
+                elif is_bot: 
+                    bg = COLORES["borde"]
+                else: 
+                    bg = COLORES["primario"]
+                
+                txt_color = COLORES["fondo"] if (not is_bot) else COLORES["texto"]
+
                 chats_col.controls.append(ft.Column([
                     ft.Text(f"{role.upper()} - {c['correo']}", size=10, color=COLORES["subtitulo"]),
-                    ft.Container(content=ft.Text(c['content']), bgcolor=bg, padding=10, border_radius=10)
+                    ft.Container(content=ft.Text(c['content'], color=txt_color), bgcolor=bg, padding=10, border_radius=10)
                 ], horizontal_alignment=align))
             page.update()
 
@@ -492,14 +539,13 @@ def main(page: ft.Page):
         # =========================================
         tab_monitor = ft.Column([
             ft.Container(content=ft.Row([
-                ft.Row([student_filter, exercise_filter, ft.IconButton(ft.Icons.SEARCH, on_click=load_data_filtered)]),
-                # BOTÓN ALINEADO A LA DERECHA
-                ft.ElevatedButton("Enviar Mensaje Directo", icon=ft.Icons.SEND, bgcolor=COLORES["boton"], color="white", on_click=send_direct_message)
+                ft.Row([student_filter, exercise_filter, ft.IconButton(ft.Icons.SEARCH, on_click=load_data_filtered, icon_color=COLORES["primario"])]),
+                ft.ElevatedButton("Enviar Mensaje Directo", icon=ft.Icons.SEND, bgcolor=COLORES["boton"], color=COLORES["fondo"], on_click=send_direct_message)
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), padding=10, bgcolor=COLORES["fondo"]),
             
             ft.Row([
-                ft.Container(content=ft.Column([ft.Text("Respuestas"), answers_col], expand=True), expand=1, bgcolor=COLORES["accento"]),
-                ft.Container(content=ft.Column([ft.Text("Chat"), chats_col], expand=True), expand=1, bgcolor=COLORES["accento"], margin=ft.margin.only(left=10))
+                ft.Container(content=ft.Column([ft.Text("Respuestas", color=COLORES["texto"]), answers_col], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10),
+                ft.Container(content=ft.Column([ft.Text("Chat", color=COLORES["texto"]), chats_col], expand=True), expand=1, bgcolor=COLORES["accento"], margin=ft.margin.only(left=10), padding=10, border_radius=10)
             ], expand=True)
         ], expand=True)
 
