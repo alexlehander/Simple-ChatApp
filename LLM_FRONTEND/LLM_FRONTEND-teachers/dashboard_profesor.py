@@ -186,7 +186,7 @@ def main(page: ft.Page):
                 if res.status_code == 200:
                     state["students"] = res.json()
                     render_students_list()
-                    update_dropdowns() # Actualizar filtros
+                    update_dropdowns()
             except Exception as e:
                 print(e)
 
@@ -229,8 +229,8 @@ def main(page: ft.Page):
 
         tab_students = ft.Container(
             content=ft.Column([
-                ft.Text("Gestionar mi Lista de Clase", size=20, weight="bold", color=COLORES["texto"]),
-                ft.Text("Agrega los correos de los estudiantes que deseas monitorear.", color=COLORES["subtitulo"]),
+                ft.Text("Gestionar mi lista de estudiantes", size=20, weight="bold", color=COLORES["texto"]),
+                ft.Text("Agregar correos de los estudiantes para monitorear su progreso", color=COLORES["subtitulo"]),
                 ft.Row([new_student_mail, ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"], on_click=add_student)]),
                 ft.Divider(color=COLORES["borde"]),
                 students_list_view
@@ -238,7 +238,7 @@ def main(page: ft.Page):
         )
 
         # =========================================
-        # PESTAÑA 2: Mis Tareas (NUEVA)
+        # PESTAÑA 2: Mis Tareas
         # =========================================
         col_available = ft.ListView(expand=True, spacing=5)
         col_mine = ft.ListView(expand=True, spacing=5)
@@ -290,8 +290,8 @@ def main(page: ft.Page):
             page.update()
 
         tab_exercises = ft.Row([
-            ft.Container(content=ft.Column([ft.Text("Catálogo Global"), col_available], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10),
-            ft.Container(content=ft.Column([ft.Text("Mi Lista Personal"), col_mine], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10))
+            ft.Container(content=ft.Column([ft.Text("Catálogo global de tareas"), col_available], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10),
+            ft.Container(content=ft.Column([ft.Text("Mi lista personal de tareas"), col_mine], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10))
         ], expand=True)
 
         # =========================================
@@ -304,12 +304,99 @@ def main(page: ft.Page):
         exercise_filter = ft.Dropdown(width=200, options=[ft.dropdown.Option("Todas las Tareas")], value="Todas las Tareas")
 
         def update_dropdowns():
+            # Actualiza el filtro de estudiantes (sin cambios)
             student_filter.options = [ft.dropdown.Option("Todos los Estudiantes")] + [ft.dropdown.Option(e) for e in state["students"]]
-            exercise_filter.options = [ft.dropdown.Option("Todas las Tareas")] + [ft.dropdown.Option(e) for e in state["my_exercises"]]
+            
+            # ACTUALIZADO: El filtro de tareas ahora usa el 'title' para mostrar y 'filename' como valor interno
+            # state["my_exercises"] ahora es una lista de diccionarios, no de strings
+            exercise_filter.options = [ft.dropdown.Option("Todas las Tareas")] + [
+                ft.dropdown.Option(key=e["filename"], text=e["title"]) for e in state["my_exercises"]
+            ]
+            page.update()
+            
+        def render_exercises():
+            col_available.controls.clear()
+            col_mine.controls.clear()
+            
+            # Creamos un set de los nombres de archivo que YA tengo para filtrar duplicados visualmente
+            my_filenames = {e["filename"] for e in state["my_exercises"]}
+            
+            # --- Función para crear la TARJETA DE DETALLE ---
+            def create_exercise_card(ex_data, is_mine):
+                # Convertir segundos a minutos para mostrar (ej: 10800s -> 180 min)
+                minutes = ex_data.get('max_time', 0) // 60
+                
+                return ft.Container(
+                    content=ft.Column([
+                        # TÍTULO Y BOTÓN DE ACCIÓN
+                        ft.Row([
+                            ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=16, expand=True, color=COLORES["texto"]),
+                            ft.IconButton(
+                                ft.Icons.DELETE if is_mine else ft.Icons.ADD_CIRCLE, 
+                                icon_color=COLORES["error"] if is_mine else COLORES["exito"],
+                                tooltip="Quitar de mi lista" if is_mine else "Agregar a mi lista", 
+                                on_click=lambda e, f=ex_data["filename"]: remove_exercise(f) if is_mine else add_exercise(f)
+                            )
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        
+                        # DESCRIPCIÓN
+                        ft.Text(
+                            ex_data.get("description", ""), 
+                            size=12, 
+                            italic=True, 
+                            color=COLORES["subtitulo"], 
+                            max_lines=3, 
+                            overflow=ft.TextOverflow.ELLIPSIS
+                        ),
+                        
+                        ft.Divider(height=10, color="transparent"),
+                        
+                        # METADATOS (TIEMPO Y CANTIDAD DE PROBLEMAS)
+                        ft.Row([
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
+                                    ft.Text(f"{minutes} min", size=12, color=COLORES["subtitulo"]),
+                                ]),
+                                padding=5, bgcolor=COLORES["accento"], border_radius=5
+                            ),
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
+                                    ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
+                                ]),
+                                padding=5, bgcolor=COLORES["accento"], border_radius=5
+                            )
+                        ], spacing=10)
+                        
+                    ], spacing=5),
+                    bgcolor=COLORES["fondo"], 
+                    padding=15, 
+                    border_radius=10, 
+                    border=ft.border.all(1, COLORES["borde"]),
+                    shadow=ft.BoxShadow(blur_radius=5, color=ft.colors.with_opacity(0.1, "black"))
+                )
+
+            # 1. Renderizar Columna Izquierda (Catálogo Global)
+            # Solo mostramos los que NO están ya en mi lista personal
+            for ex in state["all_exercises"]:
+                if ex["filename"] not in my_filenames:
+                    col_available.controls.append(create_exercise_card(ex, False))
+
+            # 2. Renderizar Columna Derecha (Mis Tareas)
+            for ex in state["my_exercises"]:
+                col_mine.controls.append(create_exercise_card(ex, True))
+            
+            # Mensaje si las listas están vacías
+            if not col_available.controls:
+                col_available.controls.append(ft.Text("No hay nuevas tareas disponibles.", color=COLORES["subtitulo"], italic=True))
+            if not col_mine.controls:
+                col_mine.controls.append(ft.Text("Aún no has agregado tareas.", color=COLORES["subtitulo"], italic=True))
+                
             page.update()
 
         # DIALOG PARA ENVIAR MENSAJE
-        msg_problem_id = ft.TextField(label="No. Problema", width=100, value="1", keyboard_type=ft.KeyboardType.NUMBER)
+        msg_problem_id = ft.TextField(label="Problema número...", width=100, value="1", keyboard_type=ft.KeyboardType.NUMBER)
         msg_text_field = ft.TextField(label="Escribe tu mensaje...", multiline=True, expand=True)
         
         def close_dialog(e):

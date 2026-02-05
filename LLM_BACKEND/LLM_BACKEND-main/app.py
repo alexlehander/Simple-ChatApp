@@ -265,7 +265,29 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
             print(f"❌ [Background] Error generando respuesta: {e}")
             usuario = Usuario.query.get(usuario_id)
             save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", "Lo siento, tuve un error técnico al pensar mi respuesta.")
-                   
+
+def get_exercise_metadata(filename):
+    try:
+        path = os.path.join(EXERCISES_PATH, filename)
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return {
+                "filename": filename,
+                "title": data.get("title", filename),
+                "description": data.get("description", "Sin descripción disponible."),
+                "max_time": data.get("max_time", 0),
+                "num_problems": len(data.get("problemas", []))
+            }
+    except Exception as e:
+        print(f"Error leyendo metadata de {filename}: {e}")
+        return {
+            "filename": filename, 
+            "title": filename, 
+            "description": "Error al leer archivo.", 
+            "max_time": 0, 
+            "num_problems": 0
+        }
+
 # ------------------------------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------------------------------
@@ -395,8 +417,10 @@ def manage_students():
 def get_all_server_exercises():
     try:
         files = [f for f in os.listdir(EXERCISES_PATH) if f.endswith('.json')]
-        return jsonify(files), 200
-    except Exception:
+        data = [get_exercise_metadata(f) for f in files]
+        return jsonify(data), 200
+    except Exception as e:
+        print(f"Error listando ejercicios: {e}")
         return jsonify([]), 500
 
 @app.route("/api/teacher/my-exercises", methods=["GET", "POST", "DELETE"])
@@ -405,12 +429,12 @@ def manage_my_exercises():
     prof_id = get_jwt_identity()
     
     if request.method == "GET":
-        # Devuelve solo los ejercicios de ESTE profesor
         exs = ListaEjercicios.query.filter_by(profesor_id=prof_id).all()
-        return jsonify([e.exercise_filename for e in exs]), 200
+        filenames = [e.exercise_filename for e in exs]
+        data = [get_exercise_metadata(f) for f in filenames]
+        return jsonify(data), 200
         
     if request.method == "POST":
-        # Agrega ejercicio a la lista personal
         filename = request.get_json().get("filename")
         if not ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=filename).first():
             db.session.add(ListaEjercicios(profesor_id=prof_id, exercise_filename=filename))
@@ -418,7 +442,6 @@ def manage_my_exercises():
         return jsonify({"msg": "Agregado"}), 200
         
     if request.method == "DELETE":
-        # Elimina de la lista personal
         filename = request.get_json().get("filename")
         ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=filename).delete()
         db.session.commit()
