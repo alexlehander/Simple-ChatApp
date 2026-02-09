@@ -774,13 +774,10 @@ def main(page: ft.Page):
         )
         
         loading_bubble = ft.Container(
-            content=ft.Row([
-                ft.ProgressRing(width=16, height=16, stroke_width=2, color=COLORES["subtitulo"]),
-                ft.Text("Escribiendo...", color=COLORES["subtitulo"], italic=True)
-            ], spacing=10, tight=True),
-            padding=10,
+            content=ft.Text("Escribiendo...", color=COLORES["subtitulo"], italic=True),
+            padding=ft.padding.symmetric(horizontal=10, vertical=10),
             alignment=ft.alignment.center_left,
-            border_radius=10,
+            border_radius=ft.border_radius.all(10),
         )
 
         chat_container = ft.Container(
