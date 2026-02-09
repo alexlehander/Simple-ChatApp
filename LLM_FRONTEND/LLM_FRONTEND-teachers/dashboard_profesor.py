@@ -90,6 +90,7 @@ def main(page: ft.Page):
         kwargs["headers"] = headers
         try:
             url = f"{BASE}{endpoint}"
+            if "timeout" not in kwargs: kwargs["timeout"] = 30
             if method == "GET": return requests.get(url, **kwargs)
             if method == "POST": return requests.post(url, **kwargs)
             if method == "DELETE": return requests.delete(url, **kwargs)

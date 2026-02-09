@@ -1349,4 +1349,4 @@ if __name__ == "__main__":
     import os
     os.environ["FLET_FORCE_WEB"] = "1"
     port = int(os.getenv("PORT", "3000"))
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=port)
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=port, assets_dir="assets")
