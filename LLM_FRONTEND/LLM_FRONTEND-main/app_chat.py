@@ -774,11 +774,13 @@ def main(page: ft.Page):
         )
         
         loading_bubble = ft.Container(
-            content=ft.Text("Escribiendo...", color=COLORES["subtitulo"], italic=True),
-            padding=ft.padding.symmetric(horizontal=10, vertical=10),
+            content=ft.Row([
+                ft.ProgressRing(width=16, height=16, stroke_width=2, color=COLORES["subtitulo"]),
+                ft.Text("Escribiendo...", color=COLORES["subtitulo"], italic=True)
+            ], spacing=10, tight=True),
+            padding=10,
             alignment=ft.alignment.center_left,
-            border_radius=ft.border_radius.all(10),
-            visible=False # Empieza invisible
+            border_radius=10,
         )
 
         chat_container = ft.Container(
@@ -805,14 +807,12 @@ def main(page: ft.Page):
             # Actualizar historial local
             update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "user", "text": msg})
 
-            # 2. ACTIVAR MODO RÁPIDO Y MOSTRAR CARGA
             # Esto le dice al listener de fondo que empiece a buscar respuestas rápido
             page.polling_speed = "fast"
             
             # Mostrar burbuja de carga (si no está ya en la lista, la agregamos)
             if loading_bubble not in chat_area.controls:
                 chat_area.controls.append(loading_bubble)
-            loading_bubble.visible = True
             page.update()
 
             # Datos para el backend
@@ -837,9 +837,11 @@ def main(page: ft.Page):
                     })
                     # Desactivamos modo rápido y carga
                     page.polling_speed = "slow"
-                    loading_bubble.visible = False
+                    if loading_bubble in chat_area.controls:
+                        chat_area.controls.remove(loading_bubble)
                     if page.is_alive:
-                        flash("Sin conexión. Se guardó en la cola para envío automático.", ok=False)
+                        flash("Sin conexión. Se guardó en la cola.", ok=False)
+                    page.update()
             
             threading.Thread(target=send_request_thread, daemon=True).start()
             
@@ -1165,19 +1167,15 @@ def main(page: ft.Page):
                             ultimo_local = msgs_actuales[-1]["text"] if msgs_actuales else ""
                             
                             if texto != ultimo_local:
-                                # ¡Es un mensaje nuevo!
-                                
-                                # Si responde el asistente, ya podemos descansar (volver a lento)
+                                if loading_bubble in chat_area.controls:
+                                    chat_area.controls.remove(loading_bubble)
                                 if rol == "assistant":
                                     page.polling_speed = "slow"
-                                    loading_bubble.visible = False # Ocultar "Escribiendo..."
-                                
                                 add_chat_bubble(rol, texto)
                                 update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": rol, "text": texto})
-                                
-                                # Notificación especial si es el profesor
                                 if rol == "teacher":
                                     flash("🔔 Nuevo mensaje del profesor", ok=True)
+                                page.update()
 
                 except Exception as e:
                     # Fallos silenciosos de red en el listener para no molestar
