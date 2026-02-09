@@ -115,6 +115,8 @@ def add_to_pending_queue(page, item: dict):
     
 def main(page: ft.Page):
     page.is_alive = True
+    # Global state for Adaptive Polling
+    page.polling_speed = "slow" # 'slow' (10s) or 'fast' (1.5s)
     
     try:
         last_heartbeat = page.client_storage.get("last_heartbeat")
@@ -770,6 +772,14 @@ def main(page: ft.Page):
             height=None,
             auto_scroll=True,
         )
+        
+        loading_bubble = ft.Container(
+            content=ft.Text("Escribiendo...", color=COLORES["subtitulo"], italic=True),
+            padding=ft.padding.symmetric(horizontal=10, vertical=10),
+            alignment=ft.alignment.center_left,
+            border_radius=ft.border_radius.all(10),
+            visible=False # Empieza invisible
+        )
 
         chat_container = ft.Container(
             content=chat_area,
@@ -783,123 +793,55 @@ def main(page: ft.Page):
         )
 
         def send_message(e):
-            current_pid = problema_actual_id
             msg = (user_input.value or "").strip()
-            if not msg:
-                chat_area.controls.append(
-                    ft.Container(
-                        content=ft.Text("Por favor, escribe un mensaje", color=COLORES["error"], size=16),
-                        padding=20, bgcolor=ft.colors.RED_50, border_radius=10,
-                        alignment=ft.alignment.center,
-                    )
-                )
-                page.update()
-                return
+            if not msg: return
 
             # 1. Mostrar mensaje del usuario inmediatamente
             add_chat_bubble("user", msg)
             user_input.value = ""
-            save_k(page, f"chat_draft_{current_pid}", "")
+            save_k(page, f"chat_draft_{problema_actual_id}", "")
             user_input.focus()
+            
+            # Actualizar historial local
+            update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": "user", "text": msg})
+
+            # 2. ACTIVAR MODO RÁPIDO Y MOSTRAR CARGA
+            # Esto le dice al listener de fondo que empiece a buscar respuestas rápido
+            page.polling_speed = "fast"
+            
+            # Mostrar burbuja de carga (si no está ya en la lista, la agregamos)
+            if loading_bubble not in chat_area.controls:
+                chat_area.controls.append(loading_bubble)
+            loading_bubble.visible = True
             page.update()
-            update_map(page, STATE_KEYS["chat"], current_pid, {"role": "user", "text": msg})
 
             # Datos para el backend
             payload = {
                 "message": msg,
                 "correo_identificacion": correo,
-                "practice_name": load_k(page, "selected_session_filename", "unknown_session.json")
+                "practice_name": load_k(page, "selected_session_filename", "unknown.json")
             }
 
-            # 2. POLLING
-            def poll_loop():
-                loading_text = "Escribiendo..."
-                loading_bubble = ft.Container(
-                    content=ft.Text(loading_text, color=COLORES["subtitulo"], italic=True),
-                    padding=ft.padding.symmetric(horizontal=10, vertical=10),
-                    alignment=ft.alignment.center_left,
-                    border_radius=ft.border_radius.all(10),
-                )
-                if page.is_alive:
-                    chat_area.controls.append(loading_bubble)
-                    page.update()
-                # --- PASO A: Envío Inicial ---
+            # 3. ENVÍO "DISPARA Y OLVIDA" (Fire-and-forget)
+            # Solo mandamos el mensaje. El listener se encarga de recibir la respuesta.
+            def send_request_thread():
                 try:
-                    print(f"[DEBUG] Enviando mensaje | Usuario: {correo} | Práctica: {payload['practice_name']} | Problema: {current_pid}")
-                    r_init = requests.post(
-                        f"{BACKEND_URL_CHAT}/{current_pid}",
-                        json=payload,
-                        timeout=60 
-                    )
-                    r_init.raise_for_status()
+                    requests.post(f"{BACKEND_URL_CHAT}/{problema_actual_id}", json=payload, timeout=60)
                 except Exception as ex:
-                    if page.is_alive and loading_bubble in chat_area.controls:
-                        chat_area.controls.remove(loading_bubble)
-                    print(f"❌ Error envío inicial: {ex}")
+                    print(f"❌ Error al enviar mensaje: {ex}")
+                    # Si falla la red, guardamos en la cola para luego
                     add_to_pending_queue(page, {
                         "type": "chat",
-                        "problema_id": current_pid,
-                        "data": payload,
+                        "problema_id": problema_actual_id,
+                        "data": payload
                     })
+                    # Desactivamos modo rápido y carga
+                    page.polling_speed = "slow"
+                    loading_bubble.visible = False
                     if page.is_alive:
-                        add_chat_bubble("system", "Sin conexión. Se reintentará automáticamente.")
-                        page.update()
-                    return
-                    
-                # --- PASO B: Bucle de Espera ---
-                max_retries = 80 
-                retry_count = 0
-                while retry_count < max_retries:
-                    if not page.is_alive: return
-                    time.sleep(3)
-                    try:
-                        current_ui_id = int(load_k(page, STATE_KEYS["current_problem"], 1))
-                        if current_ui_id != current_pid:
-                            return 
-                        r = requests.post(
-                            f"{BASE}/check_new_messages/{current_pid}",
-                            json={"correo_identificacion": correo},
-                            timeout=10
-                        )
-                        r.raise_for_status()
-                        data = r.json()
-                        status = data.get("status")
-                        if status == "error":
-                            if page.is_alive:
-                                if loading_bubble in chat_area.controls:
-                                    chat_area.controls.remove(loading_bubble)
-                                add_chat_bubble("system", f"Error del tutor: {data.get('message', 'Desconocido')}")
-                                page.update()
-                            return
-
-                        if status == "completed":
-                            final_response = data.get("response")
-                            final_role = data.get("role", "assistant") 
-                            print(f"[DEBUG] ¡Respuesta recibida! Rol: {final_role}")
-                            
-                            if page.is_alive:
-                                if loading_bubble in chat_area.controls:
-                                    chat_area.controls.remove(loading_bubble)
-                                
-                                # Pasamos el rol correcto a la burbuja
-                                add_chat_bubble(final_role, final_response)
-                                update_map(page, STATE_KEYS["chat"], current_pid, {"role": final_role, "text": final_response})
-                                page.update()
-                                
-                            return
-                            
-                    except Exception as e:
-                        print(f"❌ Polling CRASH en intento {retry_count}: {e}")
-                        
-                    retry_count += 1
-                    
-                if page.is_alive:
-                    if loading_bubble in chat_area.controls:
-                        chat_area.controls.remove(loading_bubble)
-                    add_chat_bubble("system", "El sistema tardó demasiado. Intenta preguntar de nuevo.")
-                    page.update()
-                        
-            threading.Thread(target=poll_loop, daemon=True).start()
+                        flash("Sin conexión. Se guardó en la cola para envío automático.", ok=False)
+            
+            threading.Thread(target=send_request_thread, daemon=True).start()
             
         user_input = ft.TextField(
             hint_text="Escribe tu mensaje aqui, presionando «Enter» para enviarlo",
@@ -1188,13 +1130,20 @@ def main(page: ft.Page):
         iniciar_temporizador()
         
         def background_listener():
-            """Busca mensajes nuevos cada 10s en el problema ACTUAL"""
-            while not stop_timer: 
-                time.sleep(10) # Costo bajo para el servidor
-                if not page.is_alive: return 
+            """
+            Consulta mensajes nuevos. 
+            - Modo Lento (10s): Cuando no pasa nada (ahorra batería/datos).
+            - Modo Rápido (1.5s): Cuando esperamos respuesta de la IA.
+            """
+            while not stop_timer:
+                # 1. Adaptar velocidad según el estado actual
+                sleep_time = 1.5 if page.polling_speed == "fast" else 10.0
+                time.sleep(sleep_time)
+                
+                if not page.is_alive: return
                 
                 try:
-                    # Solo preguntamos por el problema que el alumno está viendo AHORA
+                    # 2. Consultar servidor
                     r = requests.post(
                         f"{BASE}/check_new_messages/{problema_actual_id}",
                         json={"correo_identificacion": correo},
@@ -1203,25 +1152,36 @@ def main(page: ft.Page):
                     
                     if r.status_code == 200:
                         data = r.json()
-                        if data.get("status") == "completed":
+                        status = data.get("status")
+                        
+                        if status == "completed":
                             texto = data.get("response")
-                            rol = data.get("role")
+                            rol = data.get("role", "assistant")
                             
-                            # Validar que sea un mensaje NUEVO (comparando con lo que ya tenemos en pantalla)
-                            chats_locales = load_k(page, STATE_KEYS["chat"], {}).get(str(problema_actual_id), [])
-                            ultimo_texto = chats_locales[-1]["text"] if chats_locales else ""
+                            # 3. FILTRO ANTI-DUPLICADOS (Crucial)
+                            # Verificamos qué es lo último que tiene la pantalla
+                            chat_history = load_k(page, STATE_KEYS["chat"], {})
+                            msgs_actuales = chat_history.get(str(problema_actual_id), [])
+                            ultimo_local = msgs_actuales[-1]["text"] if msgs_actuales else ""
                             
-                            if texto != ultimo_texto and rol in ["teacher", "assistant"]:
-                                # ¡Nuevo mensaje detectado! Lo inyectamos.
+                            if texto != ultimo_local:
+                                # ¡Es un mensaje nuevo!
+                                
+                                # Si responde el asistente, ya podemos descansar (volver a lento)
+                                if rol == "assistant":
+                                    page.polling_speed = "slow"
+                                    loading_bubble.visible = False # Ocultar "Escribiendo..."
+                                
                                 add_chat_bubble(rol, texto)
                                 update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": rol, "text": texto})
-                                page.update()
                                 
-                                # Feedback visual opcional
-                                flash("🔔 Nuevo mensaje recibido", ok=True)
+                                # Notificación especial si es el profesor
+                                if rol == "teacher":
+                                    flash("🔔 Nuevo mensaje del profesor", ok=True)
 
                 except Exception as e:
-                    print(f"[Listener] Silent fail: {e}")
+                    # Fallos silenciosos de red en el listener para no molestar
+                    print(f"[Listener] Ping fallido: {e}")
 
         threading.Thread(target=background_listener, daemon=True).start()
         
