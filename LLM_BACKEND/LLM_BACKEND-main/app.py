@@ -474,31 +474,57 @@ def dashboard_data():
     target_student = request.args.get('student_email')
     target_practice = request.args.get('practice_name')
 
+    # 1. Obtener la lista de MIS estudiantes
     student_records = ListaClase.query.filter_by(profesor_id=profesor_id).all()
     my_student_emails = [s.student_email for s in student_records]
     
-    if not my_student_emails:
+    # 2. Obtener la lista de MIS tareas (ESTA ES LA CORRECCIÓN CLAVE)
+    # Esto evita que veas tareas que el alumno hizo para otros profesores
+    exercise_records = ListaEjercicios.query.filter_by(profesor_id=profesor_id).all()
+    my_exercise_filenames = [e.exercise_filename for e in exercise_records]
+
+    # Si no tienes estudiantes o no tienes tareas asignadas, no mostramos nada por seguridad
+    if not my_student_emails or not my_exercise_filenames:
         return jsonify({"respuestas": [], "chats": []}), 200
     
+    # 3. Determinar qué estudiantes consultar
     if target_student:
+        # Validación de seguridad: ¿Este estudiante es mío?
         if target_student not in my_student_emails:
              return jsonify({"msg": "Acceso denegado a este estudiante"}), 403
         emails_to_query = [target_student]
     else:
         emails_to_query = my_student_emails
 
-    resp_query = RespuestaUsuario.query.filter(RespuestaUsuario.correo_identificacion.in_(emails_to_query))
+    # --- CONSULTA DE RESPUESTAS ---
+    # Filtro base: Estudiantes míos Y Tareas mías
+    resp_query = RespuestaUsuario.query.filter(
+        RespuestaUsuario.correo_identificacion.in_(emails_to_query),
+        RespuestaUsuario.practice_name.in_(my_exercise_filenames) # <--- FILTRO AGREGADO
+    )
+    
+    # Filtro opcional: Tarea específica seleccionada en el dropdown
     if target_practice:
+        # (Aunque el frontend envíe el nombre, el filtro base 'in_(my_exercise_filenames)' 
+        # ya nos protege si intentan pedir una tarea ajena)
         resp_query = resp_query.filter(RespuestaUsuario.practice_name == target_practice)
     
     respuestas_db = resp_query.order_by(RespuestaUsuario.created_at.desc()).all()
     
-    chat_query = ChatLog.query.filter(ChatLog.correo_identificacion.in_(emails_to_query))
+    # --- CONSULTA DE CHATS ---
+    # Filtro base: Estudiantes míos Y Tareas mías
+    chat_query = ChatLog.query.filter(
+        ChatLog.correo_identificacion.in_(emails_to_query),
+        ChatLog.practice_name.in_(my_exercise_filenames) # <--- FILTRO AGREGADO
+    )
+
+    # Filtro opcional: Tarea específica
     if target_practice:
         chat_query = chat_query.filter(ChatLog.practice_name == target_practice)
         
     chats_db = chat_query.order_by(ChatLog.created_at.desc()).limit(500).all()
 
+    # --- SERIALIZACIÓN (Igual que antes) ---
     respuestas_data = [{
         "correo": r.correo_identificacion,
         "problema_id": r.problema_id,
@@ -510,7 +536,7 @@ def dashboard_data():
     chat_data = [{
         "correo": c.correo_identificacion,
         "problema_id": c.problema_id,
-        "practica": c.practice_name, # Aseguramos enviar esto al frontend
+        "practica": c.practice_name, 
         "role": c.role,
         "content": c.content,
         "fecha": c.created_at.isoformat()

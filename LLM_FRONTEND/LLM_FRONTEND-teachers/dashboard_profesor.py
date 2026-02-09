@@ -36,25 +36,25 @@ BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 BACKEND_URL_CHAT        = f"{BASE}/chat"
 BACKEND_URL_VERIFICAR   = f"{BASE}/verificar_respuesta"
 
-# ---- Persistence helpers (top of file) ----
+# ---- Persistence helpers ----
 STATE_KEYS = {
-    "screen": "ui_screen",                     # "consent", "instructions", "survey", "problems", "final"
-    "code": "correo_identificacion",           # unique identification code of the user
-    "current_problem": "current_problem_id",   # which problem is being worked on
-    "answers": "answers_map",                  # dict: {problem_id: "answer text"}
-    "chat": "chat_map",                        # dict: {problem_id: [{"role":"user|agent","text":"..."}]}
-    "timer_start": "timer_start_epoch",        # int epoch seconds when Xmin started
-    "pending_queue": "pending_queue_list",     # list: [{"type": "chat|answer", "data": {...}}]
+    "screen": "ui_screen",
+    "code": "correo_identificacion",
+    "current_problem": "current_problem_id",
+    "answers": "answers_map",
+    "chat": "chat_map",
+    "timer_start": "timer_start_epoch",
+    "pending_queue": "pending_queue_list",
 }
 
 def main(page: ft.Page):
-    page.title = "GrowTogether - Portal Docente"
+    page.title = "Pro-Tutor - Portal Docente"
     COLORES = DARK_COLORS
-    page.bgcolor = COLORES["fondo"]
     page.theme_mode = ft.ThemeMode.DARK if COLORES == DARK_COLORS else ft.ThemeMode.LIGHT
-    page.padding = 20
+    page.bgcolor = COLORES["fondo"]
+    page.bg_image_src = "fondo_login.png" 
+    page.padding = 0
     
-    # Estado Global
     state = {
         "token": page.client_storage.get("teacher_token"),
         "students": [],
@@ -70,16 +70,17 @@ def main(page: ft.Page):
         page.update()
     
     def check_session():
-        last_heartbeat = page.client_storage.get("last_heartbeat")
+        last_act = page.client_storage.get("last_activity")
         now = time.time()
-        if last_heartbeat and (now - last_heartbeat > 3600): # 1 hora
-            print("Sesión expirada")
+        
+        if last_act and (now - last_act > 3600): 
+            print("Sesión expirada (Check Session)")
             page.client_storage.remove("teacher_token")
-            page.client_storage.remove("last_heartbeat")
+            page.client_storage.remove("last_activity")
             state["token"] = None
             show_login()
         else:
-            page.client_storage.set("last_heartbeat", now)
+            page.client_storage.set("last_activity", now)
     
     def auth_request(method, endpoint, **kwargs):
         check_session()
@@ -96,6 +97,45 @@ def main(page: ft.Page):
             print(f"Error request: {e}")
             return None
 
+    def reset_inactivity_timer():
+        page.client_storage.set("last_activity", time.time())
+    
+    def inactivity_checker():
+        while True:
+            time.sleep(60)
+            token = page.client_storage.get("teacher_token")
+            if token:
+                last_act = page.client_storage.get("last_activity")
+                if last_act and (time.time() - last_act > 3600):
+                    print("Sesión expirada por inactividad.")
+                    page.client_storage.remove("teacher_token")
+                    page.go("/logout_forced") 
+                    
+    threading.Thread(target=inactivity_checker, daemon=True).start()
+    
+    stored_token = page.client_storage.get("teacher_token")
+    last_activity = page.client_storage.get("last_activity")
+    
+    if stored_token and last_activity:
+        if time.time() - last_activity > 3600:
+             page.client_storage.remove("teacher_token")
+             show_login()
+        else:
+            state["token"] = stored_token
+            show_dashboard()
+    else:
+        show_login()
+
+    def route_change(e):
+        if page.route == "/logout_forced":
+            page.client_storage.remove("teacher_token")
+            state["token"] = None
+            flash("Tu sesión ha expirado por inactividad.", COLORES["advertencia"])
+            show_login()
+            page.route = "/" 
+
+    page.on_route_change = route_change
+    
     def show_login():
         page.clean()
         
@@ -111,7 +151,8 @@ def main(page: ft.Page):
             width=300, 
             can_reveal_password=True,
             border_color=COLORES["primario"],
-            color=COLORES["texto"]
+            color=COLORES["texto"],
+            on_submit=lambda e: login_action(e)
         )
         
         def login_action(e):
@@ -124,6 +165,7 @@ def main(page: ft.Page):
                     data = res.json()
                     state["token"] = data["access_token"]
                     page.client_storage.set("teacher_token", data["access_token"])
+                    reset_inactivity_timer()
                     flash(f"Bienvenido, {data.get('nombre', 'Profesor')}")
                     show_dashboard()
                 else:
@@ -146,22 +188,35 @@ def main(page: ft.Page):
 
         card = ft.Container(
             content=ft.Column([
-                ft.Text("Acceso Docente", size=24, weight="bold", color=COLORES["texto"]),
+                ft.Text("Acceso Docente", size=28, weight="bold", color=COLORES["texto"]),
+                ft.Divider(height=20, color="transparent"),
                 email_field,
                 pass_field,
-                ft.Row([
-                    ft.ElevatedButton("Entrar", on_click=login_action, bgcolor=COLORES["boton"], color=COLORES["fondo"]),
-                    ft.TextButton("Crear Cuenta", on_click=register_action, style=ft.ButtonStyle(color=COLORES["primario"]))
-                ], alignment=ft.MainAxisAlignment.CENTER)
-            ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
+                ft.Divider(height=20, color="transparent"),
+                ft.Column([
+                    ft.ElevatedButton("Entrar", on_click=login_action, bgcolor=COLORES["boton"], color=COLORES["fondo"], width=300, height=50),
+                    ft.TextButton("¿No tienes cuenta? Regístrate", on_click=register_action, style=ft.ButtonStyle(color=COLORES["primario"]), width=300)
+                ], spacing=10, alignment=ft.MainAxisAlignment.CENTER)
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
             bgcolor=COLORES["accento"],
             padding=40,
-            border_radius=10,
-            alignment=ft.alignment.center,
-            border=ft.border.all(1, COLORES["borde"])
+            border_radius=20,
+            shadow=ft.BoxShadow(blur_radius=15, color=COLORES["borde"]),
+            alignment=ft.alignment.center
         )
         
-        page.add(ft.Container(content=card, alignment=ft.alignment.center, expand=True))
+        layout_login = ft.Container(
+            content=card,
+            alignment=ft.alignment.center,
+            expand=True,
+            gradient=ft.LinearGradient(
+                begin=ft.alignment.top_center,
+                end=ft.alignment.bottom_center,
+                colors=[ft.colors.with_opacity(0.5, COLORES["fondo"]), ft.colors.with_opacity(0.8, COLORES["fondo"])]
+            )
+        )
+        
+        page.add(layout_login)
 
     def show_dashboard():
         check_session()
@@ -338,8 +393,8 @@ def main(page: ft.Page):
             page.update()
 
         tab_exercises = ft.Row([
-            ft.Container(content=ft.Column([ft.Text("Catálogo global de tareas"), col_available], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10),
-            ft.Container(content=ft.Column([ft.Text("Mi lista personal de tareas"), col_mine], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10))
+            ft.Container(content=ft.Column([ft.Text("Catálogo global de tareas", color=COLORES["texto"]), col_available], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10),
+            ft.Container(content=ft.Column([ft.Text("Mi lista personal de tareas", color=COLORES["texto"]), col_mine], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10))
         ], expand=True)
 
         # =========================================
@@ -364,171 +419,116 @@ def main(page: ft.Page):
         )
 
         def update_dropdowns():
-            # Actualiza el filtro de estudiantes (sin cambios)
+            # Actualiza el filtro de estudiantes
             student_filter.options = [ft.dropdown.Option("Todos los Estudiantes")] + [ft.dropdown.Option(e) for e in state["students"]]
             
-            # ACTUALIZADO: El filtro de tareas ahora usa el 'title' para mostrar y 'filename' como valor interno
-            # state["my_exercises"] ahora es una lista de diccionarios, no de strings
+            # Actualiza el filtro de tareas
             exercise_filter.options = [ft.dropdown.Option("Todas las Tareas")] + [
                 ft.dropdown.Option(key=e["filename"], text=e["title"]) for e in state["my_exercises"]
             ]
             page.update()
-            
-        def render_exercises():
-            col_available.controls.clear()
-            col_mine.controls.clear()
-            
-            safe_my_exercises = []
-            for item in state["my_exercises"]:
-                if isinstance(item, str):
-                    safe_my_exercises.append({
-                        "filename": item, "title": item, 
-                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0
-                    })
-                else:
-                    safe_my_exercises.append(item)
-            
-            safe_all_exercises = []
-            for item in state["all_exercises"]:
-                if isinstance(item, str):
-                    safe_all_exercises.append({
-                        "filename": item, "title": item, 
-                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0
-                    })
-                else:
-                    safe_all_exercises.append(item)
 
-            my_filenames = {e["filename"] for e in safe_my_exercises}
-            
-            def create_exercise_card(ex_data, is_mine):
-                minutes = ex_data.get('max_time', 0) // 60
-                return ft.Container(
-                    content=ft.Column([
-                        ft.Row([
-                            ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=16, expand=True, color=COLORES["texto"]),
-                            ft.IconButton(
-                                ft.Icons.DELETE if is_mine else ft.Icons.ADD_CIRCLE, 
-                                icon_color=COLORES["error"] if is_mine else COLORES["exito"],
-                                tooltip="Quitar" if is_mine else "Agregar", 
-                                on_click=lambda e, f=ex_data["filename"]: remove_exercise(f) if is_mine else add_exercise(f)
-                            )
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        
-                        ft.Text(ex_data.get("description", ""), size=12, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                        
-                        ft.Divider(height=5, color="transparent"),
-                        
-                        ft.Row([
-                            ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
-                            ft.Text(f"{minutes} min", size=12, color=COLORES["subtitulo"]),
-                            ft.Container(width=10),
-                            ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
-                            ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
-                        ])
-                    ], spacing=2),
-                    bgcolor=COLORES["fondo"], 
-                    padding=15, 
-                    border_radius=10, 
-                    border=ft.border.all(1, COLORES["borde"]),
-                    shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"]) 
-                )
-
-            for ex in safe_all_exercises:
-                if ex["filename"] not in my_filenames:
-                    col_available.controls.append(create_exercise_card(ex, False))
-
-            for ex in safe_my_exercises:
-                col_mine.controls.append(create_exercise_card(ex, True))
-                
-            page.update()
-
-        msg_problem_selector = ft.Dropdown(
-            label="Problema No.", 
-            width=150, 
-            options=[],
+        # --- SECCIÓN MENSAJERÍA ---
+        msg_info_text = ft.Text("", italic=True, color=COLORES["subtitulo"])
+        
+        msg_problem_dropdown = ft.Dropdown(
+            label="Selecciona el Problema", 
+            width=200,
             border_color=COLORES["primario"],
             color=COLORES["texto"]
         )
-        
         msg_text_field = ft.TextField(
             label="Escribe tu mensaje...", 
             multiline=True, 
-            min_lines=5, # Hacemos el área de texto más alta
+            min_lines=4,
             expand=True,
             border_color=COLORES["primario"],
             color=COLORES["texto"]
         )
-        
+
         def close_dialog(e):
             dialog_msg.open = False
             page.update()
 
-        def send_direct_message(e):
-            # Validar selección previa
-            stu = student_filter.value
-            ex_filename = exercise_filter.value
-            
-            if not stu or stu == "Todos los Estudiantes" or not ex_filename or ex_filename == "Todas las Tareas":
-                flash("Para enviar un mensaje, primero filtra por UN estudiante y UNA tarea específica.", COLORES["advertencia"])
-                return
-
-            # Buscar la info de la tarea seleccionada para saber cuántos problemas tiene
-            # Buscamos en 'my_exercises' el objeto que coincida con el filename seleccionado
-            target_exercise = next((item for item in state["my_exercises"] if isinstance(item, dict) and item["filename"] == ex_filename), None)
-            
-            num_problems = 1
-            if target_exercise:
-                num_problems = target_exercise.get("num_problems", 1)
-            
-            # Llenar el dropdown dinámicamente (1, 2, 3... N)
-            msg_problem_selector.options = [ft.dropdown.Option(str(i)) for i in range(1, num_problems + 1)]
-            msg_problem_selector.value = "1" # Resetear a 1 por defecto
-
-            dialog_msg.open = True
-            page.update()
-
         def confirm_send(e):
-            if not msg_text_field.value or not msg_problem_selector.value: 
-                flash("Escribe un mensaje y selecciona un problema", COLORES["advertencia"])
+            if not msg_text_field.value: 
+                flash("El mensaje no puede estar vacío", COLORES["advertencia"])
                 return
+            if not msg_problem_dropdown.value:
+                 flash("Selecciona un número de problema", COLORES["advertencia"])
+                 return
             
-            # Enviar datos explícitos al backend
+            reset_inactivity_timer() 
+
             res = auth_request("POST", "/api/teacher/send-message", json={
                 "student_email": student_filter.value,
                 "practice_name": exercise_filter.value,
-                "problema_id": int(msg_problem_selector.value), # Usamos el valor del dropdown
+                "problema_id": int(msg_problem_dropdown.value),
                 "message": msg_text_field.value
             })
             
             if res and res.status_code == 200:
-                msg_text_field.value = ""
                 dialog_msg.open = False
-                flash(f"Mensaje enviado al Problema {msg_problem_selector.value}")
+                flash("Mensaje enviado correctamente")
                 load_data_filtered() 
             else:
-                flash("Error al enviar", COLORES["error"])
-            
+                flash("Error al enviar mensaje", COLORES["error"])
             page.update()
 
         dialog_msg = ft.AlertDialog(
-            title=ft.Text("Mensaje al Estudiante"),
+            title=ft.Text("Mensaje al Estudiante", color=COLORES["texto"]),
             content=ft.Container(
                 content=ft.Column([
+                    msg_info_text,
+                    ft.Divider(), 
                     ft.Text("Selecciona el problema destino:", size=12, color=COLORES["subtitulo"]),
-                    msg_problem_selector, # Ahora es un dropdown
+                    msg_problem_dropdown,
                     msg_text_field
-                ], tight=True),
-                width=600, # Aumentamos el ancho de la ventana (antes 400)
-                height=300
+                ], tight=True, spacing=15),
+                width=600,
+                height=350,
+                bgcolor=COLORES["fondo"]
             ),
             actions=[
                 ft.TextButton("Cancelar", on_click=close_dialog),
                 ft.ElevatedButton("Enviar", on_click=confirm_send, bgcolor=COLORES["primario"], color=COLORES["fondo"])
-            ]
+            ],
+            bgcolor=COLORES["fondo"]
         )
+        
         page.overlay.append(dialog_msg)
 
+        def send_direct_message(e):
+            reset_inactivity_timer()
+            student_email = student_filter.value
+            task_filename = exercise_filter.value
+
+            if not student_email or student_email == "Todos los Estudiantes":
+                flash("Debes seleccionar un estudiante específico para enviar un mensaje.", COLORES["advertencia"])
+                return
+            if not task_filename or task_filename == "Todas las Tareas":
+                flash("Debes seleccionar una tarea específica para enviar un mensaje.", COLORES["advertencia"])
+                return
+
+            target_exercise = next((item for item in state["my_exercises"] if isinstance(item, dict) and item["filename"] == task_filename), None)
+            
+            num_problems = 1
+            ex_title = task_filename
+            if target_exercise:
+                num_problems = target_exercise.get("num_problems", 1)
+                ex_title = target_exercise.get("title", task_filename)
+
+            msg_info_text.value = f"Para: {student_email}\nTarea: {ex_title}"
+
+            msg_problem_dropdown.options = [ft.dropdown.Option(str(i)) for i in range(1, num_problems + 1)]
+            msg_problem_dropdown.value = "1"
+            msg_text_field.value = ""
+
+            dialog_msg.open = True
+            page.update()
+
         def load_data_filtered(e=None):
+            reset_inactivity_timer()
             params = {}
             if student_filter.value != "Todos los Estudiantes": params["student_email"] = student_filter.value
             if exercise_filter.value != "Todas las Tareas": params["practice_name"] = exercise_filter.value
@@ -555,12 +555,13 @@ def main(page: ft.Page):
                 
                 if is_teacher: 
                     bg = COLORES["secundario"]
+                    txt_color = COLORES["fondo"]
                 elif is_bot: 
                     bg = COLORES["borde"]
+                    txt_color = COLORES["texto"]
                 else: 
                     bg = COLORES["primario"]
-                
-                txt_color = COLORES["fondo"] if (not is_bot) else COLORES["texto"]
+                    txt_color = COLORES["fondo"]
 
                 chats_col.controls.append(ft.Column([
                     ft.Text(f"{role.upper()} - {c['correo']}", size=10, color=COLORES["subtitulo"]),
@@ -586,7 +587,7 @@ def main(page: ft.Page):
         # Tabs Principales
         tabs = ft.Tabs(
             selected_index=0,
-            on_change=lambda e: (load_exercises() if e.control.selected_index == 1 else None),
+            on_change=lambda e: (reset_inactivity_timer(), load_exercises() if e.control.selected_index == 1 else None),
             tabs=[
                 ft.Tab(text="Estudiantes", content=tab_students),
                 ft.Tab(text="Mis Tareas", content=tab_exercises),
