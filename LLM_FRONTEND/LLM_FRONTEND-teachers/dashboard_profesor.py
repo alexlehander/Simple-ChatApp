@@ -48,6 +48,13 @@ STATE_KEYS = {
 }
 
 def main(page: ft.Page):
+
+    page.is_alive = True
+    def on_disconnect(e):
+        page.is_alive = False
+        print("Cliente desconectado. Deteniendo hilos.")
+    page.on_disconnect = on_disconnect
+    
     page.title = "Pro-Tutor - Portal Docente"
     COLORES = DARK_COLORS
     page.theme_mode = ft.ThemeMode.DARK if COLORES == DARK_COLORS else ft.ThemeMode.LIGHT
@@ -57,11 +64,16 @@ def main(page: ft.Page):
     
     state = {
         "token": page.client_storage.get("teacher_token"),
+        "last_activity": time.time(),
         "students": [],
         "dashboard_data": {},
         "my_exercises": [],
         "all_exercises": []
     }
+    
+    stored_activity = page.client_storage.get("last_activity")
+    if stored_activity:
+        state["last_activity"] = stored_activity
 
     def flash(msg, color=COLORES["exito"]):
         snack = ft.SnackBar(ft.Text(msg, color=COLORES["fondo"]), bgcolor=color)
@@ -70,17 +82,17 @@ def main(page: ft.Page):
         page.update()
     
     def check_session():
-        last_act = page.client_storage.get("last_activity")
+        # Leemos de MEMORIA (state) en lugar de consultar al navegador
+        last_act = state.get("last_activity", 0)
         now = time.time()
         
-        if last_act and (now - last_act > 3600): 
+        if state["token"] and (now - last_act > 3600): 
             print("Sesión expirada (Check Session)")
-            page.client_storage.remove("teacher_token")
-            page.client_storage.remove("last_activity")
             state["token"] = None
+            page.client_storage.remove("teacher_token")
             show_login()
         else:
-            page.client_storage.set("last_activity", now)
+            reset_inactivity_timer()
     
     def auth_request(method, endpoint, **kwargs):
         check_session()
@@ -99,18 +111,25 @@ def main(page: ft.Page):
             return None
 
     def reset_inactivity_timer():
-        page.client_storage.set("last_activity", time.time())
+        now = time.time()
+        state["last_activity"] = now
+        page.client_storage.set("last_activity", now)
     
     def inactivity_checker():
         while True:
             time.sleep(60)
-            token = page.client_storage.get("teacher_token")
-            if token:
-                last_act = page.client_storage.get("last_activity")
-                if last_act and (time.time() - last_act > 3600):
+            if not page.is_alive: break
+            
+            if state["token"]:
+                last_act = state.get("last_activity", 0)
+                if time.time() - last_act > 3600:
                     print("Sesión expirada por inactividad.")
-                    page.client_storage.remove("teacher_token")
-                    page.go("/logout_forced") 
+                    state["token"] = None
+                    try:
+                        page.client_storage.remove("teacher_token")
+                        page.go("/logout_forced")
+                    except Exception as e:
+                        print(f"Logout background error: {e}")
                     
     threading.Thread(target=inactivity_checker, daemon=True).start()
 
@@ -594,14 +613,15 @@ def main(page: ft.Page):
         load_students()
 
     stored_token = page.client_storage.get("teacher_token")
-    last_activity = page.client_storage.get("last_activity")
+    last_act_stored = page.client_storage.get("last_activity")
     
-    if stored_token and last_activity:
-        if time.time() - last_activity > 3600:
+    if stored_token and last_act_stored:
+        if time.time() - last_act_stored > 3600:
              page.client_storage.remove("teacher_token")
              show_login()
         else:
             state["token"] = stored_token
+            state["last_activity"] = last_act_stored
             show_dashboard()
     else:
         show_login()
