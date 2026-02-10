@@ -113,19 +113,6 @@ def main(page: ft.Page):
                     page.go("/logout_forced") 
                     
     threading.Thread(target=inactivity_checker, daemon=True).start()
-    
-    stored_token = page.client_storage.get("teacher_token")
-    last_activity = page.client_storage.get("last_activity")
-    
-    if stored_token and last_activity:
-        if time.time() - last_activity > 3600:
-             page.client_storage.remove("teacher_token")
-             show_login()
-        else:
-            state["token"] = stored_token
-            show_dashboard()
-    else:
-        show_login()
 
     def route_change(e):
         if page.route == "/logout_forced":
@@ -602,8 +589,16 @@ def main(page: ft.Page):
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), tabs)
         load_students()
 
-    if state["token"]:
-        show_dashboard()
+    stored_token = page.client_storage.get("teacher_token")
+    last_activity = page.client_storage.get("last_activity")
+    
+    if stored_token and last_activity:
+        if time.time() - last_activity > 3600:
+             page.client_storage.remove("teacher_token")
+             show_login()
+        else:
+            state["token"] = stored_token
+            show_dashboard()
     else:
         show_login()
 
@@ -611,4 +606,4 @@ if __name__ == "__main__":
     import os
     os.environ["FLET_FORCE_WEB"] = "1"
     port = int(os.getenv("PORT", "3001"))
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=port)
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=port, assets_dir="assets")
