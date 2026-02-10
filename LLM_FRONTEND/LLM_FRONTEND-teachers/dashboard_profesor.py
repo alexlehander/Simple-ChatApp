@@ -217,23 +217,12 @@ def main(page: ft.Page):
         
         layout_login = ft.Container(
             expand=True,
+            alignment=ft.alignment.center,
             image=ft.DecorationImage(
                 src="fondo_login.png",
                 fit=ft.ImageFit.COVER,
             ),
-            
-            content=ft.Container(
-                expand=True,
-                #gradient=ft.LinearGradient(
-                #    begin=ft.alignment.top_center,
-                #    end=ft.alignment.bottom_center,
-                #    colors=[add_opacity(COLORES["fondo"], 0.5), add_opacity(COLORES["fondo"], 0.8)]
-                #),
-                content=ft.Container(
-                    content=card,
-                    alignment=ft.alignment.center,
-                )
-            )
+            content=card
         )
         
         page.add(layout_login)
