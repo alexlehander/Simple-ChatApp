@@ -59,7 +59,6 @@ def main(page: ft.Page):
     COLORES = DARK_COLORS
     page.theme_mode = ft.ThemeMode.DARK if COLORES == DARK_COLORS else ft.ThemeMode.LIGHT
     page.bgcolor = COLORES["fondo"]
-    page.bg_image_src = "/fondo_login.png" 
     page.padding = 0
     
     state = {
@@ -216,15 +215,29 @@ def main(page: ft.Page):
             alignment=ft.alignment.center
         )
         
-        layout_login = ft.Container(
-            content=card,
-            alignment=ft.alignment.center,
-            expand=True,
-            gradient=ft.LinearGradient(
-                begin=ft.alignment.top_center,
-                end=ft.alignment.bottom_center,
-                colors=[add_opacity(COLORES["fondo"], 0.5), add_opacity(COLORES["fondo"], 0.8)]
-            )
+        layout_login = ft.Stack(
+            [
+                ft.Image(
+                    src="/fondo_login.png",  # La ruta que confirmamos que funciona
+                    fit=ft.ImageFit.COVER,   # Que cubra toda la pantalla
+                    width=float("inf"),      # Ancho infinito
+                    height=float("inf"),     # Alto infinito
+                ),
+                ft.Container(
+                    gradient=ft.LinearGradient(
+                        begin=ft.alignment.top_center,
+                        end=ft.alignment.bottom_center,
+                        colors=[add_opacity(COLORES["fondo"], 0.5), add_opacity(COLORES["fondo"], 0.8)]
+                    ),
+                    expand=True
+                ),
+                ft.Container(
+                    content=card,
+                    alignment=ft.alignment.center,
+                    expand=True
+                )
+            ],
+            expand=True
         )
         
         page.add(layout_login)
