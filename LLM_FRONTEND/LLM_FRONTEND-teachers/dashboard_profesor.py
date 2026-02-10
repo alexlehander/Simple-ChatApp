@@ -767,6 +767,7 @@ if __name__ == "__main__":
         print(f"❌ LA CARPETA NO EXISTE EN: {assets_path}")
 
     os.environ["FLET_FORCE_WEB"] = "1"
+    os.environ["FLET_WEB_RENDERER"] = "html"
     port = int(os.getenv("PORT", "3001"))
     
     ft.app(
