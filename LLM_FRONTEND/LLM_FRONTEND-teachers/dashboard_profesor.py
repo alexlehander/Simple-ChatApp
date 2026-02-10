@@ -218,7 +218,7 @@ def main(page: ft.Page):
         layout_login = ft.Container(
             expand=True,
             image=ft.DecorationImage(
-                src="/fondo_login.png",
+                src="fondo_login.png",
                 fit=ft.ImageFit.COVER,
             ),
             
