@@ -174,6 +174,10 @@ def main(page: ft.Page):
             except Exception as ex:
                 flash(f"Error: {ex}", COLORES["error"])
 
+        def add_opacity(hex_color, opacity):
+            alpha = int(opacity * 255)
+            return f"#{alpha:02x}{hex_color.lstrip('#')}"
+        
         card = ft.Container(
             content=ft.Column([
                 ft.Text("Acceso Docente", size=28, weight="bold", color=COLORES["texto"]),
@@ -200,7 +204,7 @@ def main(page: ft.Page):
             gradient=ft.LinearGradient(
                 begin=ft.alignment.top_center,
                 end=ft.alignment.bottom_center,
-                colors=[ft.colors.with_opacity(0.5, COLORES["fondo"]), ft.colors.with_opacity(0.8, COLORES["fondo"])]
+                colors=[add_opacity(COLORES["fondo"], 0.5), add_opacity(COLORES["fondo"], 0.8)]
             )
         )
         
