@@ -595,14 +595,136 @@ def main(page: ft.Page):
             ], expand=True)
         ], expand=True)
 
+        # =========================================
+        # PESTAÑA 4: Dashboard (Borrador)
+        # =========================================
+        dashboard_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+
+        def load_full_dashboard():
+            # 1. Carga datos globales (sin filtros) para ver todo el panorama
+            reset_inactivity_timer()
+            res = auth_request("GET", "/api/teacher/dashboard-data") # Sin params trae todo
+            if res and res.status_code == 200:
+                state["dashboard_data"] = res.json()
+                render_dashboard_view()
+        
+        def render_dashboard_view():
+            dashboard_col.controls.clear()
+            
+            # Validar que tengamos listas base
+            if not state["students"]:
+                dashboard_col.controls.append(ft.Text("No hay estudiantes registrados.", color=COLORES["subtitulo"]))
+                page.update(); return
+
+            # 1. Procesar quién ha hecho qué (Crear un set de pares únicos: "email+tarea")
+            # Esto cumple tu requerimiento: "por lo minimo haya un registro en la BD"
+            actividad_registrada = set()
+            data = state.get("dashboard_data", {})
+            
+            # Revisar respuestas
+            for r in data.get("respuestas", []):
+                actividad_registrada.add((r["correo"], r["practica"]))
+            # Revisar chats (opcional, si contar chat cuenta como intento)
+            for c in data.get("chats", []):
+                actividad_registrada.add((c["correo"], c["practica"]))
+            
+            # 2. Construir Grid de Estudiantes ("Figuritas")
+            grid = ft.GridView(
+                expand=True,
+                runs_count=5,          # Cuantas columnas quieres (ajusta según necesites)
+                max_extent=250,        # Ancho máximo de la tarjeta
+                child_aspect_ratio=0.8, # Relación aspecto (más alto que ancho)
+                spacing=15,
+                run_spacing=15,
+            )
+
+            # Normalizar lista de ejercicios (por si el backend manda strings o dicts)
+            safe_exercises = []
+            for item in state["my_exercises"]:
+                if isinstance(item, str):
+                    safe_exercises.append({"filename": item, "title": item})
+                else:
+                    safe_exercises.append(item)
+
+            for stu in state["students"]:
+                # Lista de tareas para este estudiante específico
+                task_items = []
+                completed_count = 0
+                
+                for ex in safe_exercises:
+                    filename = ex["filename"]
+                    title = ex.get("title", filename)
+                    
+                    # ¿Existe el par (estudiante, tarea) en los registros?
+                    tiene_registro = (stu, filename) in actividad_registrada
+                    if tiene_registro: completed_count += 1
+                    
+                    # Icono visual del estado
+                    icon = ft.Icons.CHECK_CIRCLE if tiene_registro else ft.Icons.CIRCLE_OUTLINED
+                    color = COLORES["exito"] if tiene_registro else COLORES["borde"]
+                    
+                    task_items.append(
+                        ft.Row([
+                            ft.Icon(icon, size=14, color=color),
+                            ft.Text(title, size=11, color=COLORES["texto"], expand=True, no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS)
+                        ], spacing=5)
+                    )
+
+                # Tarjeta (Figurita) del Estudiante
+                card = ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Icon(ft.Icons.ACCOUNT_CIRCLE, color=COLORES["primario"], size=40),
+                            ft.Column([
+                                ft.Text(stu.split("@")[0], weight="bold", color=COLORES["primario"], size=14, no_wrap=True),
+                                ft.Text(f"{completed_count}/{len(safe_exercises)} Tareas", size=10, color=COLORES["subtitulo"])
+                            ], spacing=0, expand=True)
+                        ], alignment=ft.MainAxisAlignment.START),
+                        
+                        ft.Divider(height=10, color="transparent"),
+                        ft.Container(
+                            content=ft.Column(task_items, spacing=5, scroll=ft.ScrollMode.AUTO),
+                            expand=True, # Para que la lista ocupe el espacio restante de la tarjeta
+                        )
+                    ], spacing=5),
+                    bgcolor=COLORES["accento"],
+                    padding=15,
+                    border_radius=15,
+                    border=ft.border.all(1, COLORES["borde"] if completed_count < len(safe_exercises) else COLORES["exito"]),
+                    shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"])
+                )
+                grid.controls.append(card)
+
+            dashboard_col.controls.append(grid)
+            page.update()
+
+        tab_dashboard = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Text("Dashboard de Progreso", size=20, weight="bold", color=COLORES["texto"]),
+                    ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], tooltip="Recargar datos", on_click=lambda e: load_full_dashboard())
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Text("Vista rápida de participación por tarea", color=COLORES["subtitulo"]),
+                ft.Divider(color=COLORES["borde"]),
+                dashboard_col
+            ], expand=True),
+            padding=20
+        )
+
         # Tabs Principales
         tabs = ft.Tabs(
             selected_index=0,
-            on_change=lambda e: (reset_inactivity_timer(), load_exercises() if e.control.selected_index == 1 else None),
+            animation_duration=300,
+            on_change=lambda e: (
+                reset_inactivity_timer(),
+                load_exercises() if e.control.selected_index == 1 else None,
+                load_full_dashboard() if e.control.selected_index == 3 else None
+            ),
             tabs=[
-                ft.Tab(text="Estudiantes", content=tab_students),
+                ft.Tab(text="Mis Estudiantes", content=tab_students),
                 ft.Tab(text="Mis Tareas", content=tab_exercises),
-                ft.Tab(text="Monitoreo", content=tab_monitor)
+                ft.Tab(text="Monitoreo", content=tab_monitor),
+                ft.Tab(text="Dashboard", icon=ft.Icons.DASHBOARD, content=tab_dashboard)
             ], expand=True
         )
 
