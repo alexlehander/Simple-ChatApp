@@ -215,29 +215,24 @@ def main(page: ft.Page):
             alignment=ft.alignment.center
         )
         
-        layout_login = ft.Stack(
-            [
-                ft.Image(
-                    src="/fondo_login.png",  # La ruta que confirmamos que funciona
-                    fit=ft.ImageFit.COVER,   # Que cubra toda la pantalla
-                    width=float("inf"),      # Ancho infinito
-                    height=float("inf"),     # Alto infinito
+        layout_login = ft.Container(
+            expand=True,
+            image_src="/fondo_login.png",
+            image_fit=ft.ImageFit.COVER,
+            
+            content=ft.Container(
+                expand=True,
+                gradient=ft.LinearGradient(
+                    begin=ft.alignment.top_center,
+                    end=ft.alignment.bottom_center,
+                    colors=[add_opacity(COLORES["fondo"], 0.5), add_opacity(COLORES["fondo"], 0.8)]
                 ),
-                ft.Container(
-                    gradient=ft.LinearGradient(
-                        begin=ft.alignment.top_center,
-                        end=ft.alignment.bottom_center,
-                        colors=[add_opacity(COLORES["fondo"], 0.5), add_opacity(COLORES["fondo"], 0.8)]
-                    ),
-                    expand=True
-                ),
-                ft.Container(
+                
+                content=ft.Container(
                     content=card,
                     alignment=ft.alignment.center,
-                    expand=True
                 )
-            ],
-            expand=True
+            )
         )
         
         page.add(layout_login)
