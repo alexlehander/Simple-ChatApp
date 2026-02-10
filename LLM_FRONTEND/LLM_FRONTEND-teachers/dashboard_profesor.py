@@ -749,7 +749,23 @@ def main(page: ft.Page):
         show_login()
 
 if __name__ == "__main__":
-    import os
+    basedir = os.path.dirname(os.path.abspath(__file__))
+    assets_path = os.path.join(basedir, "assets")
+    print(f"📍 UBICACIÓN DEL SCRIPT: {basedir}")
+    print(f"📂 RUTA ASSETS CALCULADA: {assets_path}")
+
+    if os.path.exists(assets_path):
+        print(f"✅ Archivos en assets: {os.listdir(assets_path)}")
+    else:
+        print(f"❌ LA CARPETA NO EXISTE EN: {assets_path}")
+
     os.environ["FLET_FORCE_WEB"] = "1"
     port = int(os.getenv("PORT", "3001"))
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=port, assets_dir="assets")
+    
+    ft.app(
+        target=main, 
+        view=ft.AppView.WEB_BROWSER, 
+        host="0.0.0.0", 
+        port=port, 
+        assets_dir=assets_path
+    )
