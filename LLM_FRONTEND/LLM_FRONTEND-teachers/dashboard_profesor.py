@@ -224,11 +224,11 @@ def main(page: ft.Page):
             
             content=ft.Container(
                 expand=True,
-                gradient=ft.LinearGradient(
-                    begin=ft.alignment.top_center,
-                    end=ft.alignment.bottom_center,
-                    colors=[add_opacity(COLORES["fondo"], 0.5), add_opacity(COLORES["fondo"], 0.8)]
-                ),
+                #gradient=ft.LinearGradient(
+                #    begin=ft.alignment.top_center,
+                #    end=ft.alignment.bottom_center,
+                #    colors=[add_opacity(COLORES["fondo"], 0.5), add_opacity(COLORES["fondo"], 0.8)]
+                #),
                 content=ft.Container(
                     content=card,
                     alignment=ft.alignment.center,
