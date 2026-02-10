@@ -215,14 +215,23 @@ def main(page: ft.Page):
             alignment=ft.alignment.center
         )
         
-        layout_login = ft.Container(
-            expand=True,
-            alignment=ft.alignment.center,
-            image=ft.DecorationImage(
-                src="fondo_login.png",
-                fit=ft.ImageFit.COVER,
-            ),
-            content=card
+        layout_login = ft.Stack(
+            controls=[
+                ft.Image(
+                    src="fondo_login.png",
+                    fit=ft.ImageFit.COVER,
+                    width=float("inf"),
+                    height=float("inf"),
+                    expand=True,
+                    opacity=1.0
+                ),
+                ft.Container(
+                    content=card,
+                    alignment=ft.alignment.center,
+                    expand=True
+                )
+            ],
+            expand=True
         )
         
         page.add(layout_login)
