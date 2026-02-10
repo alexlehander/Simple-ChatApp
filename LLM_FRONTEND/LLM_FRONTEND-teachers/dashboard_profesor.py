@@ -59,7 +59,7 @@ def main(page: ft.Page):
     COLORES = DARK_COLORS
     page.theme_mode = ft.ThemeMode.DARK if COLORES == DARK_COLORS else ft.ThemeMode.LIGHT
     page.bgcolor = COLORES["fondo"]
-    page.bg_image_src = "fondo_login.png" 
+    page.bg_image_src = "/fondo_login.png" 
     page.padding = 0
     
     state = {
