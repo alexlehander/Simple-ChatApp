@@ -218,12 +218,13 @@ def main(page: ft.Page):
         layout_login = ft.Stack(
             controls=[
                 ft.Image(
-                    src="fondo_login.png",
+                    src="https://frontend-teachers-main-environment.up.railway.app/fondo_login.png",
                     fit=ft.ImageFit.COVER,
                     width=float("inf"),
                     height=float("inf"),
                     expand=True,
-                    opacity=1.0
+                    opacity=1.0,
+                    gapless_playback=True
                 ),
                 ft.Container(
                     content=card,
@@ -767,7 +768,6 @@ if __name__ == "__main__":
         print(f"❌ LA CARPETA NO EXISTE EN: {assets_path}")
 
     os.environ["FLET_FORCE_WEB"] = "1"
-    os.environ["FLET_WEB_RENDERER"] = "html"
     port = int(os.getenv("PORT", "3001"))
     
     ft.app(
