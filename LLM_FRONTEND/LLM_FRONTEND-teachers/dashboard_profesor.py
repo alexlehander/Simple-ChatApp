@@ -159,7 +159,7 @@ def main(page: ft.Page):
             gapless_playback=True,
         
         # Si la imagen falla, mostrará un cuadro rojo en lugar de negro
-            error_content=ft.Container(bgcolor=ft.colors.RED)
+            error_content=ft.Container(bgcolor=COLORES["error"])
         )
 
     # Agregamos la imagen DIRECTAMENTE a la página.
