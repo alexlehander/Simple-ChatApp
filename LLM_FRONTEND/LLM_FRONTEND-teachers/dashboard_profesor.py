@@ -218,10 +218,8 @@ def main(page: ft.Page):
         layout_login = ft.Stack(
             controls=[
                 ft.Image(
-                    src="/fondo_login.png", # Mantén la barra si estás usando assets_dir
+                    src="/fondo_login.jpg",
                     fit=ft.ImageFit.COVER,
-                
-                # CORRECCIÓN CLAVE: Usar dimensiones numéricas, no float("inf")
                     width=page.window_width,  
                     height=page.window_height,
                 
