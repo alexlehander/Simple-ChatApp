@@ -218,7 +218,7 @@ def main(page: ft.Page):
         layout_login = ft.Stack(
             controls=[
                 ft.Image(
-                    src="https://frontend-teachers-main-environment.up.railway.app/fondo_login.png",
+                    src="https://frontend-teachers-main-environment.up.railway.app/fondo_login.jpg",
                     fit=ft.ImageFit.COVER,
                     width=float("inf"),
                     height=float("inf"),
