@@ -48,9 +48,13 @@ STATE_KEYS = {
 }
 
 def main(page: ft.Page):
-
+    
     page.is_alive = True
+    def on_disconnect(e):
+        page.is_alive = False
+        print("Cliente desconectado. Deteniendo hilos.")
     page.on_disconnect = on_disconnect
+    
     page.title = "Pro-Tutor - Portal Docente"
     page.padding = 0
     theme_name = load_k(page, "theme", "dark")
@@ -81,10 +85,6 @@ def main(page: ft.Page):
         show_close_icon=False, 
     )
     page.overlay.append(save_snack)
-    
-    def on_disconnect(e):
-        page.is_alive = False
-        print("Cliente desconectado. Deteniendo hilos.")
     
     def save_k(page, k, v):
         page.client_storage.set(k, v)
