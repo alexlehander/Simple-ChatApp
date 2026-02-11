@@ -143,30 +143,143 @@ def main(page: ft.Page):
     page.on_route_change = route_change
     
     def show_login():
-    # Limpiamos cualquier control previo en la página
-        page.clean() 
+        page.clean()
 
-    # ---------------------------------------------------------
-    # MODO DEBUGEO: SOLO IMAGEN
-    # ---------------------------------------------------------
-        imagen_debug = ft.Image(
-        # Asegúrate de que este archivo exista en tu carpeta assets
-            src="/fondo_login.jpg", 
+        # --- 1. Lógica y Controles del Formulario ---
+        email_field = ft.TextField(
+            label="Correo Docente", 
+            width=300,
+            bgcolor=COLORES["accento"],
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            border_radius=10
+        )
         
-        # Configuración para llenar la pantalla
-            fit=ft.ImageFit.COVER,
-            expand=True,
-            gapless_playback=True,
-        
-        # Si la imagen falla, mostrará un cuadro rojo en lugar de negro
-            error_content=ft.Container(bgcolor=COLORES["error"])
+        pass_field = ft.TextField(
+            label="Contraseña", 
+            password=True, 
+            width=300, 
+            can_reveal_password=True,
+            bgcolor=COLORES["accento"],
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            border_radius=10,
+            on_submit=lambda e: login_action(e)
         )
 
-    # Agregamos la imagen DIRECTAMENTE a la página.
-    # Sin Stacks, sin Containers intermedios, sin interfaz de usuario.
-        page.add(imagen_debug)
-    
+        def login_action(e):
+            if not email_field.value or not pass_field.value:
+                flash("Por favor ingresa correo y contraseña", COLORES["advertencia"])
+                return
 
+            try:
+                res = requests.post(f"{BASE}/api/teacher/login", json={
+                    "email": email_field.value,
+                    "password": pass_field.value
+                }, timeout=10)
+                
+                if res.status_code == 200:
+                    data = res.json()
+                    token = data.get("access_token")
+                    state["token"] = token
+                    page.client_storage.set("teacher_token", token)
+                    reset_inactivity_timer()
+                    flash(f"Bienvenido, {data.get('nombre', 'Profesor')}", COLORES["exito"])
+                    show_dashboard()
+                else:
+                    msg = res.json().get("msg", "Credenciales incorrectas")
+                    flash(msg, COLORES["error"])
+            except Exception as ex:
+                print(f"Login error: {ex}")
+                flash("Error de conexión con el servidor", COLORES["error"])
+
+        def register_action(e):
+            if not email_field.value or not pass_field.value:
+                flash("Ingresa correo y contraseña para registrarte", COLORES["advertencia"])
+                return
+                
+            try:
+                res = requests.post(f"{BASE}/api/teacher/register", json={
+                    "email": email_field.value,
+                    "password": pass_field.value
+                }, timeout=10)
+                
+                if res.status_code == 201:
+                    flash("Cuenta creada exitosamente. Ahora inicia sesión.", COLORES["exito"])
+                else:
+                    flash(res.json().get("msg", "Error al registrar"), COLORES["error"])
+            except Exception as ex:
+                flash(f"Error técnico: {ex}", COLORES["error"])
+
+        # --- 2. Diseño de la Tarjeta (Card) ---
+        card = ft.Container(
+            content=ft.Column([
+                ft.Icon(ft.Icons.SCHOOL, size=50, color=COLORES["primario"]),
+                ft.Text("Acceso Docente", size=24, weight="bold", color=COLORES["texto"]),
+                ft.Divider(height=20, color="transparent"),
+                email_field,
+                pass_field,
+                ft.Divider(height=20, color="transparent"),
+                ft.Column([
+                    ft.ElevatedButton(
+                        "Entrar", 
+                        on_click=login_action, 
+                        bgcolor=COLORES["boton"], 
+                        color="white", # Texto blanco para contraste
+                        width=300, 
+                        height=45
+                    ),
+                    ft.TextButton(
+                        "¿No tienes cuenta? Regístrate", 
+                        on_click=register_action, 
+                        style=ft.ButtonStyle(color=COLORES["primario"])
+                    )
+                ], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
+            bgcolor=COLORES["fondo"],
+            padding=40,
+            border_radius=15,
+            border=ft.border.all(1, COLORES["borde"]),
+            shadow=ft.BoxShadow(
+                blur_radius=20, 
+                color=COLORES["accento"],
+                offset=ft.Offset(0, 10)
+            )
+        )
+
+        # --- 3. El Stack Mágico (Imagen + Tarjeta) ---
+        background_image = ft.Image(
+            src="/fondo_login.jpg",
+            fit=ft.ImageFit.COVER,
+            width=page.width or 800, 
+            height=page.height or 600,
+            opacity=1.0,
+            gapless_playback=True,
+            error_content=ft.Container(bgcolor=COLORES["fondo"])
+        )
+
+        layout_login = ft.Stack(
+            controls=[
+                background_image,
+                ft.Container(
+                    content=card,
+                    alignment=ft.alignment.center,
+                    expand=True
+                )
+            ],
+            expand=True
+        )
+
+        # --- 4. Handler de Redimensionamiento ---
+        def on_resize(e):
+            background_image.width = page.width
+            background_image.height = page.height
+            background_image.update()
+            
+        page.on_resized = on_resize
+
+        page.add(layout_login)
+    
     def show_dashboard():
         check_session()
         page.clean()
