@@ -225,7 +225,7 @@ def main(page: ft.Page):
                         "Entrar", 
                         on_click=login_action, 
                         bgcolor=COLORES["boton"], 
-                        color="white", # Texto blanco para contraste
+                        color=COLORES["texto"],
                         width=300, 
                         height=45
                     ),
@@ -251,17 +251,17 @@ def main(page: ft.Page):
         background_image = ft.Image(
             src="/fondo_login.jpg",
             fit=ft.ImageFit.COVER,
-            width=page.width or 800, 
-            height=page.height or 600,
+            # VOLVEMOS A LA CONFIGURACIÓN QUE FUNCIONÓ:
+            expand=True,   # <--- Esto fuerza a llenar el Stack sin calcular píxeles
             opacity=1.0,
             gapless_playback=True,
-            error_content=ft.Container(bgcolor=COLORES["fondo"])
+            error_content=ft.Container(bgcolor=COLORES["error"]) # Si falla, veremos rojo
         )
 
         layout_login = ft.Stack(
             controls=[
-                background_image,
-                ft.Container(
+                background_image, # Capa 0: Fondo
+                ft.Container(     # Capa 1: Tarjeta centrada
                     content=card,
                     alignment=ft.alignment.center,
                     expand=True
@@ -270,14 +270,7 @@ def main(page: ft.Page):
             expand=True
         )
 
-        # --- 4. Handler de Redimensionamiento ---
-        def on_resize(e):
-            background_image.width = page.width
-            background_image.height = page.height
-            background_image.update()
-            
-        page.on_resized = on_resize
-
+        # Ya no necesitamos on_resize porque expand=True es automático
         page.add(layout_login)
     
     def show_dashboard():
