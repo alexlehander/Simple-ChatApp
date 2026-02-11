@@ -143,98 +143,29 @@ def main(page: ft.Page):
     page.on_route_change = route_change
     
     def show_login():
-        page.clean()
-        
-        email_field = ft.TextField(
-            label="Correo Docente", 
-            width=300,
-            border_color=COLORES["primario"],
-            color=COLORES["texto"]
-        )
-        pass_field = ft.TextField(
-            label="Contraseña", 
-            password=True, 
-            width=300, 
-            can_reveal_password=True,
-            border_color=COLORES["primario"],
-            color=COLORES["texto"],
-            on_submit=lambda e: login_action(e)
-        )
-        
-        def login_action(e):
-            try:
-                res = requests.post(f"{BASE}/api/teacher/login", json={
-                    "email": email_field.value,
-                    "password": pass_field.value
-                })
-                if res.status_code == 200:
-                    data = res.json()
-                    state["token"] = data["access_token"]
-                    page.client_storage.set("teacher_token", data["access_token"])
-                    reset_inactivity_timer()
-                    flash(f"Bienvenido, {data.get('nombre', 'Profesor')}")
-                    show_dashboard()
-                else:
-                    flash("Credenciales incorrectas", COLORES["error"])
-            except Exception as ex:
-                flash(f"Error de conexión: {ex}", COLORES["error"])
+    # Limpiamos cualquier control previo en la página
+        page.clean() 
 
-        def register_action(e):
-            try:
-                res = requests.post(f"{BASE}/api/teacher/register", json={
-                    "email": email_field.value,
-                    "password": pass_field.value
-                })
-                if res.status_code == 201:
-                    flash("Cuenta creada. Inicia sesión.")
-                else:
-                    flash(res.json().get("msg", "Error"), COLORES["error"])
-            except Exception as ex:
-                flash(f"Error: {ex}", COLORES["error"])
+    # ---------------------------------------------------------
+    # MODO DEBUGEO: SOLO IMAGEN
+    # ---------------------------------------------------------
+        imagen_debug = ft.Image(
+        # Asegúrate de que este archivo exista en tu carpeta assets
+            src="/fondo_login.jpg", 
+        
+        # Configuración para llenar la pantalla
+            fit=ft.ImageFit.COVER,
+            expand=True,
+            gapless_playback=True,
+        
+        # Si la imagen falla, mostrará un cuadro rojo en lugar de negro
+            error_content=ft.Container(bgcolor=ft.colors.RED)
+        )
 
-        def add_opacity(hex_color, opacity):
-            alpha = int(opacity * 255)
-            return f"#{alpha:02x}{hex_color.lstrip('#')}"
-        
-        card = ft.Container(
-            content=ft.Column([
-                ft.Text("Acceso Docente", size=28, weight="bold", color=COLORES["texto"]),
-                ft.Divider(height=20, color="transparent"),
-                email_field,
-                pass_field,
-                ft.Divider(height=20, color="transparent"),
-                ft.Column([
-                    ft.ElevatedButton("Entrar", on_click=login_action, bgcolor=COLORES["boton"], color=COLORES["fondo"], width=300, height=50),
-                    ft.TextButton("¿No tienes cuenta? Regístrate", on_click=register_action, style=ft.ButtonStyle(color=COLORES["primario"]), width=300)
-                ], spacing=10, alignment=ft.MainAxisAlignment.CENTER)
-            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            bgcolor=COLORES["accento"],
-            padding=40,
-            border_radius=20,
-            shadow=ft.BoxShadow(blur_radius=15, color=COLORES["borde"]),
-            alignment=ft.alignment.center
-        )
-        
-        layout_login = ft.Stack(
-            controls=[
-                ft.Image(
-                    src="/fondo_login.jpg",
-                    fit=ft.ImageFit.COVER,
-                    width=page.width or 800,
-                    height=page.height or 600,
-                    opacity=1.0,
-                    gapless_playback=True
-                ),
-                ft.Container(
-                    content=card,
-                    alignment=ft.alignment.center,
-                    expand=True
-                )
-            ],
-            expand=True
-        )
-        
-        page.add(layout_login)
+    # Agregamos la imagen DIRECTAMENTE a la página.
+    # Sin Stacks, sin Containers intermedios, sin interfaz de usuario.
+        page.add(imagen_debug)
+    
 
     def show_dashboard():
         check_session()
