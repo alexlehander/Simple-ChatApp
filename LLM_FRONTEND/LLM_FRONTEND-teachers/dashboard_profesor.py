@@ -73,13 +73,20 @@ def main(page: ft.Page):
     stored_activity = page.client_storage.get("last_activity")
     if stored_activity:
         state["last_activity"] = stored_activity
-
+        
     def flash(msg, color=COLORES["exito"]):
-        snack = ft.SnackBar(ft.Text(msg, color=COLORES["fondo"]), bgcolor=color)
-        page.overlay.append(snack)
-        snack.open = True
+        page.snack_bar = ft.SnackBar(
+            content=ft.Text(msg, color=COLORES["fondo"], weight="bold"),
+            bgcolor=color,
+            behavior=ft.SnackBarBehavior.FLOATING,
+            margin=ft.margin.all(20),
+            duration=4000,
+            show_close_icon=True,
+            close_icon_color=COLORES["fondo"]
+        )
+        page.snack_bar.open = True
         page.update()
-    
+        
     def check_session():
         # Leemos de MEMORIA (state) en lugar de consultar al navegador
         last_act = state.get("last_activity", 0)
@@ -166,16 +173,18 @@ def main(page: ft.Page):
             border_radius=10,
             on_submit=lambda e: login_action(e)
         )
-
+        
         def login_action(e):
             if not email_field.value or not pass_field.value:
-                flash("Por favor, ingresa correo y contraseña para entrar", COLORES["advertencia"])
+                flash("Por favor, ingresa correo y contraseña para iniciar sesión", COLORES["advertencia"])
                 return
+                
             try:
                 res = requests.post(f"{BASE}/api/teacher/login", json={
                     "email": email_field.value,
                     "password": pass_field.value
                 }, timeout=10)
+                
                 if res.status_code == 200:
                     data = res.json()
                     token = data.get("access_token")
@@ -185,14 +194,19 @@ def main(page: ft.Page):
                     flash(f"Bienvenido, {data.get('nombre', 'Profesor')}", COLORES["exito"])
                     show_dashboard()
                 else:
-                    flash(res.json().get("msg", "Credenciales incorrectas"), COLORES["error"])
+                    try:
+                        msg_error = res.json().get("msg", "Credenciales incorrectas")
+                    except:
+                        msg_error = f"Error del servidor ({res.status_code}) o Credenciales incorrectas"
+                    flash(msg_error, COLORES["error"])
+                    
             except Exception as ex:
                 print(f"Login error: {ex}")
-                flash("Error de conexión", COLORES["error"])
+                flash("Error de conexión o servidor", COLORES["error"])
 
         def register_action(e):
             if not email_field.value or not pass_field.value:
-                flash("Por favor, ingresa correo y contraseña para registrarte", COLORES["advertencia"])
+                flash("Por favor, ingresa correo y contraseña para registrar nueva cuenta docente", COLORES["advertencia"])
                 return
             try:
                 res = requests.post(f"{BASE}/api/teacher/register", json={
@@ -200,11 +214,17 @@ def main(page: ft.Page):
                     "password": pass_field.value
                 }, timeout=10)
                 if res.status_code == 201:
-                    flash("Cuenta creada. Inicia sesión.", COLORES["exito"])
+                    flash("Cuenta docente creada, puedes iniciar sesión", COLORES["exito"])
                 else:
-                    flash(res.json().get("msg", "Error"), COLORES["error"])
+                    try:
+                        msg_error = res.json().get("msg", "Error al registrar cuenta")
+                    except:
+                        msg_error = f"Error del servidor ({res.status_code}) o Error al registrar cuenta"
+                    flash(msg_error, COLORES["error"])
+
             except Exception as ex:
-                flash(f"Error: {ex}", COLORES["error"])
+                print(f"Register error: {ex}")
+                flash("Error de conexión o servidor", COLORES["error"])
 
         # --- 2. Tarjeta CON TAMAÑO RESTRINGIDO ---
         card = ft.Container(
