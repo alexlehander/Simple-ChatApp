@@ -73,18 +73,32 @@ def main(page: ft.Page):
     stored_activity = page.client_storage.get("last_activity")
     if stored_activity:
         state["last_activity"] = stored_activity
+
+    save_snack = ft.SnackBar(
+        content=ft.Text("Placeholder"),
+        bgcolor=COLORES["exito"],
+        open=False,
+        behavior=ft.SnackBarBehavior.FLOATING,
+        duration=2000,
+        margin=ft.margin.all(20),
+        show_close_icon=False, 
+    )
+    page.overlay.append(save_snack)
         
-    def flash(msg, color=COLORES["exito"]):
-        page.snack_bar = ft.SnackBar(
-            content=ft.Text(msg, color=COLORES["fondo"], weight="bold"),
-            bgcolor=color,
-            behavior=ft.SnackBarBehavior.FLOATING,
-            margin=ft.margin.all(20),
-            duration=4000,
-            show_close_icon=True,
-            close_icon_color=COLORES["fondo"]
+    def flash(msg: str, ok: bool = False, ms: int = 3000):
+        save_snack.content = ft.Container(
+            content=ft.Text(
+                msg, 
+                color=COLORES["accento"],
+                size=18, 
+                weight="bold", 
+                text_align=ft.TextAlign.CENTER
+            ),
+            alignment=ft.alignment.center
         )
-        page.snack_bar.open = True
+        save_snack.bgcolor = COLORES["exito"] if ok else COLORES["error"]
+        save_snack.duration = ms
+        save_snack.open = True
         page.update()
         
     def check_session():
@@ -176,7 +190,7 @@ def main(page: ft.Page):
         
         def login_action(e):
             if not email_field.value or not pass_field.value:
-                flash("Por favor, ingresa correo y contraseña para iniciar sesión", COLORES["advertencia"])
+                flash("Por favor, ingresa correo y contraseña para iniciar sesión", ok=False)
                 return
                 
             try:
@@ -191,22 +205,22 @@ def main(page: ft.Page):
                     state["token"] = token
                     page.client_storage.set("teacher_token", token)
                     reset_inactivity_timer()
-                    flash(f"Bienvenido, {data.get('nombre', 'Profesor')}", COLORES["exito"])
+                    flash(f"Bienvenido, {data.get('nombre', 'Profesor')}", ok=True)
                     show_dashboard()
                 else:
                     try:
                         msg_error = res.json().get("msg", "Credenciales incorrectas")
                     except:
                         msg_error = f"Error del servidor ({res.status_code}) o Credenciales incorrectas"
-                    flash(msg_error, COLORES["error"])
+                    flash(msg_error, ok=False)
                     
             except Exception as ex:
                 print(f"Login error: {ex}")
-                flash("Error de conexión o servidor", COLORES["error"])
+                flash("Error de conexión o servidor", ok=False)
 
         def register_action(e):
             if not email_field.value or not pass_field.value:
-                flash("Por favor, ingresa correo y contraseña para registrar nueva cuenta docente", COLORES["advertencia"])
+                flash("Por favor, ingresa correo y contraseña para registrar nueva cuenta docente", ok=False)
                 return
             try:
                 res = requests.post(f"{BASE}/api/teacher/register", json={
@@ -214,17 +228,17 @@ def main(page: ft.Page):
                     "password": pass_field.value
                 }, timeout=10)
                 if res.status_code == 201:
-                    flash("Cuenta docente creada, puedes iniciar sesión", COLORES["exito"])
+                    flash("Cuenta docente creada, puedes iniciar sesión", ok=True)
                 else:
                     try:
                         msg_error = res.json().get("msg", "Error al registrar cuenta")
                     except:
                         msg_error = f"Error del servidor ({res.status_code}) o Error al registrar cuenta"
-                    flash(msg_error, COLORES["error"])
+                    flash(msg_error, ok=False)
 
             except Exception as ex:
                 print(f"Register error: {ex}")
-                flash("Error de conexión o servidor", COLORES["error"])
+                flash("Error de conexión o servidor", ok=False)
 
         # --- 2. Tarjeta CON TAMAÑO RESTRINGIDO ---
         card = ft.Container(
