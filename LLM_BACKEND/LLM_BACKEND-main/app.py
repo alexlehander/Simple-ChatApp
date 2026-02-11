@@ -546,7 +546,17 @@ def dashboard_data():
         "respuestas": respuestas_data,
         "chats": chat_data
     }), 200
-
+    
+@app.route("/api/teacher/all-users", methods=["GET"])
+@jwt_required()
+def get_all_registered_users():
+    try:
+        users = Usuario.query.all()
+        emails = [u.correo_identificacion for u in users if u.correo_identificacion]
+        return jsonify(emails), 200
+    except Exception as e:
+        print(f"Error fetching all users: {e}")
+        return jsonify([]), 500
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------

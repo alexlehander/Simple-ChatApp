@@ -50,16 +50,13 @@ STATE_KEYS = {
 def main(page: ft.Page):
 
     page.is_alive = True
-    def on_disconnect(e):
-        page.is_alive = False
-        print("Cliente desconectado. Deteniendo hilos.")
     page.on_disconnect = on_disconnect
-    
     page.title = "Pro-Tutor - Portal Docente"
-    COLORES = DARK_COLORS
-    page.theme_mode = ft.ThemeMode.DARK if COLORES == DARK_COLORS else ft.ThemeMode.LIGHT
-    page.bgcolor = COLORES["fondo"]
     page.padding = 0
+    theme_name = load_k(page, "theme", "dark")
+    COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
+    page.theme_mode = ft.ThemeMode.DARK if theme_name == "dark" else ft.ThemeMode.LIGHT
+    page.bgcolor = COLORES["fondo"]
     
     state = {
         "token": page.client_storage.get("teacher_token"),
@@ -84,7 +81,39 @@ def main(page: ft.Page):
         show_close_icon=False, 
     )
     page.overlay.append(save_snack)
+    
+    def on_disconnect(e):
+        page.is_alive = False
+        print("Cliente desconectado. Deteniendo hilos.")
+    
+    def save_k(page, k, v):
+        page.client_storage.set(k, v)
+
+    def load_k(page, k, default=None):
+        try:
+            v = page.client_storage.get(k)
+            return v if v is not None else default
+        except Exception:
+            return default
+            
+    def _apply_theme():
+        target_colors = DARK_COLORS if theme_name == "dark" else LIGHT_COLORS
+        COLORES.clear()
+        COLORES.update(target_colors)
+        page.theme_mode = ft.ThemeMode.DARK if theme_name == "dark" else ft.ThemeMode.LIGHT
+        page.bgcolor = COLORES["fondo"]
+        page.update()
         
+    def toggle_theme(e=None):
+        nonlocal theme_name
+        theme_name = "light" if theme_name == "dark" else "dark"
+        save_k(page, "theme", theme_name)
+        _apply_theme()
+        if state["token"]:
+            show_dashboard()
+        else:
+            show_login()
+            
     def flash(msg: str, ok: bool = False, ms: int = 3000):
         save_snack.content = ft.Container(
             content=ft.Text(
@@ -157,7 +186,7 @@ def main(page: ft.Page):
         if page.route == "/logout_forced":
             page.client_storage.remove("teacher_token")
             state["token"] = None
-            flash("Tu sesión ha expirado por inactividad.", COLORES["advertencia"])
+            flash("Tu sesión ha expirado por inactividad.", ok=False)
             show_login()
             page.route = "/" 
 
@@ -166,7 +195,7 @@ def main(page: ft.Page):
     def show_login():
         page.clean()
 
-        # --- 1. Lógica y Controles (Igual que antes) ---
+        # --- 1. Lógica y Controles ---
         email_field = ft.TextField(
             label="Correo Docente", 
             width=300,
@@ -222,6 +251,7 @@ def main(page: ft.Page):
             if not email_field.value or not pass_field.value:
                 flash("Por favor, ingresa correo y contraseña para registrar nueva cuenta docente", ok=False)
                 return
+                
             try:
                 res = requests.post(f"{BASE}/api/teacher/register", json={
                     "email": email_field.value,
@@ -235,7 +265,7 @@ def main(page: ft.Page):
                     except:
                         msg_error = f"Error del servidor ({res.status_code}) o Error al registrar cuenta"
                     flash(msg_error, ok=False)
-
+                    
             except Exception as ex:
                 print(f"Register error: {ex}")
                 flash("Error de conexión o servidor", ok=False)
@@ -301,7 +331,6 @@ def main(page: ft.Page):
                     right=0,
                     bottom=0,
                 ),
-                
                 ft.Container(
                     content=card,
                     alignment=ft.alignment.center,
@@ -319,76 +348,170 @@ def main(page: ft.Page):
         state["exercises"] = []
 
         # =========================================
-        # PESTAÑA 1: Gestión de Estudiantes
+        # PESTAÑA 1: Gestión de Estudiantes (MODIFICADA)
         # =========================================
+        state["all_users_global"] = [] # Almacén para la lista global
+        
         new_student_mail = ft.TextField(
             hint_text="estudiante@uabc.edu.mx", 
             expand=True,
             border_color=COLORES["borde"],
-            color=COLORES["texto"]
+            color=COLORES["texto"],
+            height=40
         )
-        students_list_view = ft.ListView(expand=True, spacing=10)
+        
+        # Listas visuales
+        my_students_col = ft.ListView(expand=True, spacing=10)
+        global_students_col = ft.ListView(expand=True, spacing=10)
 
         def load_students():
             headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                res = requests.get(f"{BASE}/api/teacher/students", headers=headers)
-                if res.status_code == 200:
-                    state["students"] = res.json()
-                    render_students_list()
-                    update_dropdowns()
-            except Exception as e:
-                print(e)
+                # 1. Cargar MIS estudiantes (Clase actual)
+                res_my = requests.get(f"{BASE}/api/teacher/students", headers=headers)
+                if res_my.status_code == 200:
+                    state["students"] = res_my.json()
+                
+                # 2. Cargar TODOS los estudiantes (Global del sistema)
+                res_all = requests.get(f"{BASE}/api/teacher/all-users", headers=headers)
+                if res_all.status_code == 200:
+                    state["all_users_global"] = res_all.json()
 
-        def add_student(e):
-            if not new_student_mail.value: return
-            e.control.disabled = True; page.update()
+                render_student_lists()
+                update_dropdowns()
+                
+            except Exception as e:
+                print(f"Error cargando estudiantes: {e}")
+
+        def add_student_action(email_to_add):
+            if not email_to_add: return
+            
+            # Bloqueo visual temporal
+            page.splash = ft.ProgressBar()
+            page.update()
+            
             headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [new_student_mail.value]}, timeout=10)
+                res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [email_to_add]}, timeout=10)
                 if res.status_code == 200:
                     new_student_mail.value = ""
-                    flash("Estudiante agegado correctamente", COLORES["exito"])
-                    load_students()
+                    flash(f"Estudiante {email_to_add} agregado", ok=True)
+                    load_students() # Recarga listas
                 else:
-                    flash("Error al agregar estudiante", COLORES["error"])
+                    flash("Error al agregar estudiante", ok=False)
             except Exception as ex:
-                flash("Error técnico", COLORES["error"])
+                flash("Error técnico de conexión", ok=False)
             finally:
-                e.control.disabled = False; page.update()
+                page.splash = None
+                page.update()
 
         def delete_student(email):
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.delete(f"{BASE}/api/teacher/students", headers=headers, json={"email": email})
             if res.status_code == 200:
-                flash("Estudiante eliminado correctamente", COLORES["exito"])
+                flash("Estudiante eliminado de tu lista", ok=True)
             else:
-                flash("Error al eliminar estudiante", COLORES["error"])
-            load_students()
+                flash("Error al eliminar", ok=False)
+            load_students() # Recarga listas (volverá a aparecer en disponibles)
 
-        def render_students_list():
-            students_list_view.controls.clear()
-            for email in state["students"]:
-                students_list_view.controls.append(
-                    ft.Container(
-                        content=ft.Row([
-                            ft.Icon(ft.Icons.PERSON, color=COLORES["primario"]),
-                            ft.Text(email, expand=True, size=16, color=COLORES["texto"]),
-                            ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, mail=email: delete_student(mail))
-                        ]),
-                        bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+        def render_student_lists():
+            my_students_col.controls.clear()
+            global_students_col.controls.clear()
+            
+            mis_emails = set(state["students"])
+            
+            # --- Renderizar MI CLASE ---
+            if not mis_emails:
+                my_students_col.controls.append(ft.Text("No tienes estudiantes aún.", color=COLORES["subtitulo"]))
+            else:
+                for email in state["students"]:
+                    my_students_col.controls.append(
+                        ft.Container(
+                            content=ft.Row([
+                                ft.Icon(ft.Icons.PERSON, color=COLORES["primario"], size=20),
+                                ft.Text(email, expand=True, size=14, color=COLORES["texto"]),
+                                ft.IconButton(
+                                    ft.Icons.REMOVE_CIRCLE_OUTLINE, 
+                                    icon_color=COLORES["error"], 
+                                    tooltip="Quitar de mi clase",
+                                    on_click=lambda e, mail=email: delete_student(mail)
+                                )
+                            ]),
+                            bgcolor=COLORES["fondo"], padding=5, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                        )
                     )
-                )
+
+            # --- Renderizar DISPONIBLES (Global - Mis) ---
+            # Filtramos: Todos los del sistema MENOS los que ya tengo
+            disponibles = [u for u in state["all_users_global"] if u not in mis_emails]
+            
+            if not disponibles:
+                global_students_col.controls.append(ft.Text("No hay más estudiantes registrados en el sistema.", color=COLORES["subtitulo"]))
+            else:
+                for email in disponibles:
+                    global_students_col.controls.append(
+                        ft.Container(
+                            content=ft.Row([
+                                ft.Icon(ft.Icons.SCHOOL_OUTLINED, color=COLORES["subtitulo"], size=20),
+                                ft.Text(email, expand=True, size=14, color=COLORES["subtitulo"]),
+                                ft.IconButton(
+                                    ft.Icons.ADD_CIRCLE_OUTLINE, 
+                                    icon_color=COLORES["exito"], 
+                                    tooltip="Agregar a mi clase",
+                                    on_click=lambda e, mail=email: add_student_action(mail)
+                                )
+                            ]),
+                            bgcolor=COLORES["fondo"], padding=5, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                        )
+                    )
             page.update()
 
+        # Layout de la pestaña dividida
         tab_students = ft.Container(
             content=ft.Column([
-                ft.Text("Gestionar mi lista de estudiantes", size=20, weight="bold", color=COLORES["texto"]),
-                ft.Text("Agregar correos de los estudiantes para monitorear su progreso", color=COLORES["subtitulo"]),
-                ft.Row([new_student_mail, ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"], on_click=add_student)]),
+                # Fila de agregar manual
+                ft.Row([
+                    ft.Text("Agregar Manual:", color=COLORES["texto"], weight="bold"),
+                    new_student_mail, 
+                    ft.IconButton(ft.Icons.ADD, icon_color=COLORES["primario"], bgcolor=COLORES["accento"], on_click=lambda e: add_student_action(new_student_mail.value))
+                ], alignment=ft.MainAxisAlignment.START),
+                
                 ft.Divider(color=COLORES["borde"]),
-                students_list_view
-            ]), padding=20
+                
+                # Columnas divididas
+                ft.Row([
+                    # Columna Izquierda: Mis Estudiantes
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Text("Mi Clase Actual", size=16, weight="bold", color=COLORES["primario"]),
+                            ft.Divider(height=10, color="transparent"),
+                            my_students_col
+                        ], expand=True),
+                        expand=1, 
+                        bgcolor=COLORES["accento"], 
+                        padding=15, 
+                        border_radius=10
+                    ),
+                    
+                    # Columna Derecha: Estudiantes Disponibles
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Text("Directorio Global (Disponibles)", size=16, weight="bold", color=COLORES["subtitulo"]),
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Refrescar lista global", on_click=lambda e: load_students())
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            ft.Divider(height=10, color="transparent"),
+                            global_students_col
+                        ], expand=True),
+                        expand=1, 
+                        bgcolor=COLORES["accento"], 
+                        padding=15, 
+                        border_radius=10,
+                        margin=ft.margin.only(left=10) # Margen entre columnas
+                    )
+                ], expand=True)
+            ], expand=True), 
+            padding=20
         )
 
         # =========================================
@@ -411,12 +534,12 @@ def main(page: ft.Page):
 
         def add_exercise(filename):
             auth_request("POST", "/api/teacher/my-exercises", json={"filename": filename})
-            flash("Tarea agregada a tu lista", COLORES["exito"])
+            flash("Tarea agregada a tu lista", ok=True)
             load_exercises()
 
         def remove_exercise(filename):
             auth_request("DELETE", "/api/teacher/my-exercises", json={"filename": filename})
-            flash("Tarea eliminada de tu lista", COLORES["exito"])
+            flash("Tarea eliminada de tu lista", ok=True)
             load_exercises()
 
         def render_exercises():
@@ -547,10 +670,10 @@ def main(page: ft.Page):
 
         def confirm_send(e):
             if not msg_text_field.value: 
-                flash("El mensaje no puede estar vacío", COLORES["advertencia"])
+                flash("El mensaje no puede estar vacío", ok=False)
                 return
             if not msg_problem_dropdown.value:
-                 flash("Selecciona un número de problema", COLORES["advertencia"])
+                 flash("Selecciona un número de problema", ok=False)
                  return
             
             reset_inactivity_timer() 
@@ -564,10 +687,10 @@ def main(page: ft.Page):
             
             if res and res.status_code == 200:
                 dialog_msg.open = False
-                flash("Mensaje enviado correctamente")
+                flash("Mensaje enviado correctamente", ok=True)
                 load_data_filtered() 
             else:
-                flash("Error al enviar mensaje", COLORES["error"])
+                flash("Error al enviar mensaje", ok=False)
             page.update()
 
         dialog_msg = ft.AlertDialog(
@@ -599,10 +722,10 @@ def main(page: ft.Page):
             task_filename = exercise_filter.value
 
             if not student_email or student_email == "Todos los Estudiantes":
-                flash("Debes seleccionar un estudiante específico para enviar un mensaje.", COLORES["advertencia"])
+                flash("Debes seleccionar un estudiante específico para enviar un mensaje.", ok=False)
                 return
             if not task_filename or task_filename == "Todas las Tareas":
-                flash("Debes seleccionar una tarea específica para enviar un mensaje.", COLORES["advertencia"])
+                flash("Debes seleccionar una tarea específica para enviar un mensaje.", ok=False)
                 return
 
             target_exercise = next((item for item in state["my_exercises"] if isinstance(item, dict) and item["filename"] == task_filename), None)
@@ -812,10 +935,49 @@ def main(page: ft.Page):
             ], expand=True
         )
 
-        page.add(ft.Row([
-            ft.Text("Panel Profesor", size=20, weight="bold", color=COLORES["texto"]), 
-            ft.IconButton(ft.Icons.LOGOUT, icon_color=COLORES["error"], on_click=lambda e: (page.client_storage.remove("teacher_token"), show_login()))
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), tabs)
+        # --- HEADER PRINCIPAL (Centrado + Tema + Logout) ---
+        header = ft.Container(
+            content=ft.Row(
+                [
+                    # Botón de Tema (Usa el icono inverso al tema actual para indicar "cambiar a")
+                    ft.IconButton(
+                        icon=ft.Icons.LIGHT_MODE if theme_name == "dark" else ft.Icons.DARK_MODE,
+                        icon_color=COLORES["primario"],
+                        tooltip="Cambiar Tema",
+                        on_click=toggle_theme
+                    ),
+                    
+                    # Título Centrado
+                    ft.Row(
+                        [ft.Icon(ft.Icons.DASHBOARD_CUSTOMIZE, color=COLORES["primario"]), 
+                         ft.Text("Panel Profesor", size=24, weight="bold", color=COLORES["texto"])],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                        expand=True 
+                    ),
+                    
+                    # Logout
+                    ft.IconButton(
+                        ft.Icons.LOGOUT, 
+                        icon_color=COLORES["error"], 
+                        tooltip="Cerrar Sesión",
+                        on_click=lambda e: (page.client_storage.remove("teacher_token"), show_login())
+                    )
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+            ),
+            padding=ft.padding.symmetric(horizontal=20, vertical=10),
+            bgcolor=COLORES["accento"],
+            border_radius=ft.border_radius.only(bottom_left=15, bottom_right=15),
+            shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"])
+        )
+        
+        page.add(
+            ft.Column([
+                header,
+                tabs
+            ], expand=True)
+        )
+        
         load_students()
 
     stored_token = page.client_storage.get("teacher_token")
