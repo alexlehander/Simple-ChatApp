@@ -220,10 +220,8 @@ def main(page: ft.Page):
                 ft.Image(
                     src="/fondo_login.jpg",
                     fit=ft.ImageFit.COVER,
-                    width=page.window_width,  
-                    height=page.window_height,
-                
-                # expand=True,  <-- Quita esto para que respete el width/height manual
+                    width=page.width or 800,
+                    height=page.height or 600,
                     opacity=1.0,
                     gapless_playback=True
                 ),
