@@ -218,11 +218,16 @@ def main(page: ft.Page):
         layout_login = ft.Stack(
             controls=[
                 ft.Image(
-                    src="/fondo_login.png", 
+                    src="/fondo_login.png", # Mantén la barra si estás usando assets_dir
                     fit=ft.ImageFit.COVER,
-                    width=1200
-                    height=673
-                    expand=False
+                
+                # CORRECCIÓN CLAVE: Usar dimensiones numéricas, no float("inf")
+                    width=page.window_width,  
+                    height=page.window_height,
+                
+                # expand=True,  <-- Quita esto para que respete el width/height manual
+                    opacity=1.0,
+                    gapless_playback=True
                 ),
                 ft.Container(
                     content=card,
