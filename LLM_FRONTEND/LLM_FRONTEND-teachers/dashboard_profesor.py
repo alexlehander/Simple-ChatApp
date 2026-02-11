@@ -149,7 +149,7 @@ def main(page: ft.Page):
         email_field = ft.TextField(
             label="Correo Docente", 
             width=300,
-            bgcolor=COLORES["accento"],
+            bgcolor=COLORES["accento"], 
             border_color=COLORES["primario"],
             color=COLORES["texto"],
             border_radius=10
@@ -225,7 +225,7 @@ def main(page: ft.Page):
                         "Entrar", 
                         on_click=login_action, 
                         bgcolor=COLORES["boton"], 
-                        color=COLORES["texto"],
+                        color=COLORES["texto"], # Usamos tu paleta
                         width=300, 
                         height=45
                     ),
@@ -247,21 +247,26 @@ def main(page: ft.Page):
             )
         )
 
-        # --- 3. El Stack Mágico (Imagen + Tarjeta) ---
+        # --- 3. IMAGEN CON TAMAÑO MANUAL (CORREGIDO) ---
+        # Si page.width es 0 o None, usamos 800 como respaldo para que no desaparezca
+        ancho_inicial = page.width if page.width and page.width > 0 else 2000
+        alto_inicial = page.height if page.height and page.height > 0 else 1200
+
         background_image = ft.Image(
             src="/fondo_login.jpg",
             fit=ft.ImageFit.COVER,
-            # VOLVEMOS A LA CONFIGURACIÓN QUE FUNCIONÓ:
-            expand=True,   # <--- Esto fuerza a llenar el Stack sin calcular píxeles
+            # AQUI ESTA EL CAMBIO CLAVE: Usamos page.width, NO window_width
+            width=ancho_inicial,
+            height=alto_inicial,
             opacity=1.0,
             gapless_playback=True,
-            error_content=ft.Container(bgcolor=COLORES["error"]) # Si falla, veremos rojo
+            error_content=ft.Container(bgcolor=COLORES["error"]) 
         )
 
         layout_login = ft.Stack(
             controls=[
-                background_image, # Capa 0: Fondo
-                ft.Container(     # Capa 1: Tarjeta centrada
+                background_image, # Fondo
+                ft.Container(     # Tarjeta
                     content=card,
                     alignment=ft.alignment.center,
                     expand=True
@@ -270,8 +275,16 @@ def main(page: ft.Page):
             expand=True
         )
 
-        # Ya no necesitamos on_resize porque expand=True es automático
-        page.add(layout_login)
+        # --- 4. ACTUALIZAR TAMAÑO AL REDIMENSIONAR ---
+        # Esto asegura que si cambian el tamaño de la ventana, la imagen se ajuste
+        def on_resize(e):
+            background_image.width = page.width
+            background_image.height = page.height
+            background_image.update()
+            
+        page.on_resized = on_resize
+
+        page.add(layout_login)    
     
     def show_dashboard():
         check_session()
