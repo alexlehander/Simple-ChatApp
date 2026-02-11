@@ -169,7 +169,7 @@ def main(page: ft.Page):
 
         def login_action(e):
             if not email_field.value or not pass_field.value:
-                flash("Por favor ingresa correo y contraseña", COLORES["advertencia"])
+                flash("Por favor, ingresa correo y contraseña para entrar", COLORES["advertencia"])
                 return
             try:
                 res = requests.post(f"{BASE}/api/teacher/login", json={
@@ -192,7 +192,7 @@ def main(page: ft.Page):
 
         def register_action(e):
             if not email_field.value or not pass_field.value:
-                flash("Ingresa datos para registrarte", COLORES["advertencia"])
+                flash("Por favor, ingresa correo y contraseña para registrarte", COLORES["advertencia"])
                 return
             try:
                 res = requests.post(f"{BASE}/api/teacher/register", json={
@@ -207,7 +207,6 @@ def main(page: ft.Page):
                 flash(f"Error: {ex}", COLORES["error"])
 
         # --- 2. Tarjeta CON TAMAÑO RESTRINGIDO ---
-        # Definimos el width aquí para evitar que se expanda locamente
         card = ft.Container(
             content=ft.Column([
                 ft.Icon(ft.Icons.SCHOOL, size=50, color=COLORES["primario"]),
@@ -226,23 +225,19 @@ def main(page: ft.Page):
             border_radius=15,
             border=ft.border.all(1, COLORES["borde"]),
             shadow=ft.BoxShadow(blur_radius=20, color=COLORES["accento"], offset=ft.Offset(0, 10)),
-            width=400 # <--- RESTRICCIÓN CLAVE: Ancho fijo para la tarjeta
+            width=400
         )
 
         # --- 3. IMAGEN CON POSICIONAMIENTO ABSOLUTO ---
-        # Esta es la técnica secreta para fondos que no fallan
         background_image = ft.Image(
             src="/fondo_login.jpg",
             fit=ft.ImageFit.COVER,
             opacity=1.0,
             gapless_playback=True,
-            # No usamos expand=True ni width/height manual.
-            # Dejamos que el Stack controle el tamaño con 'left', 'top', etc.
         )
 
         layout_login = ft.Stack(
             controls=[
-                # Capa 0: Fondo (Anclado a los 4 bordes)
                 ft.Container(
                     content=background_image,
                     left=0,
@@ -251,16 +246,13 @@ def main(page: ft.Page):
                     bottom=0,
                 ),
                 
-                # Capa 1: Tarjeta (Centrada y Transparente)
                 ft.Container(
                     content=card,
                     alignment=ft.alignment.center,
-                    # IMPORTANTE: No usamos expand=True aquí para evitar conflicto
-                    # Usamos anchors para llenar la pantalla pero sin forzar layout
                     left=0, top=0, right=0, bottom=0,
                 )
             ],
-            expand=True # El Stack sí llena la página
+            expand=True
         )
 
         page.add(layout_login)
