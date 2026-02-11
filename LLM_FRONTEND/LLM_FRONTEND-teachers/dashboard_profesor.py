@@ -213,19 +213,41 @@ def main(page: ft.Page):
                 ft.Text("Acceso Docente", size=24, weight="bold", color=COLORES["texto"]),
                 ft.Divider(height=20, color="transparent"),
                 email_field,
+                ft.Divider(height=20, color="transparent"),
                 pass_field,
                 ft.Divider(height=20, color="transparent"),
                 ft.Column([
-                    ft.ElevatedButton("Entrar", on_click=login_action, bgcolor=COLORES["boton"], color=COLORES["texto"], width=300, height=45),
-                    ft.TextButton("¿No tienes cuenta? Regístrate", on_click=register_action, style=ft.ButtonStyle(color=COLORES["primario"]))
-                ], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
+                    ft.ElevatedButton(
+                        "Entrar",
+                        on_click=login_action,
+                        bgcolor=COLORES["boton"],
+                        color=COLORES["texto"],
+                        width=300,
+                        height=45
+                    ),
+                    ft.TextButton(
+                        "¿No tienes cuenta? Regístrate",
+                        on_click=register_action,
+                        style=ft.ButtonStyle(color=COLORES["primario"])
+                    )
+                ],
+                spacing=10,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=5),
             bgcolor=COLORES["fondo"],
             padding=40,
             border_radius=15,
             border=ft.border.all(1, COLORES["borde"]),
-            shadow=ft.BoxShadow(blur_radius=20, color=COLORES["accento"], offset=ft.Offset(0, 10)),
-            width=400
+            shadow=ft.BoxShadow(
+                blur_radius=20,
+                color=COLORES["accento"],
+                offset=ft.Offset(0, 10)
+            ),
+            width=400,
+            height=600
         )
 
         # --- 3. IMAGEN CON POSICIONAMIENTO ABSOLUTO ---
