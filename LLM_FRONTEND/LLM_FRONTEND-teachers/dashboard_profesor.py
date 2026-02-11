@@ -140,12 +140,12 @@ def main(page: ft.Page):
             show_login()
             page.route = "/" 
 
-    page.on_route_change = route_change
+    page.on_route_change = route_change    
     
     def show_login():
         page.clean()
 
-        # --- 1. Lógica y Controles del Formulario ---
+        # --- 1. Lógica y Controles (Igual que antes) ---
         email_field = ft.TextField(
             label="Correo Docente", 
             width=300,
@@ -171,13 +171,11 @@ def main(page: ft.Page):
             if not email_field.value or not pass_field.value:
                 flash("Por favor ingresa correo y contraseña", COLORES["advertencia"])
                 return
-
             try:
                 res = requests.post(f"{BASE}/api/teacher/login", json={
                     "email": email_field.value,
                     "password": pass_field.value
                 }, timeout=10)
-                
                 if res.status_code == 200:
                     data = res.json()
                     token = data.get("access_token")
@@ -187,31 +185,29 @@ def main(page: ft.Page):
                     flash(f"Bienvenido, {data.get('nombre', 'Profesor')}", COLORES["exito"])
                     show_dashboard()
                 else:
-                    msg = res.json().get("msg", "Credenciales incorrectas")
-                    flash(msg, COLORES["error"])
+                    flash(res.json().get("msg", "Credenciales incorrectas"), COLORES["error"])
             except Exception as ex:
                 print(f"Login error: {ex}")
-                flash("Error de conexión con el servidor", COLORES["error"])
+                flash("Error de conexión", COLORES["error"])
 
         def register_action(e):
             if not email_field.value or not pass_field.value:
-                flash("Ingresa correo y contraseña para registrarte", COLORES["advertencia"])
+                flash("Ingresa datos para registrarte", COLORES["advertencia"])
                 return
-                
             try:
                 res = requests.post(f"{BASE}/api/teacher/register", json={
                     "email": email_field.value,
                     "password": pass_field.value
                 }, timeout=10)
-                
                 if res.status_code == 201:
-                    flash("Cuenta creada exitosamente. Ahora inicia sesión.", COLORES["exito"])
+                    flash("Cuenta creada. Inicia sesión.", COLORES["exito"])
                 else:
-                    flash(res.json().get("msg", "Error al registrar"), COLORES["error"])
+                    flash(res.json().get("msg", "Error"), COLORES["error"])
             except Exception as ex:
-                flash(f"Error técnico: {ex}", COLORES["error"])
+                flash(f"Error: {ex}", COLORES["error"])
 
-        # --- 2. Diseño de la Tarjeta (Card) ---
+        # --- 2. Tarjeta CON TAMAÑO RESTRINGIDO ---
+        # Definimos el width aquí para evitar que se expanda locamente
         card = ft.Container(
             content=ft.Column([
                 ft.Icon(ft.Icons.SCHOOL, size=50, color=COLORES["primario"]),
@@ -221,70 +217,53 @@ def main(page: ft.Page):
                 pass_field,
                 ft.Divider(height=20, color="transparent"),
                 ft.Column([
-                    ft.ElevatedButton(
-                        "Entrar", 
-                        on_click=login_action, 
-                        bgcolor=COLORES["boton"], 
-                        color=COLORES["texto"], # Usamos tu paleta
-                        width=300, 
-                        height=45
-                    ),
-                    ft.TextButton(
-                        "¿No tienes cuenta? Regístrate", 
-                        on_click=register_action, 
-                        style=ft.ButtonStyle(color=COLORES["primario"])
-                    )
+                    ft.ElevatedButton("Entrar", on_click=login_action, bgcolor=COLORES["boton"], color=COLORES["texto"], width=300, height=45),
+                    ft.TextButton("¿No tienes cuenta? Regístrate", on_click=register_action, style=ft.ButtonStyle(color=COLORES["primario"]))
                 ], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
             ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
             bgcolor=COLORES["fondo"],
             padding=40,
             border_radius=15,
             border=ft.border.all(1, COLORES["borde"]),
-            shadow=ft.BoxShadow(
-                blur_radius=20, 
-                color=COLORES["accento"],
-                offset=ft.Offset(0, 10)
-            )
+            shadow=ft.BoxShadow(blur_radius=20, color=COLORES["accento"], offset=ft.Offset(0, 10)),
+            width=400 # <--- RESTRICCIÓN CLAVE: Ancho fijo para la tarjeta
         )
 
-        # --- 3. IMAGEN CON TAMAÑO MANUAL (CORREGIDO) ---
-        # Si page.width es 0 o None, usamos 800 como respaldo para que no desaparezca
-        ancho_inicial = page.width if page.width and page.width > 0 else 2000
-        alto_inicial = page.height if page.height and page.height > 0 else 1200
-
+        # --- 3. IMAGEN CON POSICIONAMIENTO ABSOLUTO ---
+        # Esta es la técnica secreta para fondos que no fallan
         background_image = ft.Image(
             src="/fondo_login.jpg",
             fit=ft.ImageFit.COVER,
-            # AQUI ESTA EL CAMBIO CLAVE: Usamos page.width, NO window_width
-            width=ancho_inicial,
-            height=alto_inicial,
             opacity=1.0,
             gapless_playback=True,
-            error_content=ft.Container(bgcolor=COLORES["error"]) 
+            # No usamos expand=True ni width/height manual.
+            # Dejamos que el Stack controle el tamaño con 'left', 'top', etc.
         )
 
         layout_login = ft.Stack(
             controls=[
-                background_image, # Fondo
-                ft.Container(     # Tarjeta
+                # Capa 0: Fondo (Anclado a los 4 bordes)
+                ft.Container(
+                    content=background_image,
+                    left=0,
+                    top=0,
+                    right=0,
+                    bottom=0,
+                ),
+                
+                # Capa 1: Tarjeta (Centrada y Transparente)
+                ft.Container(
                     content=card,
                     alignment=ft.alignment.center,
-                    expand=True
+                    # IMPORTANTE: No usamos expand=True aquí para evitar conflicto
+                    # Usamos anchors para llenar la pantalla pero sin forzar layout
+                    left=0, top=0, right=0, bottom=0,
                 )
             ],
-            expand=True
+            expand=True # El Stack sí llena la página
         )
 
-        # --- 4. ACTUALIZAR TAMAÑO AL REDIMENSIONAR ---
-        # Esto asegura que si cambian el tamaño de la ventana, la imagen se ajuste
-        def on_resize(e):
-            background_image.width = page.width
-            background_image.height = page.height
-            background_image.update()
-            
-        page.on_resized = on_resize
-
-        page.add(layout_login)    
+        page.add(layout_login)
     
     def show_dashboard():
         check_session()
