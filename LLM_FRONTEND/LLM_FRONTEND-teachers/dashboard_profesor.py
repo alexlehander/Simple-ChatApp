@@ -562,7 +562,7 @@ def main(page: ft.Page):
         state["sort_global_tasks"] = "asc"
         
         search_my_tasks = ft.TextField(
-            hint_text="Buscar en mis tareas...",
+            hint_text="Buscar tareas en mi lista...",
             prefix_icon=ft.Icons.SEARCH,
             height=35,
             text_size=12,
@@ -581,7 +581,7 @@ def main(page: ft.Page):
         )
 
         search_global_tasks = ft.TextField(
-            hint_text="Buscar en catálogo global...",
+            hint_text="Buscar tareas en el catálogo...",
             prefix_icon=ft.Icons.SEARCH,
             height=35,
             text_size=12,
@@ -610,39 +610,50 @@ def main(page: ft.Page):
         def toggle_task_sort(target):
             key = f"sort_{target}_tasks"
             state[key] = "desc" if state[key] == "asc" else "asc"
-            
             btn = sort_btn_my_tasks if target == "my" else sort_btn_global_tasks
             btn.icon = ft.Icons.ARROW_DOWNWARD if state[key] == "asc" else ft.Icons.ARROW_UPWARD
             btn.update()
             render_exercises()
         
         def load_exercises():
-            # Cargar mis ejercicios
-            r1 = auth_request("GET", "/api/teacher/my-exercises")
-            if r1 and r1.status_code == 200: state["my_exercises"] = r1.json()
-            
-            # Cargar todos los del server
-            r2 = auth_request("GET", "/api/exercises/available")
-            if r2 and r2.status_code == 200: state["all_exercises"] = r2.json()
-            
-            render_exercises()
-            update_dropdowns()
+            headers = {"Authorization": f"Bearer {state['token']}"}
+            try:
+                # 1. Cargar MIS ejercicios
+                r1 = requests.get(f"{BASE}/api/teacher/my-exercises", headers=headers)
+                if r1.status_code == 200:
+                    state["my_exercises"] = r1.json()
+                # 2. Cargar TODOS los del server
+                r2 = requests.get(f"{BASE}/api/exercises/available", headers=headers)
+                if r2.status_code == 200:
+                    state["all_exercises"] = r2.json()
+                render_exercises()
+                update_dropdowns()
+            except Exception as e:
+                print(f"Error cargando ejercicios: {e}")
 
         def add_exercise(filename):
-            auth_request("POST", "/api/teacher/my-exercises", json={"filename": filename})
-            flash("Tarea agregada a tu lista", ok=True)
+            headers = {"Authorization": f"Bearer {state['token']}"}
+            res = requests.post(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
+            if res.status_code == 200:
+                flash("Tarea agregada a tu lista", ok=True)
+            else:
+                flash("Error al agregar tarea", ok=False)
             load_exercises()
 
         def remove_exercise(filename):
-            auth_request("DELETE", "/api/teacher/my-exercises", json={"filename": filename})
-            flash("Tarea eliminada de tu lista", ok=True)
+            headers = {"Authorization": f"Bearer {state['token']}"}
+            res = requests.delete(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
+            if res.status_code == 200:
+                flash("Tarea eliminada de tu lista", ok=True)
+            else:
+                flash("Error al eliminar tarea", ok=False)
             load_exercises()
 
         def render_exercises():
             col_available.controls.clear()
             col_mine.controls.clear()
-            
             safe_my_exercises = []
+            
             for item in state["my_exercises"]:
                 if isinstance(item, str):
                     safe_my_exercises.append({
@@ -664,7 +675,6 @@ def main(page: ft.Page):
                     safe_all_exercises.append(item)
 
             my_filenames = {e["filename"] for e in safe_my_exercises}
-            
             safe_available_exercises = [ex for ex in safe_all_exercises if ex["filename"] not in my_filenames]
             
             def create_exercise_card(ex_data, is_mine):
@@ -683,7 +693,6 @@ def main(page: ft.Page):
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.START),
                         
                         ft.Text(ex_data.get("description", ""), size=11, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                        
                         ft.Container(height=5),
                         
                         ft.Row([
@@ -725,17 +734,16 @@ def main(page: ft.Page):
         # 5. Layout (Arquitectura clonada de Mis Estudiantes)
         tab_exercises = ft.Container(
             content=ft.Column([
+                # Columnas divididas
                 ft.Row([
                     # COLUMNA IZQUIERDA: MIS TAREAS
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Mis Tareas Asignadas", size=16, weight="bold", color=COLORES["primario"]),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Recargar", on_click=lambda e: load_exercises())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            
                             ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
-                            
                             ft.Divider(height=5, color="transparent"),
                             col_mine
                         ], expand=True),
@@ -743,19 +751,16 @@ def main(page: ft.Page):
                         bgcolor=COLORES["accento"], 
                         padding=10, 
                         border_radius=10,
-                        margin=ft.margin.only(right=5)
+                        margin=ft.margin.only(right=5) # Margen entre columnas
                     ),
-                    
                     # COLUMNA DERECHA: CATÁLOGO GLOBAL
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Catálogo Global", size=16, weight="bold", color=COLORES["primario"]),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Recargar", on_click=lambda e: load_exercises())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            
                             ft.Row([search_global_tasks, sort_btn_global_tasks], spacing=5),
-                            
                             ft.Divider(height=5, color="transparent"),
                             col_available
                         ], expand=True),
@@ -763,7 +768,7 @@ def main(page: ft.Page):
                         bgcolor=COLORES["accento"], 
                         padding=10, 
                         border_radius=10,
-                        margin=ft.margin.only(left=5)
+                        margin=ft.margin.only(left=5) # Margen entre columnas
                     )
                 ], expand=True)
             ], expand=True), 
