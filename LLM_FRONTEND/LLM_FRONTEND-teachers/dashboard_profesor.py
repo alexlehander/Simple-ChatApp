@@ -386,35 +386,24 @@ def main(page: ft.Page):
 
         def add_student_action(email_to_add):
             if not email_to_add: return
-            
-            # Bloqueo visual temporal
-            page.splash = ft.ProgressBar()
-            page.update()
-            
             headers = {"Authorization": f"Bearer {state['token']}"}
-            try:
-                res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [email_to_add]}, timeout=10)
-                if res.status_code == 200:
-                    new_student_mail.value = ""
-                    flash(f"Estudiante {email_to_add} agregado", ok=True)
-                    load_students() # Recarga listas
-                else:
-                    flash("Error al agregar estudiante", ok=False)
-            except Exception as ex:
-                flash("Error técnico de conexión", ok=False)
-            finally:
-                page.splash = None
-                page.update()
-
+            res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [email_to_add]})
+            if res.status_code == 200:
+                new_student_mail.value = ""
+                flash(f"Estudiante {email_to_add} agregado", ok=True)
+            else:
+                flash("Error al agregar estudiante", ok=False)
+            load_students()
+            
         def delete_student(email):
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.delete(f"{BASE}/api/teacher/students", headers=headers, json={"email": email})
             if res.status_code == 200:
-                flash("Estudiante eliminado de tu lista", ok=True)
+                flash(f"Estudiante {email} eliminado", ok=True)
             else:
                 flash("Error al eliminar", ok=False)
-            load_students() # Recarga listas (volverá a aparecer en disponibles)
-
+            load_students()
+            
         def render_student_lists():
             my_students_col.controls.clear()
             global_students_col.controls.clear()
@@ -472,7 +461,7 @@ def main(page: ft.Page):
                 ft.Row([
                     ft.Text("Agregar de manera manual:", color=COLORES["texto"], weight="bold"),
                     new_student_mail, 
-                    ft.IconButton(ft.Icons.ADD, icon_color=COLORES["primario"], bgcolor=COLORES["accento"], on_click=lambda e: add_student_action(new_student_mail.value))
+                    ft.IconButton(ft.Icons.ADD, icon_color=COLORES["primario"], bgcolor=COLORES["accento"], tooltip="Agregar a mi clase", on_click=lambda e: add_student_action(new_student_mail.value))
                 ], alignment=ft.MainAxisAlignment.START),
                 
                 ft.Divider(color=COLORES["borde"]),
