@@ -49,12 +49,22 @@ STATE_KEYS = {
 
 def main(page: ft.Page):
     
-    page.is_alive = True
     def on_disconnect(e):
         page.is_alive = False
         print("Cliente desconectado. Deteniendo hilos.")
-    page.on_disconnect = on_disconnect
     
+    def save_k(page, k, v):
+        page.client_storage.set(k, v)
+    
+    def load_k(page, k, default=None):
+        try:
+            v = page.client_storage.get(k)
+            return v if v is not None else default
+        except Exception:
+            return default
+            
+    page.is_alive = True
+    page.on_disconnect = on_disconnect
     page.title = "Pro-Tutor - Portal Docente"
     page.padding = 0
     theme_name = load_k(page, "theme", "dark")
@@ -84,17 +94,8 @@ def main(page: ft.Page):
         margin=ft.margin.all(20),
         show_close_icon=False, 
     )
-    page.overlay.append(save_snack)
     
-    def save_k(page, k, v):
-        page.client_storage.set(k, v)
-
-    def load_k(page, k, default=None):
-        try:
-            v = page.client_storage.get(k)
-            return v if v is not None else default
-        except Exception:
-            return default
+    page.overlay.append(save_snack)
             
     def _apply_theme():
         target_colors = DARK_COLORS if theme_name == "dark" else LIGHT_COLORS
