@@ -486,15 +486,15 @@ def main(page: ft.Page):
             disponibles_filtrados.sort(reverse=(state["sort_global_students"] == "desc"))
 
             if not disponibles_filtrados:
-                msg = "No se encontraron resultados." if state["filter_global_students"] else "No hay más estudiantes disponibles."
+                msg = "No se encontraron estudiantes inscritos" if state["filter_global_students"] else "No se encontraron estudiantes disponibles"
                 global_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
             else:
                 for email in disponibles_filtrados:
                     global_students_col.controls.append(
                         ft.Container(
                             content=ft.Row([
-                                ft.Icon(ft.Icons.SCHOOL_OUTLINED, color=COLORES["subtitulo"], size=20),
-                                ft.Text(email, expand=True, size=14, color=COLORES["subtitulo"]),
+                                ft.Icon(ft.Icons.SCHOOL_OUTLINED, color=COLORES["primario"], size=20),
+                                ft.Text(email, expand=True, size=14, color=COLORES["texto"]),
                                 ft.IconButton(
                                     ft.Icons.ADD_CIRCLE_OUTLINE, 
                                     icon_color=COLORES["exito"], 
@@ -521,7 +521,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Lista de estudiantes inscritos en mis materias", size=16, weight="bold", color=COLORES["primario"]),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_students, sort_btn_my], spacing=5),
                             ft.Divider(height=5, color="transparent"),
@@ -538,7 +538,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Lista global de estudiantes disponibles", size=16, weight="bold", color=COLORES["primario"]),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_students, sort_btn_global], spacing=5),
                             ft.Divider(height=5, color="transparent"),
