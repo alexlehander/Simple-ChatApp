@@ -418,7 +418,6 @@ def main(page: ft.Page):
         def render_student_lists():
             my_students_col.controls.clear()
             global_students_col.controls.clear()
-            
             mis_emails = set(state["students"])
             
             # --- Renderizar MI CLASE ---
@@ -438,12 +437,11 @@ def main(page: ft.Page):
                                     on_click=lambda e, mail=email: delete_student(mail)
                                 )
                             ]),
-                            bgcolor=COLORES["fondo"], padding=5, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                            bgcolor=COLORES["fondo"], padding=ft.padding.only(left=10, top=5, right=20, bottom=5), border_radius=5, border=ft.border.all(1, COLORES["borde"])
                         )
                     )
 
             # --- Renderizar DISPONIBLES (Global - Mis) ---
-            # Filtramos: Todos los del sistema MENOS los que ya tengo
             disponibles = [u for u in state["all_users_global"] if u not in mis_emails]
             
             if not disponibles:
@@ -462,7 +460,7 @@ def main(page: ft.Page):
                                     on_click=lambda e, mail=email: add_student_action(mail)
                                 )
                             ]),
-                            bgcolor=COLORES["fondo"], padding=5, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                            bgcolor=COLORES["fondo"], padding=ft.padding.only(left=10, top=5, right=20, bottom=5), border_radius=5, border=ft.border.all(1, COLORES["borde"])
                         )
                     )
             page.update()
@@ -472,7 +470,7 @@ def main(page: ft.Page):
             content=ft.Column([
                 # Fila de agregar manual
                 ft.Row([
-                    ft.Text("Agregar Manual:", color=COLORES["texto"], weight="bold"),
+                    ft.Text("Agregar de manera manual:", color=COLORES["texto"], weight="bold"),
                     new_student_mail, 
                     ft.IconButton(ft.Icons.ADD, icon_color=COLORES["primario"], bgcolor=COLORES["accento"], on_click=lambda e: add_student_action(new_student_mail.value))
                 ], alignment=ft.MainAxisAlignment.START),
@@ -481,25 +479,28 @@ def main(page: ft.Page):
                 
                 # Columnas divididas
                 ft.Row([
-                    # Columna Izquierda: Mis Estudiantes
+                    # Columna izquierda: mis estudiantes
                     ft.Container(
                         content=ft.Column([
-                            ft.Text("Mi Clase Actual", size=16, weight="bold", color=COLORES["primario"]),
+                            ft.Row([
+                                ft.Text("Lista de estudiantes inscritos en mis materias", size=16, weight="bold", color=COLORES["primario"]),
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Divider(height=10, color="transparent"),
                             my_students_col
                         ], expand=True),
                         expand=1, 
                         bgcolor=COLORES["accento"], 
                         padding=15, 
-                        border_radius=10
+                        border_radius=10,
+                        margin=ft.margin.only(right=5) # Margen entre columnas
                     ),
-                    
-                    # Columna Derecha: Estudiantes Disponibles
+                    # Columna derecha: estudiantes disponibles
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Directorio Global (Disponibles)", size=16, weight="bold", color=COLORES["subtitulo"]),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Refrescar lista global", on_click=lambda e: load_students())
+                                ft.Text("Lista global de estudiantes disponibles", size=16, weight="bold", color=COLORES["primario"]),
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Divider(height=10, color="transparent"),
                             global_students_col
@@ -508,7 +509,7 @@ def main(page: ft.Page):
                         bgcolor=COLORES["accento"], 
                         padding=15, 
                         border_radius=10,
-                        margin=ft.margin.only(left=10) # Margen entre columnas
+                        margin=ft.margin.only(left=5) # Margen entre columnas
                     )
                 ], expand=True)
             ], expand=True), 
@@ -929,9 +930,9 @@ def main(page: ft.Page):
                 load_full_dashboard() if e.control.selected_index == 3 else None
             ),
             tabs=[
-                ft.Tab(text="Mis Estudiantes", content=tab_students),
-                ft.Tab(text="Mis Tareas", content=tab_exercises),
-                ft.Tab(text="Monitoreo", content=tab_monitor),
+                ft.Tab(text="Mis Estudiantes", icon=ft.Icons.GROUPS, content=tab_students),
+                ft.Tab(text="Mis Tareas", icon=ft.Icons.ASSIGNMENT, content=tab_exercises),
+                ft.Tab(text="Monitoreo", icon=ft.Icons.INSIGHTS, content=tab_monitor),
                 ft.Tab(text="Dashboard", icon=ft.Icons.DASHBOARD, content=tab_dashboard)
             ], expand=True
         )
