@@ -357,16 +357,8 @@ def main(page: ft.Page):
         state["filter_global_students"] = ""
         state["sort_global_students"] = "asc"
         
-        new_student_mail = ft.TextField(
-            hint_text="estudiante@uabc.edu.mx",
-            expand=True,
-            border_color=COLORES["borde"],
-            color=COLORES["texto"],
-            height=40
-        )
-        
         search_my_students = ft.TextField(
-            hint_text="Buscar en mi clase...",
+            hint_text="Buscar estudiantes inscritos...",
             prefix_icon=ft.Icons.SEARCH,
             height=35,
             text_size=12,
@@ -385,7 +377,7 @@ def main(page: ft.Page):
         )
         
         search_global_students = ft.TextField(
-            hint_text="Buscar disponibles...",
+            hint_text="Buscar estudiantes disponibles...",
             prefix_icon=ft.Icons.SEARCH,
             height=35,
             text_size=12,
@@ -522,13 +514,6 @@ def main(page: ft.Page):
         # Layout de la pestaña dividida
         tab_students = ft.Container(
             content=ft.Column([
-                # Fila de agregar manual
-                ft.Row([
-                    ft.Text("Agregar de manera manual:", color=COLORES["texto"], weight="bold"),
-                    new_student_mail, 
-                    ft.IconButton(ft.Icons.ADD, icon_color=COLORES["primario"], bgcolor=COLORES["accento"], tooltip="Agregar a mi clase", on_click=lambda e: add_student_action(new_student_mail.value))
-                ], alignment=ft.MainAxisAlignment.START),
-                ft.Divider(color=COLORES["borde"]),
                 # Columnas divididas
                 ft.Row([
                     # Columna izquierda: mis estudiantes
@@ -544,7 +529,7 @@ def main(page: ft.Page):
                         ], expand=True),
                         expand=1, 
                         bgcolor=COLORES["accento"], 
-                        padding=15, 
+                        padding=10, 
                         border_radius=10,
                         margin=ft.margin.only(right=5) # Margen entre columnas
                     ),
@@ -561,7 +546,7 @@ def main(page: ft.Page):
                         ], expand=True),
                         expand=1, 
                         bgcolor=COLORES["accento"], 
-                        padding=15, 
+                        padding=10, 
                         border_radius=10,
                         margin=ft.margin.only(left=5) # Margen entre columnas
                     )
