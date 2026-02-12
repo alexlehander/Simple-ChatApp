@@ -90,7 +90,7 @@ def main(page: ft.Page):
         bgcolor=COLORES["exito"],
         open=False,
         behavior=ft.SnackBarBehavior.FLOATING,
-        duration=2000,
+        duration=1000,
         margin=ft.margin.all(20),
         show_close_icon=False, 
     )
@@ -428,11 +428,9 @@ def main(page: ft.Page):
                 print(f"Error cargando estudiantes: {e}")
 
         def add_student_action(email_to_add):
-            if not email_to_add: return
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [email_to_add]})
             if res.status_code == 200:
-                new_student_mail.value = ""
                 flash(f"Estudiante {email_to_add} agregado", ok=True)
             else:
                 flash("Error al agregar estudiante", ok=False)
@@ -520,7 +518,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista de estudiantes inscritos en mis materias", size=16, weight="bold", color=COLORES["primario"]),
+                                ft.Text("Lista de estudiantes inscritos en mis materias", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_students, sort_btn_my], spacing=5),
@@ -537,7 +535,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista global de estudiantes disponibles", size=16, weight="bold", color=COLORES["primario"]),
+                                ft.Text("Lista global de estudiantes disponibles", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_students, sort_btn_global], spacing=5),
