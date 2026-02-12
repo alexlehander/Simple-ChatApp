@@ -115,7 +115,7 @@ def main(page: ft.Page):
         else:
             show_login()
             
-    def flash(msg: str, ok: bool = False, ms: int = 3000):
+    def flash(msg: str, ok: bool = False, ms: int = 1000):
         save_snack.content = ft.Container(
             content=ft.Text(
                 msg, 
@@ -556,8 +556,65 @@ def main(page: ft.Page):
         # =========================================
         # PESTAÑA 2: Mis Tareas
         # =========================================
+        state["filter_my_tasks"] = ""
+        state["sort_my_tasks"] = "asc"
+        state["filter_global_tasks"] = ""
+        state["sort_global_tasks"] = "asc"
+        
+        search_my_tasks = ft.TextField(
+            hint_text="Buscar en mis tareas...",
+            prefix_icon=ft.Icons.SEARCH,
+            height=35,
+            text_size=12,
+            content_padding=10,
+            border_radius=15,
+            bgcolor=COLORES["fondo"],
+            color=COLORES["texto"],
+            on_change=lambda e: update_task_filters("my", e.control.value)
+        )
+        
+        sort_btn_my_tasks = ft.IconButton(
+            icon=ft.Icons.SORT_BY_ALPHA,
+            tooltip="Ordenar A-Z / Z-A",
+            icon_color=COLORES["primario"],
+            on_click=lambda e: toggle_task_sort("my")
+        )
+
+        search_global_tasks = ft.TextField(
+            hint_text="Buscar en catálogo global...",
+            prefix_icon=ft.Icons.SEARCH,
+            height=35,
+            text_size=12,
+            content_padding=10,
+            border_radius=15,
+            bgcolor=COLORES["fondo"],
+            color=COLORES["texto"],
+            on_change=lambda e: update_task_filters("global", e.control.value)
+        )
+
+        sort_btn_global_tasks = ft.IconButton(
+            icon=ft.Icons.SORT_BY_ALPHA,
+            tooltip="Ordenar A-Z / Z-A",
+            icon_color=COLORES["primario"],
+            on_click=lambda e: toggle_task_sort("global")
+        )
+        
         col_available = ft.ListView(expand=True, spacing=5)
         col_mine = ft.ListView(expand=True, spacing=5)
+        
+        def update_task_filters(target, value):
+            if target == "my": state["filter_my_tasks"] = value.lower()
+            else: state["filter_global_tasks"] = value.lower()
+            render_exercises()
+
+        def toggle_task_sort(target):
+            key = f"sort_{target}_tasks"
+            state[key] = "desc" if state[key] == "asc" else "asc"
+            
+            btn = sort_btn_my_tasks if target == "my" else sort_btn_global_tasks
+            btn.icon = ft.Icons.ARROW_DOWNWARD if state[key] == "asc" else ft.Icons.ARROW_UPWARD
+            btn.update()
+            render_exercises()
         
         def load_exercises():
             # Cargar mis ejercicios
@@ -596,6 +653,7 @@ def main(page: ft.Page):
                     safe_my_exercises.append(item)
             
             safe_all_exercises = []
+            
             for item in state["all_exercises"]:
                 if isinstance(item, str):
                     safe_all_exercises.append({
@@ -607,52 +665,110 @@ def main(page: ft.Page):
 
             my_filenames = {e["filename"] for e in safe_my_exercises}
             
+            safe_available_exercises = [ex for ex in safe_all_exercises if ex["filename"] not in my_filenames]
+            
             def create_exercise_card(ex_data, is_mine):
                 minutes = ex_data.get('max_time', 0) // 60
                 return ft.Container(
                     content=ft.Column([
                         ft.Row([
-                            ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=16, expand=True, color=COLORES["texto"]),
+                            ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=14, expand=True, color=COLORES["texto"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                             ft.IconButton(
                                 ft.Icons.DELETE if is_mine else ft.Icons.ADD_CIRCLE, 
                                 icon_color=COLORES["error"] if is_mine else COLORES["exito"],
                                 tooltip="Quitar" if is_mine else "Agregar", 
+                                icon_size=20,
                                 on_click=lambda e, f=ex_data["filename"]: remove_exercise(f) if is_mine else add_exercise(f)
                             )
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.START),
                         
-                        ft.Text(ex_data.get("description", ""), size=12, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                        ft.Text(ex_data.get("description", ""), size=11, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                         
                         ft.Container(height=5),
                         
                         ft.Row([
-                            ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
-                            ft.Text(f"{minutes} min", size=12, color=COLORES["subtitulo"]),
+                            ft.Icon(ft.Icons.TIMER, size=12, color=COLORES["primario"]),
+                            ft.Text(f"{minutes} min", size=11, color=COLORES["subtitulo"]),
                             ft.Container(width=10),
-                            ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
-                            ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
+                            ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=12, color=COLORES["primario"]),
+                            ft.Text(f"{ex_data.get('num_problems', 0)} ejs", size=11, color=COLORES["subtitulo"])
                         ])
                     ], spacing=2),
                     bgcolor=COLORES["fondo"], 
                     padding=10, 
-                    border_radius=8, 
-                    border=ft.border.all(1, COLORES["borde"]),
-                    shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"]) 
+                    border_radius=5, 
+                    border=ft.border.all(1, COLORES["borde"])
                 )
 
-            for ex in safe_all_exercises:
-                if ex["filename"] not in my_filenames:
-                    col_available.controls.append(create_exercise_card(ex, False))
+            # --- 1. Filtrar y Ordenar MIS TAREAS ---
+            filtered_mine = [e for e in safe_my_exercises if state["filter_my_tasks"] in e.get("title", "").lower()]
+            filtered_mine.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_my_tasks"] == "desc"))
+            
+            if not filtered_mine:
+                col_mine.controls.append(ft.Text("No tienes tareas asignadas.", color=COLORES["subtitulo"]))
+            else:
+                for ex in filtered_mine:
+                    col_mine.controls.append(create_exercise_card(ex, True))
 
-            for ex in safe_my_exercises:
-                col_mine.controls.append(create_exercise_card(ex, True))
+            # --- 2. Filtrar y Ordenar GLOBALES ---
+            filtered_global = [e for e in safe_available_exercises if state["filter_global_tasks"] in e.get("title", "").lower()]
+            filtered_global.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_global_tasks"] == "desc"))
+
+            if not filtered_global:
+                col_available.controls.append(ft.Text("No hay tareas disponibles.", color=COLORES["subtitulo"]))
+            else:
+                for ex in filtered_global:
+                    col_available.controls.append(create_exercise_card(ex, False))
                 
             page.update()
 
-        tab_exercises = ft.Row([
-            ft.Container(content=ft.Column([ft.Text("Catálogo global de tareas", color=COLORES["texto"]), col_available], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10),
-            ft.Container(content=ft.Column([ft.Text("Mi lista personal de tareas", color=COLORES["texto"]), col_mine], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=10))
-        ], expand=True)
+        # 5. Layout (Arquitectura clonada de Mis Estudiantes)
+        tab_exercises = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    # COLUMNA IZQUIERDA: MIS TAREAS
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Text("Mis Tareas Asignadas", size=16, weight="bold", color=COLORES["primario"]),
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Recargar", on_click=lambda e: load_exercises())
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            
+                            ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
+                            
+                            ft.Divider(height=5, color="transparent"),
+                            col_mine
+                        ], expand=True),
+                        expand=1, 
+                        bgcolor=COLORES["accento"], 
+                        padding=10, 
+                        border_radius=10,
+                        margin=ft.margin.only(right=5)
+                    ),
+                    
+                    # COLUMNA DERECHA: CATÁLOGO GLOBAL
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Text("Catálogo Global", size=16, weight="bold", color=COLORES["primario"]),
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Recargar", on_click=lambda e: load_exercises())
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            
+                            ft.Row([search_global_tasks, sort_btn_global_tasks], spacing=5),
+                            
+                            ft.Divider(height=5, color="transparent"),
+                            col_available
+                        ], expand=True),
+                        expand=1, 
+                        bgcolor=COLORES["accento"], 
+                        padding=10, 
+                        border_radius=10,
+                        margin=ft.margin.only(left=5)
+                    )
+                ], expand=True)
+            ], expand=True), 
+            padding=20
+        )
 
         # =========================================
         # PESTAÑA 3: Monitoreo
@@ -1018,6 +1134,7 @@ def main(page: ft.Page):
         )
         
         load_students()
+        load_exercises()
 
     stored_token = page.client_storage.get("teacher_token")
     last_act_stored = page.client_storage.get("last_activity")
