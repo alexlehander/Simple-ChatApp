@@ -346,24 +346,78 @@ def main(page: ft.Page):
     def show_dashboard():
         check_session()
         page.clean()
-        state["exercises"] = []
 
         # =========================================
-        # PESTAÑA 1: Gestión de Estudiantes (MODIFICADA)
+        # PESTAÑA 1: Gestión de Estudiantes
         # =========================================
-        state["all_users_global"] = [] # Almacén para la lista global
+        state["exercises"] = []
+        state["all_users_global"] = []
+        state["filter_my_students"] = ""
+        state["sort_my_students"] = "asc"
+        state["filter_global_students"] = ""
+        state["sort_global_students"] = "asc"
         
         new_student_mail = ft.TextField(
-            hint_text="estudiante@uabc.edu.mx", 
+            hint_text="estudiante@uabc.edu.mx",
             expand=True,
             border_color=COLORES["borde"],
             color=COLORES["texto"],
             height=40
         )
         
-        # Listas visuales
+        search_my_students = ft.TextField(
+            hint_text="Buscar en mi clase...",
+            prefix_icon=ft.Icons.SEARCH,
+            height=35,
+            text_size=12,
+            content_padding=10,
+            border_radius=15,
+            bgcolor=COLORES["fondo"],
+            color=COLORES["texto"],
+            on_change=lambda e: update_filters("my", e.control.value)
+        )
+        
+        sort_btn_my = ft.IconButton(
+            icon=ft.Icons.SORT_BY_ALPHA,
+            tooltip="Ordenar A-Z / Z-A",
+            icon_color=COLORES["primario"],
+            on_click=lambda e: toggle_sort("my")
+        )
+        
+        search_global_students = ft.TextField(
+            hint_text="Buscar disponibles...",
+            prefix_icon=ft.Icons.SEARCH,
+            height=35,
+            text_size=12,
+            content_padding=10,
+            border_radius=15,
+            bgcolor=COLORES["fondo"],
+            color=COLORES["texto"],
+            on_change=lambda e: update_filters("global", e.control.value)
+        )
+
+        sort_btn_global = ft.IconButton(
+            icon=ft.Icons.SORT_BY_ALPHA,
+            tooltip="Ordenar A-Z / Z-A",
+            icon_color=COLORES["primario"],
+            on_click=lambda e: toggle_sort("global")
+        )
+        
         my_students_col = ft.ListView(expand=True, spacing=10)
         global_students_col = ft.ListView(expand=True, spacing=10)
+        
+        def update_filters(target, value):
+            if target == "my": state["filter_my_students"] = value.lower()
+            else: state["filter_global_students"] = value.lower()
+            render_student_lists()
+        
+        def toggle_sort(target):
+            key = f"sort_{target}_students"
+            state[key] = "desc" if state[key] == "asc" else "asc"
+            btn = sort_btn_my if target == "my" else sort_btn_global
+            btn.icon = ft.Icons.ARROW_DOWNWARD if state[key] == "asc" else ft.Icons.ARROW_UPWARD
+            btn.update()
+            render_student_lists()
 
         def load_students():
             headers = {"Authorization": f"Bearer {state['token']}"}
@@ -372,15 +426,12 @@ def main(page: ft.Page):
                 res_my = requests.get(f"{BASE}/api/teacher/students", headers=headers)
                 if res_my.status_code == 200:
                     state["students"] = res_my.json()
-                
                 # 2. Cargar TODOS los estudiantes (Global del sistema)
                 res_all = requests.get(f"{BASE}/api/teacher/all-users", headers=headers)
                 if res_all.status_code == 200:
                     state["all_users_global"] = res_all.json()
-
                 render_student_lists()
                 update_dropdowns()
-                
             except Exception as e:
                 print(f"Error cargando estudiantes: {e}")
 
@@ -407,13 +458,16 @@ def main(page: ft.Page):
         def render_student_lists():
             my_students_col.controls.clear()
             global_students_col.controls.clear()
-            mis_emails = set(state["students"])
+            # --- 1. Filtrar y Ordenar MI CLASE ---
+            mis_emails_raw = state["students"]
+            mis_emails_filtrados = [e for e in mis_emails_raw if state["filter_my_students"] in e.lower()]
+            mis_emails_filtrados.sort(reverse=(state["sort_my_students"] == "desc"))
             
-            # --- Renderizar MI CLASE ---
-            if not mis_emails:
-                my_students_col.controls.append(ft.Text("No tienes estudiantes aún.", color=COLORES["subtitulo"]))
+            if not mis_emails_filtrados:
+                msg = "No se encontraron resultados." if state["filter_my_students"] else "No tienes estudiantes aún."
+                my_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
             else:
-                for email in state["students"]:
+                for email in mis_emails_filtrados:
                     my_students_col.controls.append(
                         ft.Container(
                             content=ft.Row([
@@ -426,17 +480,24 @@ def main(page: ft.Page):
                                     on_click=lambda e, mail=email: delete_student(mail)
                                 )
                             ]),
-                            bgcolor=COLORES["fondo"], padding=ft.padding.only(left=10, top=5, right=20, bottom=5), border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                            bgcolor=COLORES["fondo"], 
+                            padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
+                            border_radius=5, 
+                            border=ft.border.all(1, COLORES["borde"])
                         )
                     )
 
-            # --- Renderizar DISPONIBLES (Global - Mis) ---
-            disponibles = [u for u in state["all_users_global"] if u not in mis_emails]
-            
-            if not disponibles:
-                global_students_col.controls.append(ft.Text("No hay más estudiantes registrados en el sistema.", color=COLORES["subtitulo"]))
+            # --- 2. Filtrar y Ordenar GLOBAL ---
+            set_mis_emails = set(mis_emails_raw)
+            disponibles_raw = [u for u in state["all_users_global"] if u not in set_mis_emails]
+            disponibles_filtrados = [e for e in disponibles_raw if state["filter_global_students"] in e.lower()]
+            disponibles_filtrados.sort(reverse=(state["sort_global_students"] == "desc"))
+
+            if not disponibles_filtrados:
+                msg = "No se encontraron resultados." if state["filter_global_students"] else "No hay más estudiantes disponibles."
+                global_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
             else:
-                for email in disponibles:
+                for email in disponibles_filtrados:
                     global_students_col.controls.append(
                         ft.Container(
                             content=ft.Row([
@@ -449,9 +510,13 @@ def main(page: ft.Page):
                                     on_click=lambda e, mail=email: add_student_action(mail)
                                 )
                             ]),
-                            bgcolor=COLORES["fondo"], padding=ft.padding.only(left=10, top=5, right=20, bottom=5), border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                            bgcolor=COLORES["fondo"], 
+                            padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
+                            border_radius=5, 
+                            border=ft.border.all(1, COLORES["borde"])
                         )
                     )
+                    
             page.update()
 
         # Layout de la pestaña dividida
@@ -463,9 +528,7 @@ def main(page: ft.Page):
                     new_student_mail, 
                     ft.IconButton(ft.Icons.ADD, icon_color=COLORES["primario"], bgcolor=COLORES["accento"], tooltip="Agregar a mi clase", on_click=lambda e: add_student_action(new_student_mail.value))
                 ], alignment=ft.MainAxisAlignment.START),
-                
                 ft.Divider(color=COLORES["borde"]),
-                
                 # Columnas divididas
                 ft.Row([
                     # Columna izquierda: mis estudiantes
@@ -475,7 +538,8 @@ def main(page: ft.Page):
                                 ft.Text("Lista de estudiantes inscritos en mis materias", size=16, weight="bold", color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Divider(height=10, color="transparent"),
+                            ft.Row([search_my_students, sort_btn_my], spacing=5),
+                            ft.Divider(height=5, color="transparent"),
                             my_students_col
                         ], expand=True),
                         expand=1, 
@@ -491,7 +555,8 @@ def main(page: ft.Page):
                                 ft.Text("Lista global de estudiantes disponibles", size=16, weight="bold", color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=16, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Divider(height=10, color="transparent"),
+                            ft.Row([search_global_students, sort_btn_global], spacing=5),
+                            ft.Divider(height=5, color="transparent"),
                             global_students_col
                         ], expand=True),
                         expand=1, 
@@ -510,7 +575,7 @@ def main(page: ft.Page):
         # =========================================
         col_available = ft.ListView(expand=True, spacing=5)
         col_mine = ft.ListView(expand=True, spacing=5)
-
+        
         def load_exercises():
             # Cargar mis ejercicios
             r1 = auth_request("GET", "/api/teacher/my-exercises")
