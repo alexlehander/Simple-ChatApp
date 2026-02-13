@@ -442,7 +442,7 @@ def main(page: ft.Page):
             if res.status_code == 200:
                 flash(f"Estudiante {email} eliminado", ok=True)
             else:
-                flash("Error al eliminar", ok=False)
+                flash("Error al eliminar estudiante", ok=False)
             load_students()
             
         def render_student_lists():
@@ -454,7 +454,7 @@ def main(page: ft.Page):
             mis_emails_filtrados.sort(reverse=(state["sort_my_students"] == "desc"))
             
             if not mis_emails_filtrados:
-                msg = "No se encontraron resultados." if state["filter_my_students"] else "No tienes estudiantes aún."
+                msg = "No se encontraron resultados" if state["filter_my_students"] else "No tienes estudiantes aún"
                 my_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
             else:
                 for email in mis_emails_filtrados:
@@ -599,8 +599,8 @@ def main(page: ft.Page):
             on_click=lambda e: toggle_task_sort("global")
         )
         
-        col_available = ft.ListView(expand=True, spacing=5)
-        col_mine = ft.ListView(expand=True, spacing=5)
+        col_available = ft.ListView(expand=True, spacing=10)
+        col_mine = ft.ListView(expand=True, spacing=10)
         
         def update_task_filters(target, value):
             if target == "my": state["filter_my_tasks"] = value.lower()
@@ -635,7 +635,7 @@ def main(page: ft.Page):
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.post(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
             if res.status_code == 200:
-                flash("Tarea agregada a tu lista", ok=True)
+                flash(f"{filename} agregada a tu lista", ok=True)
             else:
                 flash("Error al agregar tarea", ok=False)
             load_exercises()
@@ -644,7 +644,7 @@ def main(page: ft.Page):
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.delete(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
             if res.status_code == 200:
-                flash("Tarea eliminada de tu lista", ok=True)
+                flash(f"{filename} eliminada de tu lista", ok=True)
             else:
                 flash("Error al eliminar tarea", ok=False)
             load_exercises()
@@ -692,15 +692,15 @@ def main(page: ft.Page):
                             )
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.START),
                         
-                        ft.Text(ex_data.get("description", ""), size=11, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                        ft.Text(ex_data.get("description", ""), size=12, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                         ft.Container(height=5),
                         
                         ft.Row([
                             ft.Icon(ft.Icons.TIMER, size=12, color=COLORES["primario"]),
-                            ft.Text(f"{minutes} min", size=11, color=COLORES["subtitulo"]),
+                            ft.Text(f"{minutes} minutos", size=12, color=COLORES["subtitulo"]),
                             ft.Container(width=10),
                             ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=12, color=COLORES["primario"]),
-                            ft.Text(f"{ex_data.get('num_problems', 0)} ejs", size=11, color=COLORES["subtitulo"])
+                            ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
                         ])
                     ], spacing=2),
                     bgcolor=COLORES["fondo"], 
@@ -740,7 +740,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista de mis tareas", size=16, color=COLORES["primario"]),
+                                ft.Text("Lista de tareas que forman parte de mis materias", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
@@ -1033,7 +1033,7 @@ def main(page: ft.Page):
                     task_items.append(
                         ft.Row([
                             ft.Icon(icon, size=14, color=color),
-                            ft.Text(title, size=11, color=COLORES["texto"], expand=True, no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS)
+                            ft.Text(title, size=12, color=COLORES["texto"], expand=True, no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS)
                         ], spacing=5)
                     )
 
