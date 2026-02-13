@@ -679,9 +679,12 @@ def main(page: ft.Page):
             
             def create_exercise_card(ex_data, is_mine):
                 minutes = ex_data.get('max_time', 0) // 60
+                icono = ft.Icons.ASSIGNMENT if is_mine else ft.Icons.LIBRARY_BOOKS
+                color_icono = COLORES["primario"] if is_mine else COLORES["subtitulo"]
                 return ft.Container(
                     content=ft.Column([
                         ft.Row([
+                            ft.Icon(icono, size=20, color=color_icono),
                             ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=14, expand=True, color=COLORES["texto"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                             ft.IconButton(
                                 ft.Icons.DELETE if is_mine else ft.Icons.ADD_CIRCLE, 
