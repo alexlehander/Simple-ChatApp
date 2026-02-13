@@ -10,6 +10,26 @@ from pinecone import Pinecone
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
+def encontrar_raiz_proyecto(marcador="assets"):
+    ruta_actual = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if marcador in os.listdir(ruta_actual):
+            return ruta_actual
+        ruta_padre = os.path.dirname(ruta_actual)
+        if ruta_padre == ruta_actual:
+            raise FileNotFoundError(f"No se encontró la carpeta raíz conteniendo '{marcador}'")
+        ruta_actual = ruta_padre
+try:
+    ROOT_DIR = encontrar_raiz_proyecto("assets") 
+    ASSETS_PATH = os.path.join(ROOT_DIR, "assets")
+    EXERCISES_PATH = os.path.join(ROOT_DIR, "exercises")
+    print(f"✅ Raíz del proyecto encontrada en: {ROOT_DIR}")
+except Exception as e:
+    print(f"⚠️ Advertencia: {e}. Usando rutas relativas locales.")
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    ASSETS_PATH = "assets"
+    EXERCISES_PATH = "exercises"
+
 # ------------------------------------------------------------------------------------
 # LLM Setup
 # ------------------------------------------------------------------------------------
@@ -22,7 +42,6 @@ PINECONE_INDEX_NAME = "evatutor"
 pc_client = Pinecone(api_key=PINECONE_API_KEY)
 pinecone_index = pc_client.Index(PINECONE_INDEX_NAME)
 HF_EMBED_URL = os.getenv("HF_EMBED_URL", "https://EmbeddingsAPI.hf.space/embed")
-
 # If you want to implement a second layer of security / verification mechanism for LLM-generated answers - uncomment the next line and delete False (The quality of life improvement is very little)
 QC_ENABLED = False  #os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
@@ -61,7 +80,6 @@ app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key-cha
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = dt.timedelta(hours=12)
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-EXERCISES_PATH = os.getenv("EXERCISES_PATH", "exercises")
 
 # ------------------------------------------------------------------------------------
 # Data Models

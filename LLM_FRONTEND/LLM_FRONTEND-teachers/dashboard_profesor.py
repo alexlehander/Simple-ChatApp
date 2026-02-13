@@ -1,6 +1,26 @@
 import flet as ft
 import requests, time, threading, os, json
 
+def encontrar_raiz_proyecto(marcador="assets"):
+    ruta_actual = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if marcador in os.listdir(ruta_actual):
+            return ruta_actual
+        ruta_padre = os.path.dirname(ruta_actual)
+        if ruta_padre == ruta_actual:
+            raise FileNotFoundError(f"No se encontró la carpeta raíz conteniendo '{marcador}'")
+        ruta_actual = ruta_padre
+try:
+    ROOT_DIR = encontrar_raiz_proyecto("assets") 
+    ASSETS_PATH = os.path.join(ROOT_DIR, "assets")
+    EXERCISES_PATH = os.path.join(ROOT_DIR, "exercises")
+    print(f"✅ Raíz del proyecto encontrada en: {ROOT_DIR}")
+except Exception as e:
+    print(f"⚠️ Advertencia: {e}. Usando rutas relativas locales.")
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    ASSETS_PATH = "assets"
+    EXERCISES_PATH = "exercises"
+
 # Paleta CLARA
 LIGHT_COLORS = {
     "fondo": "#F5F7FA",
@@ -31,7 +51,6 @@ DARK_COLORS = {
     "advertencia":"#F6A721",
 }
 
-EXERCISES_PATH          = "exercises"
 BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 BACKEND_URL_CHAT        = f"{BASE}/chat"
 BACKEND_URL_VERIFICAR   = f"{BASE}/verificar_respuesta"
@@ -680,7 +699,7 @@ def main(page: ft.Page):
             def create_exercise_card(ex_data, is_mine):
                 minutes = ex_data.get('max_time', 0) // 60
                 icono = ft.Icons.ASSIGNMENT if is_mine else ft.Icons.LIBRARY_BOOKS
-                color_icono = COLORES["primario"] if is_mine else COLORES["subtitulo"]
+                color_icono = COLORES["primario"]
                 return ft.Container(
                     content=ft.Column([
                         ft.Row([
@@ -699,10 +718,10 @@ def main(page: ft.Page):
                         ft.Container(height=5),
                         
                         ft.Row([
-                            ft.Icon(ft.Icons.TIMER, size=12, color=COLORES["primario"]),
+                            ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
                             ft.Text(f"{minutes} minutos", size=12, color=COLORES["subtitulo"]),
                             ft.Container(width=10),
-                            ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=12, color=COLORES["primario"]),
+                            ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
                             ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
                         ])
                     ], spacing=2),
@@ -1159,15 +1178,11 @@ def main(page: ft.Page):
         show_login()
 
 if __name__ == "__main__":
-    basedir = os.path.dirname(os.path.abspath(__file__))
-    assets_path = os.path.join(basedir, "assets")
-    print(f"📍 UBICACIÓN DEL SCRIPT: {basedir}")
-    print(f"📂 RUTA ASSETS CALCULADA: {assets_path}")
-
-    if os.path.exists(assets_path):
-        print(f"✅ Archivos en assets: {os.listdir(assets_path)}")
+    print(f"📂 RUTA ASSETS FINAL: {ASSETS_PATH}")
+    if os.path.exists(ASSETS_PATH):
+        print(f"✅ Archivos en assets: {os.listdir(ASSETS_PATH)}")
     else:
-        print(f"❌ LA CARPETA NO EXISTE EN: {assets_path}")
+        print(f"❌ ADVERTENCIA: No se encuentra la carpeta en: {ASSETS_PATH}")
 
     os.environ["FLET_FORCE_WEB"] = "1"
     port = int(os.getenv("PORT", "3001"))
@@ -1177,5 +1192,5 @@ if __name__ == "__main__":
         view=ft.AppView.WEB_BROWSER, 
         host="0.0.0.0", 
         port=port, 
-        assets_dir=assets_path
+        assets_dir=ASSETS_PATH
     )

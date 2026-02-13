@@ -1,6 +1,26 @@
 import flet as ft
 import requests, time, threading, os, json
 
+def encontrar_raiz_proyecto(marcador="assets"):
+    ruta_actual = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if marcador in os.listdir(ruta_actual):
+            return ruta_actual
+        ruta_padre = os.path.dirname(ruta_actual)
+        if ruta_padre == ruta_actual:
+            raise FileNotFoundError(f"No se encontró la carpeta raíz conteniendo '{marcador}'")
+        ruta_actual = ruta_padre
+try:
+    ROOT_DIR = encontrar_raiz_proyecto("assets") 
+    ASSETS_PATH = os.path.join(ROOT_DIR, "assets")
+    EXERCISES_PATH = os.path.join(ROOT_DIR, "exercises")
+    print(f"✅ Raíz del proyecto encontrada en: {ROOT_DIR}")
+except Exception as e:
+    print(f"⚠️ Advertencia: {e}. Usando rutas relativas locales.")
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    ASSETS_PATH = "assets"
+    EXERCISES_PATH = "exercises"
+
 # Paleta CLARA
 LIGHT_COLORS = {
     "fondo": "#F5F7FA",
@@ -31,7 +51,6 @@ DARK_COLORS = {
     "advertencia":"#F6A721",
 }
 
-EXERCISES_PATH          = "exercises"
 BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 BACKEND_URL_CHAT        = f"{BASE}/chat"
 BACKEND_URL_VERIFICAR   = f"{BASE}/verificar_respuesta"
@@ -1346,7 +1365,19 @@ def main(page: ft.Page):
     _apply_theme_and_redraw()
     
 if __name__ == "__main__":
-    import os
+    print(f"📂 RUTA ASSETS FINAL: {ASSETS_PATH}")
+    if os.path.exists(ASSETS_PATH):
+        print(f"✅ Archivos en assets: {os.listdir(ASSETS_PATH)}")
+    else:
+        print(f"❌ ADVERTENCIA: No se encuentra la carpeta en: {ASSETS_PATH}")
+
     os.environ["FLET_FORCE_WEB"] = "1"
     port = int(os.getenv("PORT", "3000"))
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, host="0.0.0.0", port=port, assets_dir="assets")
+    
+    ft.app(
+        target=main, 
+        view=ft.AppView.WEB_BROWSER, 
+        host="0.0.0.0", 
+        port=port, 
+        assets_dir=ASSETS_PATH  # <--- AQUÍ USAMOS LA VARIABLE CALCULADA
+    )
