@@ -704,7 +704,7 @@ def main(page: ft.Page):
                         ])
                     ], spacing=2),
                     bgcolor=COLORES["fondo"], 
-                    padding=10, 
+                    padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
                     border_radius=5, 
                     border=ft.border.all(1, COLORES["borde"])
                 )
@@ -740,7 +740,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Mis Tareas Asignadas", size=16, weight="bold", color=COLORES["primario"]),
+                                ft.Text("Lista de mis tareas", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
@@ -757,7 +757,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Catálogo Global", size=16, weight="bold", color=COLORES["primario"]),
+                                ft.Text("Catálogo global de tareas", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_tasks, sort_btn_global_tasks], spacing=5),
