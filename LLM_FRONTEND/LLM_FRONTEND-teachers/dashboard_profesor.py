@@ -796,7 +796,7 @@ def main(page: ft.Page):
             ], expand=True), 
             padding=20
         )
-
+        
         # =========================================
         # PESTAÑA 3: Monitoreo
         # =========================================
@@ -817,7 +817,7 @@ def main(page: ft.Page):
             border_color=COLORES["primario"],
             color=COLORES["texto"]
         )
-
+        
         def update_dropdowns():
             # Actualiza el filtro de estudiantes
             student_filter.options = [ft.dropdown.Option("Todos los Estudiantes")] + [ft.dropdown.Option(e) for e in state["students"]]
@@ -827,7 +827,7 @@ def main(page: ft.Page):
                 ft.dropdown.Option(key=e["filename"], text=e["title"]) for e in state["my_exercises"]
             ]
             page.update()
-
+            
         # --- SECCIÓN MENSAJERÍA ---
         msg_info_text = ft.Text("", italic=True, color=COLORES["subtitulo"])
         
@@ -845,11 +845,11 @@ def main(page: ft.Page):
             border_color=COLORES["primario"],
             color=COLORES["texto"]
         )
-
+        
         def close_dialog(e):
             dialog_msg.open = False
             page.update()
-
+            
         def confirm_send(e):
             if not msg_text_field.value: 
                 flash("El mensaje no puede estar vacío", ok=False)
@@ -874,7 +874,7 @@ def main(page: ft.Page):
             else:
                 flash("Error al enviar mensaje", ok=False)
             page.update()
-
+            
         dialog_msg = ft.AlertDialog(
             title=ft.Text("Mensaje al Estudiante", color=COLORES["texto"]),
             content=ft.Container(
@@ -897,7 +897,7 @@ def main(page: ft.Page):
         )
         
         page.overlay.append(dialog_msg)
-
+        
         def send_direct_message(e):
             reset_inactivity_timer()
             student_email = student_filter.value
@@ -926,7 +926,7 @@ def main(page: ft.Page):
 
             dialog_msg.open = True
             page.update()
-
+            
         def load_data_filtered(e=None):
             reset_inactivity_timer()
             params = {}
@@ -936,7 +936,7 @@ def main(page: ft.Page):
             res = auth_request("GET", "/api/teacher/dashboard-data", params=params)
             if res and res.status_code == 200:
                 render_data(res.json())
-
+                
         def render_data(data):
             answers_col.controls.clear(); chats_col.controls.clear()
             
@@ -968,7 +968,7 @@ def main(page: ft.Page):
                     ft.Container(content=ft.Text(c['content'], color=txt_color), bgcolor=bg, padding=10, border_radius=10)
                 ], horizontal_alignment=align))
             page.update()
-
+            
         # =========================================
         # NAVEGACIÓN Y CARGA INICIAL
         # =========================================
@@ -983,12 +983,12 @@ def main(page: ft.Page):
                 ft.Container(content=ft.Column([ft.Text("Chat", color=COLORES["texto"]), chats_col], expand=True), expand=1, bgcolor=COLORES["accento"], margin=ft.margin.only(left=10), padding=10, border_radius=10)
             ], expand=True)
         ], expand=True)
-
+        
         # =========================================
         # PESTAÑA 4: Dashboard (Borrador)
         # =========================================
         dashboard_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
-
+        
         def load_full_dashboard():
             # 1. Carga datos globales (sin filtros) para ver todo el panorama
             reset_inactivity_timer()
@@ -998,6 +998,8 @@ def main(page: ft.Page):
                 render_dashboard_view()
         
         def render_dashboard_view():
+            status_res = auth_request("GET", "/api/teacher/status")
+            status_map = status_res.json() if status_res and status_res.status_code == 200 else {}
             dashboard_col.controls.clear()
             
             # Validar que tengamos listas base
@@ -1037,8 +1039,15 @@ def main(page: ft.Page):
 
             for stu in state["students"]:
                 # Lista de tareas para este estudiante específico
+                current_color_name = status_map.get(stu, "green")
                 task_items = []
                 completed_count = 0
+                color_hex = {
+                    "green": COLORES["exito"],
+                    "yellow": COLORES["advertencia"],
+                    "red": COLORES["error"],
+                    "purple": "#9C27B0" # Disengaged
+                }.get(current_color_name, COLORES["exito"])
                 
                 for ex in safe_exercises:
                     filename = ex["filename"]
@@ -1066,7 +1075,8 @@ def main(page: ft.Page):
                             ft.Icon(ft.Icons.ACCOUNT_CIRCLE, color=COLORES["primario"], size=40),
                             ft.Column([
                                 ft.Text(stu.split("@")[0], weight="bold", color=COLORES["primario"], size=14, no_wrap=True),
-                                ft.Text(f"{completed_count}/{len(safe_exercises)} Tareas", size=10, color=COLORES["subtitulo"])
+                                ft.Text(f"{completed_count}/{len(safe_exercises)} Tareas", size=10, color=COLORES["subtitulo"]),
+                                ft.Icon(ft.Icons.ACCOUNT_CIRCLE, color=color_hex, size=40),
                             ], spacing=0, expand=True)
                         ], alignment=ft.MainAxisAlignment.START),
                         
@@ -1079,14 +1089,15 @@ def main(page: ft.Page):
                     bgcolor=COLORES["accento"],
                     padding=15,
                     border_radius=15,
-                    border=ft.border.all(1, COLORES["borde"] if completed_count < len(safe_exercises) else COLORES["exito"]),
-                    shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"])
+                    #border=ft.border.all(1, COLORES["borde"] if completed_count < len(safe_exercises) else COLORES["exito"]),
+                    shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"]),
+                    border=ft.border.all(2, color_hex)
                 )
                 grid.controls.append(card)
-
+                
             dashboard_col.controls.append(grid)
             page.update()
-
+            
         tab_dashboard = ft.Container(
             content=ft.Column([
                 ft.Row([
@@ -1099,7 +1110,96 @@ def main(page: ft.Page):
             ], expand=True),
             padding=20
         )
+        # --- ADD IN dashboard_profesor.py inside main() ---
 
+        # 1. Define Grading Tab Layout
+        grading_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+
+        def load_pending_grades():
+            res = auth_request("GET", "/api/teacher/grades/pending")
+            if res and res.status_code == 200:
+                render_grading_view(res.json())
+        
+        def submit_grade(item_id, score, comment, action, dialog):
+            res = auth_request("POST", "/api/teacher/grades/submit", json={
+                "id": item_id,
+                "score": score,
+                "comment": comment,
+                "action": action
+            })
+            if res and res.status_code == 200:
+                flash("Evaluación guardada", ok=True)
+                dialog.open = False
+                page.update()
+                load_pending_grades()
+            else:
+                flash("Error al guardar", ok=False)
+        
+        def open_grade_dialog(item):
+            # Controls for editing
+            score_field = ft.TextField(label="Calificación (0-10)", value=str(item['llm_score']), width=100)
+            comment_field = ft.TextField(label="Comentario", value=item['llm_comment'], multiline=True)
+            
+            def on_approve(e):
+                submit_grade(item['id'], item['llm_score'], item['llm_comment'], "approve", dlg)
+                
+            def on_edit_save(e):
+                submit_grade(item['id'], score_field.value, comment_field.value, "edit", dlg)
+        
+            dlg = ft.AlertDialog(
+                title=ft.Text(f"Evaluar: {item['correo']}"),
+                content=ft.Column([
+                    ft.Text(f"Práctica: {item['practica']} | Ej: {item['problema_id']}", size=12),
+                    ft.Text("Respuesta del Estudiante:", weight="bold"),
+                    ft.Container(content=ft.Text(item['respuesta']), bgcolor=COLORES["fondo"], padding=10),
+                    ft.Divider(),
+                    ft.Text("Sugerencia IA:", color=COLORES["primario"]),
+                    score_field,
+                    comment_field
+                ], tight=True, width=500),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, 'open', False) or page.update()),
+                    ft.ElevatedButton("Aprobar IA", on_click=on_approve, bgcolor=COLORES["exito"], color="white"),
+                    ft.ElevatedButton("Guardar Cambios", on_click=on_edit_save, bgcolor=COLORES["boton"], color="white"),
+                ]
+            )
+            page.overlay.append(dlg)
+            dlg.open = True
+            page.update()
+
+        def render_grading_view(items):
+            grading_col.controls.clear()
+            if not items:
+                grading_col.controls.append(ft.Text("No hay evaluaciones pendientes 🎉", size=20))
+                page.update()
+                return
+
+            for item in items:
+                card = ft.Container(
+                    content=ft.Row([
+                        ft.Column([
+                            ft.Text(item['correo'], weight="bold"),
+                            ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["subtitulo"])
+                        ], expand=True),
+                        ft.Column([
+                            ft.Text(f"Nota IA: {item['llm_score']}", color=COLORES["primario"], weight="bold"),
+                            ft.Text("Pendiente", size=10, italic=True)
+                        ]),
+                        ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i))
+                    ]),
+                    bgcolor=COLORES["accento"], padding=10, border_radius=5, margin=5
+                )
+                grading_col.controls.append(card)
+            page.update()
+
+        tab_grading = ft.Container(
+            content=ft.Column([
+                ft.Row([ft.Text("Evaluaciones Pendientes", size=20, weight="bold"), 
+                        ft.IconButton(ft.Icons.REFRESH, on_click=lambda e: load_pending_grades())]),
+                grading_col
+            ], expand=True),
+            padding=20
+        )
         # Tabs Principales
         tabs = ft.Tabs(
             selected_index=0,
@@ -1107,11 +1207,13 @@ def main(page: ft.Page):
             on_change=lambda e: (
                 reset_inactivity_timer(),
                 load_exercises() if e.control.selected_index == 1 else None,
-                load_full_dashboard() if e.control.selected_index == 3 else None
+                load_pending_grades() if e.control.selected_index == 2 else None,
+                load_full_dashboard() if e.control.selected_index == 4 else None
             ),
             tabs=[
                 ft.Tab(text="Mis Estudiantes", icon=ft.Icons.GROUPS, content=tab_students),
                 ft.Tab(text="Mis Tareas", icon=ft.Icons.ASSIGNMENT, content=tab_exercises),
+                ft.Tab(text="Evaluaciones", icon=ft.Icons.grade, content=tab_grading),
                 ft.Tab(text="Monitoreo", icon=ft.Icons.INSIGHTS, content=tab_monitor),
                 ft.Tab(text="Dashboard", icon=ft.Icons.DASHBOARD, content=tab_dashboard)
             ], expand=True
