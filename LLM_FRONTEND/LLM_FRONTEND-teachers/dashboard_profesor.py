@@ -812,7 +812,7 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             text_size=12,
             content_padding=10,
-            height=40,
+            width=400
         )
         exercise_filter = ft.Dropdown(
             label="Filtrar Tarea",
@@ -823,7 +823,7 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             text_size=12,
             content_padding=10,
-            height=40,
+            width=400,
             on_change=lambda e: update_problem_options()
         )
         
@@ -836,7 +836,7 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             text_size=12,
             content_padding=10,
-            height=40,
+            width=400,
             disabled=True
         )
         
