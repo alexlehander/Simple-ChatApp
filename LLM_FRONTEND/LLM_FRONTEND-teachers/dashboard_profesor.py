@@ -1,6 +1,8 @@
 import flet as ft
 import requests, time, threading, os, json
 
+BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+
 def encontrar_raiz_proyecto(marcador="assets"):
     ruta_actual = os.path.dirname(os.path.abspath(__file__))
     while True:
@@ -11,7 +13,7 @@ def encontrar_raiz_proyecto(marcador="assets"):
             raise FileNotFoundError(f"No se encontró la carpeta raíz conteniendo '{marcador}'")
         ruta_actual = ruta_padre
 try:
-    ROOT_DIR = encontrar_raiz_proyecto("assets") 
+    ROOT_DIR = encontrar_raiz_proyecto("assets")
     ASSETS_PATH = os.path.join(ROOT_DIR, "assets")
     EXERCISES_PATH = os.path.join(ROOT_DIR, "exercises")
     print(f"✅ Raíz del proyecto encontrada en: {ROOT_DIR}")
@@ -21,56 +23,61 @@ except Exception as e:
     ASSETS_PATH = "assets"
     EXERCISES_PATH = "exercises"
 
-# Paleta CLARA
+# Light Theme
 LIGHT_COLORS = {
-    "fondo": "#F5F7FA",
-    "accento": "#E8F1FA",
-    "texto": "#1E2A38",
-    "subtitulo": "#4E5D6C",
-    "primario": "#1A4E8A",
-    "secundario": "#5BA3D0",
-    "boton": "#1A4E8A",
-    "borde": "#C8D6E5",
-    "exito": "#2E8B57",
-    "error": "#D64541",
+    "fondo":       "#F5F7FA",
+    "accento":     "#E8F1FA",
+    "texto":       "#1E2A38",
+    "subtitulo":   "#4E5D6C",
+    "primario":    "#1A4E8A",
+    "secundario":  "#5BA3D0",
+    "boton":       "#1A4E8A",
+    "borde":       "#C8D6E5",
+    "exito":       "#2E8B57",
+    "error":       "#D64541",
     "advertencia": "#E0A800",
 }
 
-# Paleta OSCURA
+# Dark Theme
 DARK_COLORS = {
-    "fondo":     "#0B0F14",
-    "accento":   "#161A20",
-    "texto":     "#E6E9EF",
-    "subtitulo": "#AAB3C0",
-    "primario":  "#8FB7FF",
-    "secundario":"#5B96F7",
-    "boton":     "#1F3B86",
-    "borde":     "#2B323A",
-    "exito":     "#2ECC95",
-    "error":     "#F2797B",
-    "advertencia":"#F6A721",
+    "fondo":       "#0B0F14",
+    "accento":     "#161A20",
+    "texto":       "#E6E9EF",
+    "subtitulo":   "#AAB3C0",
+    "primario":    "#8FB7FF",
+    "secundario":  "#5B96F7",
+    "boton":       "#1F3B86",
+    "borde":       "#2B323A",
+    "exito":       "#2ECC95",
+    "error":       "#F2797B",
+    "advertencia": "#F6A721",
 }
 
-BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
-BACKEND_URL_CHAT        = f"{BASE}/chat"
-BACKEND_URL_VERIFICAR   = f"{BASE}/verificar_respuesta"
-
-# ---- Persistence helpers ----
+# Persistent Helpers
 STATE_KEYS = {
-    "screen": "ui_screen",
-    "code": "correo_identificacion",
+    "screen":          "ui_screen",
+    "code":            "correo_identificacion",
     "current_problem": "current_problem_id",
-    "answers": "answers_map",
-    "chat": "chat_map",
-    "timer_start": "timer_start_epoch",
-    "pending_queue": "pending_queue_list",
+    "answers":         "answers_map",
+    "chat":            "chat_map",
+    "timer_start":     "timer_start_epoch",
+    "pending_queue":   "pending_queue_list",
 }
 
 def main(page: ft.Page):
     
+    state = {
+        "token": page.client_storage.get("teacher_token"),
+        "last_activity": time.time(),
+        "students": [],
+        "dashboard_data": {},
+        "my_exercises": [],
+        "all_exercises": [],
+    }
+    
     def on_disconnect(e):
         page.is_alive = False
-        print("Cliente desconectado. Deteniendo hilos.")
+        print("Cliente desconectado, deteniendo hilos")
     
     def save_k(page, k, v):
         page.client_storage.set(k, v)
@@ -90,20 +97,11 @@ def main(page: ft.Page):
     COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
     page.theme_mode = ft.ThemeMode.DARK if theme_name == "dark" else ft.ThemeMode.LIGHT
     page.bgcolor = COLORES["fondo"]
-    
-    state = {
-        "token": page.client_storage.get("teacher_token"),
-        "last_activity": time.time(),
-        "students": [],
-        "dashboard_data": {},
-        "my_exercises": [],
-        "all_exercises": []
-    }
-    
     stored_activity = page.client_storage.get("last_activity")
+    
     if stored_activity:
         state["last_activity"] = stored_activity
-
+        
     save_snack = ft.SnackBar(
         content=ft.Text("Placeholder"),
         bgcolor=COLORES["exito"],
@@ -115,7 +113,7 @@ def main(page: ft.Page):
     )
     
     page.overlay.append(save_snack)
-            
+    
     def _apply_theme():
         target_colors = DARK_COLORS if theme_name == "dark" else LIGHT_COLORS
         COLORES.clear()
@@ -129,6 +127,7 @@ def main(page: ft.Page):
         theme_name = "light" if theme_name == "dark" else "dark"
         save_k(page, "theme", theme_name)
         _apply_theme()
+        
         if state["token"]:
             show_dashboard()
         else:
@@ -137,11 +136,11 @@ def main(page: ft.Page):
     def flash(msg: str, ok: bool = False, ms: int = 1000):
         save_snack.content = ft.Container(
             content=ft.Text(
-                msg, 
+                msg,
                 color=COLORES["accento"],
                 size=18, 
-                weight="bold", 
-                text_align=ft.TextAlign.CENTER
+                weight="bold",
+                text_align=ft.TextAlign.CENTER,
             ),
             alignment=ft.alignment.center
         )
@@ -151,18 +150,17 @@ def main(page: ft.Page):
         page.update()
         
     def check_session():
-        # Leemos de MEMORIA (state) en lugar de consultar al navegador
         last_act = state.get("last_activity", 0)
         now = time.time()
         
-        if state["token"] and (now - last_act > 3600): 
+        if state["token"] and (now - last_act > 3600):
             print("Sesión expirada (Check Session)")
             state["token"] = None
             page.client_storage.remove("teacher_token")
             show_login()
         else:
             reset_inactivity_timer()
-    
+            
     def auth_request(method, endpoint, **kwargs):
         check_session()
         if not state["token"]: return None
@@ -178,7 +176,7 @@ def main(page: ft.Page):
         except Exception as e:
             print(f"Error request: {e}")
             return None
-
+            
     def reset_inactivity_timer():
         now = time.time()
         state["last_activity"] = now
@@ -199,7 +197,6 @@ def main(page: ft.Page):
                         page.go("/logout_forced")
                     except Exception as e:
                         print(f"Logout background error: {e}")
-                    
     threading.Thread(target=inactivity_checker, daemon=True).start()
 
     def route_change(e):
@@ -208,13 +205,12 @@ def main(page: ft.Page):
             state["token"] = None
             flash("Tu sesión ha expirado por inactividad.", ok=False)
             show_login()
-            page.route = "/" 
-
-    page.on_route_change = route_change    
+            page.route = "/"
+    page.on_route_change = route_change
     
     def show_login():
         page.clean()
-
+        
         # --- 1. Lógica y Controles ---
         email_field = ft.TextField(
             label="Correo Docente", 
@@ -840,16 +836,16 @@ def main(page: ft.Page):
         def update_problem_options():
             selected_task = exercise_filter.value
             if not selected_task or selected_task == "Todas las tareas":
-                problem_filter.options = [ft.dropdown.Option("Todos")]
-                problem_filter.value = "Todos"
+                problem_filter.options = [ft.dropdown.Option("Todos los ejercicios")]
+                problem_filter.value = "Todos los ejercicios"
                 problem_filter.disabled = True
             else:
                 target = next((x for x in state["my_exercises"] if isinstance(x, dict) and x["filename"] == selected_task), None)
                 if target:
                     num = target.get("num_problems", 1)
-                    problem_filter.options = [ft.dropdown.Option("Todos")] + [ft.dropdown.Option(str(i)) for i in range(1, num + 1)]
+                    problem_filter.options = [ft.dropdown.Option("Todos los ejercicios")] + [ft.dropdown.Option(str(i)) for i in range(1, num + 1)]
                     problem_filter.disabled = False
-                    problem_filter.value = "Todos"
+                    problem_filter.value = "Todos los ejercicios"
                 else:
                     problem_filter.disabled = True
             
@@ -941,10 +937,10 @@ def main(page: ft.Page):
             student_email = student_filter.value
             task_filename = exercise_filter.value
 
-            if not student_email or student_email == "Todos los Estudiantes":
+            if not student_email or student_email == "Todos los estudiantes":
                 flash("Debes seleccionar un estudiante específico para enviar un mensaje.", ok=False)
                 return
-            if not task_filename or task_filename == "Todas las Tareas":
+            if not task_filename or task_filename == "Todas las tareas":
                 flash("Debes seleccionar una tarea específica para enviar un mensaje.", ok=False)
                 return
 
