@@ -1,5 +1,6 @@
 import flet as ft
 import requests, time, threading, os, json
+import socketio
 
 BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 
@@ -101,7 +102,7 @@ def main(page: ft.Page):
     
     if stored_activity:
         state["last_activity"] = stored_activity
-        
+    
     save_snack = ft.SnackBar(
         content=ft.Text("Placeholder"),
         bgcolor=COLORES["exito"],
@@ -113,7 +114,57 @@ def main(page: ft.Page):
     )
     
     page.overlay.append(save_snack)
+    sio = socketio.Client()
+    is_session_active = False
+    student_cards_state = {}
+    dashboard_grid = ft.GridView(expand=True, runs_count=5, max_extent=250, child_aspect_ratio=1.0, spacing=10, run_spacing=10)
+    session_status_text = ft.Text("Sesión Inactiva", color=COLORES["subtitulo"])
     
+    @sio.event
+    def connect():
+        print("✅ Conectado al servidor de tiempo real")
+    
+    @sio.event
+    def disconnect():
+        print("❌ Desconectado del servidor de tiempo real")
+    
+    @sio.event
+    def student_activity(data):
+        """Handles real-time updates from backend servers."""
+        if not is_session_active: return
+    
+        email = data.get('student_email')
+        status_color = data.get('status', 'green')
+        print(f"⚡ Actividad recibida: {email} - {status_color}")
+    
+        # Update the specific student card visually
+        if email in student_cards_state:
+            card_data = student_cards_state[email]
+            card_control = card_data['control']
+            
+            # Update the border color and icon based on status
+            new_color = {
+                "green": COLORES["exito"], 
+                "yellow": COLORES["advertencia"], 
+                "red": COLORES["error"]
+            }.get(status_color, COLORES["borde"])
+            
+            icon_data = {
+                "green": (ft.Icons.CHECK_CIRCLE, COLORES["exito"]),
+                "yellow": (ft.Icons.WARNING, COLORES["advertencia"]),
+                "red": (ft.Icons.ERROR, COLORES["error"])
+            }.get(status_color, (ft.Icons.CIRCLE, COLORES["borde"]))
+    
+            # Update Card UI elements
+            card_control.border = ft.border.all(3, new_color)
+            status_icon_control = card_control.content.controls[0].controls[1].controls[0] # Accessing the icon in the layout tree
+            status_icon_control.name = icon_data[0]
+            status_icon_control.color = icon_data[1]
+            
+            # Save latest data for detailed view click
+            card_data['latest_data'] = data
+            card_control.update()
+            
     def _apply_theme():
         target_colors = DARK_COLORS if theme_name == "dark" else LIGHT_COLORS
         COLORES.clear()
@@ -1096,132 +1147,242 @@ def main(page: ft.Page):
         )
         
         # =========================================
-        # PESTAÑA 4: Dashboard (Borrador)
+        # PESTAÑA 4: Dashboard (Tiempo Real)
         # =========================================
-        dashboard_col = ft.Column(expand=True)
         
-        def load_full_dashboard():
-            # 1. Carga datos globales (sin filtros) para ver todo el panorama
-            reset_inactivity_timer()
-            res = auth_request("GET", "/api/teacher/dashboard-data") # Sin params trae todo
-            if res and res.status_code == 200:
-                state["dashboard_data"] = res.json()
-                render_dashboard_view()
+        # --- 2.3 DIALOGO DE DETALLES (Pop-up) ---
+        detail_dlg_title = ft.Text(weight="bold", size=20)
+        detail_dlg_content = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=10)
         
-        def render_dashboard_view():
-            status_res = auth_request("GET", "/api/teacher/status")
-            status_map = status_res.json() if status_res and status_res.status_code == 200 else {}
-            dashboard_col.controls.clear()
-            
-            # Validar que tengamos listas base
-            if not state["students"]:
-                dashboard_col.controls.append(ft.Text("No hay estudiantes registrados.", color=COLORES["subtitulo"]))
-                page.update(); return
+        detail_dlg = ft.AlertDialog(
+            title=detail_dlg_title,
+            content=ft.Container(content=detail_dlg_content, width=500, height=400, padding=10),
+            actions=[ft.TextButton("Cerrar", on_click=lambda e: close_detail_dlg())],
+            on_dismiss=lambda e: close_detail_dlg()
+        )
 
-            # 1. Procesar quién ha hecho qué (Crear un set de pares únicos: "email+tarea")
-            # Esto cumple tu requerimiento: "por lo minimo haya un registro en la BD"
-            actividad_registrada = set()
-            data = state.get("dashboard_data", {})
-            
-            # Revisar respuestas
-            for r in data.get("respuestas", []):
-                actividad_registrada.add((r["correo"], r["practica"]))
-            # Revisar chats (opcional, si contar chat cuenta como intento)
-            for c in data.get("chats", []):
-                actividad_registrada.add((c["correo"], c["practica"]))
-            
-            # 2. Construir Grid de Estudiantes ("Figuritas")
-            grid = ft.GridView(
-                expand=True,
-                runs_count=5,          # Cuantas columnas quieres (ajusta según necesites)
-                max_extent=250,        # Ancho máximo de la tarjeta
-                child_aspect_ratio=0.8, # Relación aspecto (más alto que ancho)
-                spacing=15,
-                run_spacing=15,
-            )
+        def close_detail_dlg():
+            detail_dlg.open = False
+            page.update()
 
-            # Normalizar lista de ejercicios (por si el backend manda strings o dicts)
-            safe_exercises = []
-            for item in state["my_exercises"]:
-                if isinstance(item, str):
-                    safe_exercises.append({"filename": item, "title": item})
-                else:
-                    safe_exercises.append(item)
+        def show_student_detail(email):
+            # Verificar si tenemos datos en memoria para este estudiante
+            if email not in student_cards_state or 'latest_data' not in student_cards_state[email]:
+                # Si no hay datos en tiempo real, mostrar mensaje genérico
+                detail_dlg_title.value = f"Estudiante: {email.split('@')[0]}"
+                detail_dlg_content.controls.clear()
+                detail_dlg_content.controls.append(ft.Text("No hay actividad reciente registrada en esta sesión en vivo.", italic=True))
+                detail_dlg.open = True
+                page.update()
+                return
 
-            for stu in state["students"]:
-                # Lista de tareas para este estudiante específico
-                current_color_name = status_map.get(stu, "green")
-                task_items = []
-                completed_count = 0
-                color_hex = {
-                    "green": COLORES["exito"],
-                    "yellow": COLORES["advertencia"],
-                    "red": COLORES["error"],
-                    "purple": "#9C27B0" # Disengaged
-                }.get(current_color_name, COLORES["exito"])
+            data = student_cards_state[email]['latest_data']
+            detail_dlg_title.value = f"Análisis: {email.split('@')[0]}"
+            detail_dlg_content.controls.clear()
+
+            if data['type'] == 'chat':
+                # Estructura visual para CHAT (Semáforo)
+                status_map = {"green": "Productivo", "yellow": "Atascado/Distraído", "red": "Crítico/Inapropiado"}
+                status_text = status_map.get(data.get('status'), "Desconocido")
+                status_color = {"green": COLORES["exito"], "yellow": COLORES["advertencia"], "red": COLORES["error"]}.get(data.get('status'), COLORES["texto"])
+
+                detail_dlg_content.controls.extend([
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text("Estado Detectado:", size=12, color=COLORES["subtitulo"]),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.FIBER_MANUAL_RECORD, color=status_color),
+                                    ft.Text(status_text, size=18, weight="bold", color=status_color)
+                                ])
+                            ]),
+                            bgcolor=COLORES["accento"], padding=10, border_radius=10
+                        ),
+                        ft.Divider(),
+                        ft.Text("Último Mensaje del Estudiante:", weight="bold"),
+                        ft.Container(
+                            content=ft.Text(f"\"{data.get('last_message', 'N/A')}\"", italic=True, size=14),
+                            bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                        ),
+                        ft.Divider(),
+                        ft.Row([
+                            ft.Text("Intención IA:", weight="bold"),
+                            ft.Container(
+                                content=ft.Text(data.get('intent', 'N/A'), color="white", size=12),
+                                bgcolor=COLORES["primario"], padding=5, border_radius=5
+                            )
+                        ]),
+                        ft.Text(f"Hora: {data.get('timestamp', '').replace('T', ' ')[:16]}", size=10, color=COLORES["subtitulo"])
+                ])
+            
+            elif data['type'] == 'answer':
+                    # Estructura visual para RESPUESTA (Grading)
+                    detail_dlg_content.controls.extend([
+                        ft.Container(
+                            content=ft.Row([
+                                ft.Icon(ft.Icons.ASSIGNMENT_TURNED_IN, color=COLORES["primario"]),
+                                ft.Text("Nueva Tarea Entregada", weight="bold", size=16)
+                            ]),
+                            bgcolor=COLORES["accento"], padding=10, border_radius=10
+                        ),
+                        ft.Text(f"Práctica: {data.get('practice')} - Ejercicio {data.get('problem_id')}", size=14),
+                        ft.Divider(),
+                        ft.Text(f"Calificación Preliminar IA: {data.get('score', 0)}/10", size=24, weight="bold", color=COLORES["primario"]),
+                        ft.Container(
+                            content=ft.Text("⚠️ Esta nota es preliminar. Ve a la pestaña 'Evaluaciones' para confirmarla o editarla.", color=COLORES["texto"]),
+                            bgcolor=COLORES["advertencia"], padding=10, border_radius=5
+                        )
+                    ])
+
+            detail_dlg.open = True
+            page.update()
+
+        # --- 2.4 LÓGICA DEL DASHBOARD (Botón Inicio + Grid) ---
+        
+        # Botón para iniciar/parar socket
+        start_session_btn = ft.ElevatedButton(
+            "Iniciar Sesión en Vivo", 
+            icon=ft.Icons.PLAY_ARROW,
+            bgcolor=COLORES["exito"],
+            color="white",
+            height=40,
+            on_click=lambda e: toggle_session(e)
+        )
+
+        def toggle_session(e):
+            nonlocal is_session_active
+            # Cambiar estado
+            is_session_active = not is_session_active
+            
+            if is_session_active:
+                # ACTIVAR
+                start_session_btn.text = "Detener Sesión"
+                start_session_btn.icon = ft.Icons.STOP
+                start_session_btn.bgcolor = COLORES["error"]
+                session_status_text.value = "🔴 EN VIVO: Recibiendo alertas..."
+                session_status_text.color = COLORES["error"]
                 
-                for ex in safe_exercises:
-                    filename = ex["filename"]
-                    title = ex.get("title", filename)
+                # Conectar SocketIO
+                try:
+                    if not sio.connected:
+                        sio.connect(BASE) # Usa la URL base (Railway o Localhost)
+                except Exception as err:
+                        print(f"Socket Error: {err}")
+                        flash(f"Error conectando: {err}", ok=False)
+                        # Revertir si falla
+                        is_session_active = False
+                        toggle_session(None) 
+                        return
+            else:
+                # DESACTIVAR
+                start_session_btn.text = "Iniciar Sesión en Vivo"
+                start_session_btn.icon = ft.Icons.PLAY_ARROW
+                start_session_btn.bgcolor = COLORES["exito"]
+                session_status_text.value = "Sesión Inactiva"
+                session_status_text.color = COLORES["subtitulo"]
+                if sio.connected:
+                    sio.disconnect()
                     
-                    # ¿Existe el par (estudiante, tarea) en los registros?
-                    tiene_registro = (stu, filename) in actividad_registrada
-                    if tiene_registro: completed_count += 1
-                    
-                    # Icono visual del estado
-                    icon = ft.Icons.CHECK_CIRCLE if tiene_registro else ft.Icons.CIRCLE_OUTLINED
-                    color = COLORES["exito"] if tiene_registro else COLORES["borde"]
-                    
-                    task_items.append(
-                        ft.Row([
-                            ft.Icon(icon, size=14, color=color),
-                            ft.Text(title, size=12, color=COLORES["texto"], expand=True, no_wrap=True, overflow=ft.TextOverflow.ELLIPSIS)
-                        ], spacing=5)
-                    )
+            page.update()
 
-                # Tarjeta (Figurita) del Estudiante
-                card = ft.Container(
-                    content=ft.Column([
+        def load_full_dashboard():
+            # Carga datos históricos iniciales
+            reset_inactivity_timer()
+            # Obtenemos lista de estudiantes para pintar las tarjetas iniciales
+            render_dashboard_view(state["students"])
+
+        def render_dashboard_view(student_list):
+            dashboard_grid.controls.clear()
+            student_cards_state.clear() # Limpiar estado anterior
+
+            if not student_list:
+                dashboard_grid.controls.append(ft.Text("No hay estudiantes registrados", size=16))
+                page.update()
+                return
+
+            # Calcular totales para barra de progreso (usando ejercicios cargados)
+            safe_exercises = [x for x in state["my_exercises"] if isinstance(x, dict)]
+            total_tasks = len(safe_exercises)
+            
+            # --- CONSTRUIR TARJETAS ---
+            for stu in student_list:
+                # Estado inicial visual
+                initial_color = COLORES["borde"]
+                initial_icon = ft.Icons.CIRCLE_OUTLINED
+                
+                # Calcular progreso (simulado o real si tienes datos históricos)
+                # Por ahora iniciamos en 0% o lo que tengas en DB
+                progress_pct = 0 
+                
+                # Tarjeta Interactiva
+                card_content = ft.Column([
                         ft.Row([
-                            ft.Icon(ft.Icons.ACCOUNT_CIRCLE, color=COLORES["primario"], size=40),
                             ft.Column([
-                                ft.Text(stu.split("@")[0], weight="bold", color=COLORES["primario"], size=14, no_wrap=True),
-                                ft.Text(f"{completed_count}/{len(safe_exercises)} Tareas", size=10, color=COLORES["subtitulo"]),
-                                ft.Icon(ft.Icons.ACCOUNT_CIRCLE, color=color_hex, size=40),
-                            ], spacing=0, expand=True)
-                        ], alignment=ft.MainAxisAlignment.START),
+                                ft.Text(stu.split("@")[0], weight="bold", size=16, no_wrap=True, color=COLORES["texto"]),
+                                ft.Text(stu, size=10, color=COLORES["subtitulo"], no_wrap=True),
+                            ], expand=True),
+                            # Icono de Estado (Cambiará con SocketIO)
+                            ft.Icon(initial_icon, color=initial_color, size=24),
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         
                         ft.Divider(height=10, color="transparent"),
-                        ft.Container(
-                            content=ft.Column(task_items, spacing=5, scroll=ft.ScrollMode.AUTO),
-                            expand=True, # Para que la lista ocupe el espacio restante de la tarjeta
+                        
+                        # Barra de progreso
+                        ft.ProgressBar(value=progress_pct, color=COLORES["primario"], bgcolor=COLORES["borde"], height=6, border_radius=3),
+                        ft.Text(f"Esperando actividad...", size=10, italic=True, color=COLORES["subtitulo"]),
+                        
+                        ft.Divider(height=5, color="transparent"),
+                        
+                        # Botón Ver Análisis
+                        ft.ElevatedButton(
+                            "Ver Análisis", 
+                            icon=ft.Icons.VISIBILITY, 
+                            height=30, 
+                            style=ft.ButtonStyle(
+                                padding=5, 
+                                shape=ft.RoundedRectangleBorder(radius=5),
+                                color=COLORES["primario"],
+                                bgcolor=COLORES["accento"]
+                            ),
+                            on_click=lambda e, email=stu: show_student_detail(email)
                         )
-                    ], spacing=5),
-                    bgcolor=COLORES["accento"],
+                    ])
+
+                card = ft.Container(
+                    content=card_content,
+                    bgcolor=COLORES["fondo"], # Fondo de tarjeta
                     padding=15,
                     border_radius=15,
-                    #border=ft.border.all(1, COLORES["borde"] if completed_count < len(safe_exercises) else COLORES["exito"]),
-                    shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"]),
-                    border=ft.border.all(2, color_hex)
+                    shadow=ft.BoxShadow(blur_radius=10, color=COLORES["accento"]),
+                    border=ft.border.all(2, initial_color), # El borde cambiará de color
+                    data=stu 
                 )
-                grid.controls.append(card)
                 
-            dashboard_col.controls.append(grid)
+                # GUARDAR REFERENCIA PARA ACTUALIZAR DESPUÉS
+                student_cards_state[stu] = {'control': card}
+                dashboard_grid.controls.append(card)
+                
             page.update()
-            
+
         tab_dashboard = ft.Container(
             content=ft.Column([
                 ft.Row([
-                    ft.Text("Dashboard de Progreso", size=20, weight="bold", color=COLORES["texto"]),
-                    ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], tooltip="Recargar datos", on_click=lambda e: load_full_dashboard())
+                    ft.Column([
+                        ft.Text("Dashboard en Tiempo Real", size=24, weight="bold", color=COLORES["primario"]),
+                        session_status_text # Variable global definida arriba
+                    ]),
+                    ft.Row([
+                        start_session_btn, 
+                        ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], tooltip="Reiniciar Vista", on_click=lambda e: load_full_dashboard())
+                    ])
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ft.Text("Vista rápida de participación por tarea", color=COLORES["subtitulo"]),
+                
                 ft.Divider(color=COLORES["borde"]),
-                dashboard_col
+                
+                # GRID DE ESTUDIANTES GLOBAL (definido al inicio del archivo)
+                dashboard_grid 
             ], expand=True),
             padding=20
         )
-        # --- ADD IN dashboard_profesor.py inside main() ---
 
         # 1. Define Grading Tab Layout
         grading_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
@@ -1366,6 +1527,10 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"])
         )
         
+        page.overlay.append(save_snack)
+        page.overlay.append(dialog_msg) # Your existing message dialog
+        page.overlay.append(detail_dlg)
+        
         page.add(
             ft.Column([
                 header,
@@ -1389,6 +1554,9 @@ def main(page: ft.Page):
             show_dashboard()
     else:
         show_login()
+    
+    page.overlay.append(detail_dlg)
+    page.add(app_container)
 
 if __name__ == "__main__":
     print(f"📂 RUTA ASSETS FINAL: {ASSETS_PATH}")

@@ -5,6 +5,7 @@ import datetime as dt
 from typing import List, Dict
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
+from flask_socketio import SocketIO, emit
 from sqlalchemy import text, inspect
 from flask_cors import CORS
 from pinecone import Pinecone
@@ -81,6 +82,7 @@ app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key-cha
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = dt.timedelta(hours=12)
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # ------------------------------------------------------------------------------------
 # Data Models
@@ -396,10 +398,20 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo):
             db.session.add(analysis)
             db.session.commit()
             print(f"🚦 Semaphore: {correo} -> {intent} ({color})")
-
+            
+            socketio.emit('student_activity', {
+                'type': 'chat',
+                'student_email': correo,
+                'status': color,  # green, yellow, red
+                'intent': intent,
+                'last_message': user_message,
+                'timestamp': dt.datetime.utcnow().isoformat(),
+                'analysis_id': analysis.id
+            })
+            
         except Exception as e:
             print(f"❌ Error in Semaphore Analysis: {e}")
-
+            
 # 2. Automated Grading Function
 def auto_grade_answer(respuesta_id, problem_text, student_answer):
     """
@@ -436,7 +448,19 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer):
                 resp_record.status = "pending" # Ready for teacher review
                 db.session.commit()
                 print(f"📝 Graded ID {respuesta_id}: {resp_record.llm_score}/10")
-
+                score = resp_record.llm_score or 0
+                color = "green" if score >= 7 else "yellow" if score >= 4 else "red"
+                socketio.emit('student_activity', {
+                    'type': 'answer',
+                    'student_email': resp_record.correo_identificacion,
+                    'status': color,
+                    'score': score,
+                    'practice': resp_record.practice_name,
+                    'problem_id': resp_record.problema_id,
+                    'timestamp': dt.datetime.utcnow().isoformat(),
+                    'answer_id': resp_record.id
+                })
+                
     except Exception as e:
         print(f"❌ Error in Auto-Grading: {e}")
 
@@ -801,4 +825,4 @@ def get_student_statuses():
 
 if __name__ == "__main__":
     # For local dev; in production, gunicorn runs this app
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")), debug=False)
+    socketio.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")), debug=False, allow_unsafe_werkzeug=True)
