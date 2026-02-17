@@ -854,11 +854,11 @@ def main(page: ft.Page):
             load_data_filtered()
             
         def update_dropdowns():
-            student_filter.options = [ft.dropdown.Option("Todos los Estudiantes")] + [ft.dropdown.Option(e) for e in state["students"]]
-            exercise_filter.options = [ft.dropdown.Option("Todas las Tareas")] + [
+            student_filter.options = [ft.dropdown.Option("Todos los estudiantes")] + [ft.dropdown.Option(e) for e in state["students"]]
+            exercise_filter.options = [ft.dropdown.Option("Todas las tareas")] + [
                 ft.dropdown.Option(key=e["filename"], text=e["title"]) for e in state["my_exercises"] if isinstance(e, dict)
             ]
-            problem_filter.value = "Todos"
+            problem_filter.value = "Todos los ejercicios"
             problem_filter.disabled = True
             page.update()
             
@@ -1032,8 +1032,8 @@ def main(page: ft.Page):
                 answers_col.controls.append(ft.Text("No hay respuestas registradas con estos filtros", italic=True, color=COLORES["subtitulo"]))
             if not chats_col.controls:
                 chats_col.controls.append(ft.Text("No hay historial de chat con estos filtros", italic=True, color=COLORES["subtitulo"]))
-                
-            page.update()
+            answers_col.update()
+            chats_col.update()
             
         # =========================================
         # NAVEGACIÓN Y CARGA INICIAL
