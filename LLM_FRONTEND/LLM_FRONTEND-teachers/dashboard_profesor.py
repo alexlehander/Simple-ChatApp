@@ -811,7 +811,9 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             text_size=12,
             content_padding=10,
+            on_change=lambda e: load_data_filtered(),
         )
+        
         exercise_filter = ft.Dropdown(
             label="Filtrar tarea",
             options=[ft.dropdown.Option("Todas las tareas")], 
@@ -831,6 +833,7 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             text_size=12,
             content_padding=10,
+            on_change=lambda e: load_data_filtered(),
             disabled=True,
         )
         
