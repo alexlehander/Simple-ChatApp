@@ -965,11 +965,11 @@ def main(page: ft.Page):
         def load_data_filtered(e=None):
             reset_inactivity_timer()
             params = {}
-            if student_filter.value != "Todos los Estudiantes":
+            if student_filter.value != "Todos los estudiantes":
                 params["student_email"] = student_filter.value
-            if exercise_filter.value != "Todas las Tareas":
+            if exercise_filter.value != "Todas las tareas":
                 params["practice_name"] = exercise_filter.value
-                if problem_filter.value != "Todos" and problem_filter.value is not None:
+                if problem_filter.value != "Todos los ejercicios" and problem_filter.value is not None:
                     pass
                     
             res = auth_request("GET", "/api/teacher/dashboard-data", params=params)
