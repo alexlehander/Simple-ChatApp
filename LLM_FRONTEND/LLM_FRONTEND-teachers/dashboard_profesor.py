@@ -836,7 +836,7 @@ def main(page: ft.Page):
         
         def update_problem_options():
             selected_task = exercise_filter.value
-            if not selected_task or selected_task == "Todas las Tareas":
+            if not selected_task or selected_task == "Todas las tareas":
                 problem_filter.options = [ft.dropdown.Option("Todos")]
                 problem_filter.value = "Todos"
                 problem_filter.disabled = True
@@ -981,10 +981,10 @@ def main(page: ft.Page):
             chats_col.controls.clear()
             raw_answers = data.get("respuestas", [])
             raw_chats = data.get("chats", [])
+            target_prob = problem_filter.value
             
             # --- FILTRO CLIENT-SIDE DE PROBLEMA ---
-            target_prob = problem_filter.value
-            if target_prob != "Todos" and target_prob is not None:
+            if target_prob and target_prob.isdigit():
                 pid = int(target_prob)
                 raw_answers = [r for r in raw_answers if r['problema_id'] == pid]
                 raw_chats = [c for c in raw_chats if c['problema_id'] == pid]
