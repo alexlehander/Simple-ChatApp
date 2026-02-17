@@ -1,5 +1,5 @@
 {
-  "title": "Unidad III: Algoritmos para Grafos",
+  "title": "AA 2025-2 U-III: Algoritmos para Grafos II",
   "description": "Listas de adyacencia y matrices de adyacencia; Búsqueda en anchura (Breadth-First Search); Búsqueda en profundidad (Depth-First Search); Orden topológico (Topological Sort); Componentes fuertemente conectados (Strongly Connected Components); Comparación de representaciones de grafos",
   "max_time": 1800,
   "problemas": [

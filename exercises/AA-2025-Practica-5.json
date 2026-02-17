@@ -1,5 +1,5 @@
 {
-  "title": "Unidad III: Algoritmos para Grafos",
+  "title": "AA 2025-2 U-III: Algoritmos para Grafos III",
   "description": "Minimum Spanning Trees (MST): condiciones, propiedades de seguridad y crecimiento; algoritmos de Kruskal y Prim; Single-Source Shortest Paths (SSSP): condiciones, relajación, propiedades, Bellman-Ford, Dijkstra, caminos mínimos en DAG y restricciones de diferencia.",
   "max_time": 1800,
   "problemas": [

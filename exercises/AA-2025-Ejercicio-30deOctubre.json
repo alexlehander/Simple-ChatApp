@@ -1,5 +1,5 @@
 {
-  "title": "Unidad III: Algoritmos para Grafos",
+  "title": "AA 2025-2 U-III: Algoritmos para Grafos I",
   "description": "Reflexión conceptual sobre los algoritmos de caminos mínimos entre todos los pares (All-Pairs Shortest Paths) y los algoritmos de flujo máximo en redes. Incluye los métodos de Floyd–Warshall, Johnson, Ford–Fulkerson y Edmonds–Karp, así como sus fundamentos teóricos, condiciones y aplicaciones prácticas.",
   "max_time": 1800,
   "problemas": [

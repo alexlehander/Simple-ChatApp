@@ -804,28 +804,68 @@ def main(page: ft.Page):
         chats_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
         
         student_filter = ft.Dropdown(
-            width=400, 
+            label="Filtrar Estudiante",
+            expand=True,
             options=[ft.dropdown.Option("Todos los Estudiantes")], 
             value="Todos los Estudiantes",
             border_color=COLORES["primario"],
-            color=COLORES["texto"]
+            color=COLORES["texto"],
+            text_size=12,
+            content_padding=10,
+            height=40,
         )
         exercise_filter = ft.Dropdown(
-            width=400, 
+            label="Filtrar Tarea",
+            expand=True, 
             options=[ft.dropdown.Option("Todas las Tareas")], 
             value="Todas las Tareas",
             border_color=COLORES["primario"],
-            color=COLORES["texto"]
+            color=COLORES["texto"],
+            text_size=12,
+            content_padding=10,
+            height=40,
+            on_change=lambda e: update_problem_options()
         )
         
-        def update_dropdowns():
-            # Actualiza el filtro de estudiantes
-            student_filter.options = [ft.dropdown.Option("Todos los Estudiantes")] + [ft.dropdown.Option(e) for e in state["students"]]
+        problem_filter = ft.Dropdown(
+            label="Ejercicio",
+            width=100,
+            options=[ft.dropdown.Option("Todos")],
+            value="Todos",
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            text_size=12,
+            content_padding=10,
+            height=40,
+            disabled=True
+        )
+        
+        def update_problem_options():
+            selected_task = exercise_filter.value
+            if not selected_task or selected_task == "Todas las Tareas":
+                problem_filter.options = [ft.dropdown.Option("Todos")]
+                problem_filter.value = "Todos"
+                problem_filter.disabled = True
+            else:
+                target = next((x for x in state["my_exercises"] if isinstance(x, dict) and x["filename"] == selected_task), None)
+                if target:
+                    num = target.get("num_problems", 1)
+                    problem_filter.options = [ft.dropdown.Option("Todos")] + [ft.dropdown.Option(str(i)) for i in range(1, num + 1)]
+                    problem_filter.disabled = False
+                    problem_filter.value = "Todos"
+                else:
+                    problem_filter.disabled = True
             
-            # Actualiza el filtro de tareas
+            problem_filter.update()
+            load_data_filtered()
+            
+        def update_dropdowns():
+            student_filter.options = [ft.dropdown.Option("Todos los Estudiantes")] + [ft.dropdown.Option(e) for e in state["students"]]
             exercise_filter.options = [ft.dropdown.Option("Todas las Tareas")] + [
-                ft.dropdown.Option(key=e["filename"], text=e["title"]) for e in state["my_exercises"]
+                ft.dropdown.Option(key=e["filename"], text=e["title"]) for e in state["my_exercises"] if isinstance(e, dict)
             ]
+            problem_filter.value = "Todos"
+            problem_filter.disabled = True
             page.update()
             
         # --- SECCIÓN MENSAJERÍA ---
@@ -837,6 +877,7 @@ def main(page: ft.Page):
             border_color=COLORES["primario"],
             color=COLORES["texto"]
         )
+        
         msg_text_field = ft.TextField(
             label="Escribe tu mensaje...", 
             multiline=True, 
@@ -857,9 +898,9 @@ def main(page: ft.Page):
             if not msg_problem_dropdown.value:
                  flash("Selecciona un número de problema", ok=False)
                  return
-            
+                 
             reset_inactivity_timer() 
-
+            
             res = auth_request("POST", "/api/teacher/send-message", json={
                 "student_email": student_filter.value,
                 "practice_name": exercise_filter.value,
@@ -930,23 +971,38 @@ def main(page: ft.Page):
         def load_data_filtered(e=None):
             reset_inactivity_timer()
             params = {}
-            if student_filter.value != "Todos los Estudiantes": params["student_email"] = student_filter.value
-            if exercise_filter.value != "Todas las Tareas": params["practice_name"] = exercise_filter.value
-            
+            if student_filter.value != "Todos los Estudiantes":
+                params["student_email"] = student_filter.value
+            if exercise_filter.value != "Todas las Tareas":
+                params["practice_name"] = exercise_filter.value
+                if problem_filter.value != "Todos" and problem_filter.value is not None:
+                    pass
+                    
             res = auth_request("GET", "/api/teacher/dashboard-data", params=params)
             if res and res.status_code == 200:
                 render_data(res.json())
                 
         def render_data(data):
-            answers_col.controls.clear(); chats_col.controls.clear()
+            answers_col.controls.clear()
+            chats_col.controls.clear()
+            raw_answers = data.get("respuestas", [])
+            raw_chats = data.get("chats", [])
             
-            for r in data.get("respuestas", []):
+            # --- FILTRO CLIENT-SIDE DE PROBLEMA ---
+            target_prob = problem_filter.value
+            if target_prob != "Todos" and target_prob is not None:
+                pid = int(target_prob)
+                raw_answers = [r for r in raw_answers if r['problema_id'] == pid]
+                raw_chats = [c for c in raw_chats if c['problema_id'] == pid]
+            
+            for r in reversed(raw_answers): 
                 answers_col.controls.append(ft.Container(content=ft.Column([
-                    ft.Text(f"{r['correo']} - P{r['problema_id']}", size=12, color=COLORES["primario"]),
-                    ft.Text(r['respuesta'], selectable=True, color=COLORES["texto"])
-                ]), bgcolor=COLORES["fondo"], padding=10, border_radius=5))
-
-            for c in data.get("chats", []):
+                    ft.Text(f"{r['correo']} - P{r['problema_id']}", size=12, color=COLORES["primario"], weight="bold"),
+                    ft.Text(r['respuesta'], selectable=True, color=COLORES["texto"], size=13),
+                    ft.Text(f"📅 {r['fecha'][:16].replace('T', ' ')}", size=10, color=COLORES["subtitulo"])
+                ]), bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])))
+                
+            for c in reversed(raw_chats):
                 role = c.get('role', 'user')
                 is_bot = role == 'assistant'
                 is_teacher = role == 'teacher'
@@ -954,40 +1010,105 @@ def main(page: ft.Page):
                 align = ft.CrossAxisAlignment.START if (is_bot or is_teacher) else ft.CrossAxisAlignment.END
                 
                 if is_teacher: 
-                    bg = COLORES["secundario"]
+                    bg = COLORES["primario"]
                     txt_color = COLORES["fondo"]
+                    label = f"PROFESOR ({c['correo']})"
                 elif is_bot: 
                     bg = COLORES["borde"]
                     txt_color = COLORES["texto"]
+                    label = "TUTOR IA"
                 else: 
-                    bg = COLORES["primario"]
+                    bg = COLORES["secundario"]
                     txt_color = COLORES["fondo"]
+                    label = f"{c['correo']}"
 
                 chats_col.controls.append(ft.Column([
-                    ft.Text(f"{role.upper()} - {c['correo']}", size=10, color=COLORES["subtitulo"]),
-                    ft.Container(content=ft.Text(c['content'], color=txt_color), bgcolor=bg, padding=10, border_radius=10)
+                    ft.Text(f"{label} - P{c['problema_id']}", size=10, color=COLORES["subtitulo"]),
+                    ft.Container(
+                        content=ft.Text(c['content'], color=txt_color, size=13), 
+                        bgcolor=bg, 
+                        padding=10, 
+                        border_radius=10,
+                        width=None, # Auto ancho
+                        constraints=ft.BoxConstraints(max_width=400) # Evitar burbujas gigantes
+                    )
                 ], horizontal_alignment=align))
+            
+            # Si no hay datos tras filtrar
+            if not answers_col.controls:
+                answers_col.controls.append(ft.Text("No hay respuestas registradas con estos filtros", italic=True, color=COLORES["subtitulo"]))
+            if not chats_col.controls:
+                chats_col.controls.append(ft.Text("No hay historial de chat con estos filtros", italic=True, color=COLORES["subtitulo"]))
+                
             page.update()
             
         # =========================================
         # NAVEGACIÓN Y CARGA INICIAL
         # =========================================
-        tab_monitor = ft.Column([
-            ft.Container(content=ft.Row([
-                ft.Row([student_filter, exercise_filter, ft.IconButton(ft.Icons.SEARCH, on_click=load_data_filtered, icon_color=COLORES["primario"])]),
-                ft.ElevatedButton("Enviar Mensaje Directo", icon=ft.Icons.SEND, bgcolor=COLORES["boton"], color=COLORES["fondo"], on_click=send_direct_message)
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), padding=10, bgcolor=COLORES["fondo"]),
-            
-            ft.Row([
-                ft.Container(content=ft.Column([ft.Text("Respuestas", color=COLORES["texto"]), answers_col], expand=True), expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10),
-                ft.Container(content=ft.Column([ft.Text("Chat", color=COLORES["texto"]), chats_col], expand=True), expand=1, bgcolor=COLORES["accento"], margin=ft.margin.only(left=10), padding=10, border_radius=10)
-            ], expand=True)
-        ], expand=True)
+        tab_monitor = ft.Container(
+            content=ft.Column([
+                # Fila Superior: Filtros
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("Filtros de Monitoreo", size=16, color=COLORES["primario"]),
+                        ft.Row([
+                            student_filter, 
+                            exercise_filter, 
+                            problem_filter,
+                            ft.IconButton(ft.Icons.SEARCH, icon_size=20, on_click=load_data_filtered, icon_color=COLORES["primario"], tooltip="Aplicar Filtros"),
+                            ft.IconButton(ft.Icons.SEND, icon_size=20, on_click=send_direct_message, icon_color=COLORES["boton"], tooltip="Mensaje Directo")
+                        ], spacing=10)
+                    ]),
+                    padding=10,
+                    bgcolor=COLORES["accento"],
+                    border_radius=10
+                ),
+                
+                ft.Divider(color="transparent", height=10),
+                
+                # Columnas divididas
+                ft.Row([
+                    # Columna izquierda: respuestas
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Text("Registro de Respuestas", size=16, color=COLORES["primario"]),
+                                ft.Icon(ft.Icons.QUESTION_ANSWER, size=20, color=COLORES["primario"])
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            ft.Divider(height=5, color="transparent"),
+                            answers_col
+                        ], expand=True),
+                        expand=1,
+                        bgcolor=COLORES["accento"],
+                        padding=10,
+                        border_radius=10,
+                        margin=ft.margin.only(right=5) # Margen entre columnas
+                    ),
+                    # Columna derecha: chat
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Text("Historial de Chat", size=16, color=COLORES["primario"]),
+                                ft.Icon(ft.Icons.CHAT, size=20, color=COLORES["primario"])
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            ft.Divider(height=5, color="transparent"),
+                            chats_col
+                        ], expand=True),
+                        expand=1, 
+                        bgcolor=COLORES["accento"], 
+                        padding=10, 
+                        border_radius=10,
+                        margin=ft.margin.only(left=5) # Margen entre columnas
+                    )
+                ], expand=True)
+            ], expand=True), 
+            padding=20
+        )
         
         # =========================================
         # PESTAÑA 4: Dashboard (Borrador)
         # =========================================
-        dashboard_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+        dashboard_col = ft.Column(expand=True)
         
         def load_full_dashboard():
             # 1. Carga datos globales (sin filtros) para ver todo el panorama
