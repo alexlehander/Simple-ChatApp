@@ -805,26 +805,22 @@ def main(page: ft.Page):
         
         student_filter = ft.Dropdown(
             label="Filtrar Estudiante",
-            expand=True,
             options=[ft.dropdown.Option("Todos los Estudiantes")], 
             value="Todos los Estudiantes",
             border_color=COLORES["primario"],
             color=COLORES["texto"],
             text_size=12,
             content_padding=10,
-            width=400
         )
         exercise_filter = ft.Dropdown(
             label="Filtrar Tarea",
-            expand=True, 
             options=[ft.dropdown.Option("Todas las Tareas")], 
             value="Todas las Tareas",
             border_color=COLORES["primario"],
             color=COLORES["texto"],
             text_size=12,
             content_padding=10,
-            width=400,
-            on_change=lambda e: update_problem_options()
+            on_change=lambda e: update_problem_options(),
         )
         
         problem_filter = ft.Dropdown(
@@ -836,8 +832,7 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             text_size=12,
             content_padding=10,
-            width=400,
-            disabled=True
+            disabled=True,
         )
         
         def update_problem_options():
