@@ -795,50 +795,6 @@ def get_student_statuses():
     
     status_map = {entry.correo_identificacion: entry.color_asignado for entry in latest_entries}
     return jsonify(status_map), 200
-    
-def check_and_update_schema():
-    """
-    Checks if new columns exist in railway_respuesta_usuario.
-    If not, it executes raw SQL to add them.
-    """
-    with app.app_context():
-        inspector = inspect(db.engine)
-        
-        # 1. Ensure tables exist first
-        db.create_all()
-        
-        # 2. Check columns in 'railway_respuesta_usuario'
-        if "railway_respuesta_usuario" in inspector.get_table_names():
-            columns = [col["name"] for col in inspector.get_columns("railway_respuesta_usuario")]
-            
-            # Define the specific changes needed
-            alter_commands = []
-            
-            if "llm_score" not in columns:
-                alter_commands.append("ADD COLUMN llm_score FLOAT")
-            if "llm_comment" not in columns:
-                alter_commands.append("ADD COLUMN llm_comment TEXT")
-            if "teacher_score" not in columns:
-                alter_commands.append("ADD COLUMN teacher_score FLOAT")
-            if "teacher_comment" not in columns:
-                alter_commands.append("ADD COLUMN teacher_comment TEXT")
-            if "status" not in columns:
-                alter_commands.append("ADD COLUMN status VARCHAR(20) DEFAULT 'pending'")
-            
-            # Execute changes if needed
-            if alter_commands:
-                print(f"🔄 Actualizando esquema de Base de Datos ({len(alter_commands)} cambios detected)...")
-                try:
-                    # MySQL syntax: ALTER TABLE table_name ADD COLUMN ..., ADD COLUMN ...;
-                    full_query = f"ALTER TABLE railway_respuesta_usuario {', '.join(alter_commands)};"
-                    with db.engine.connect() as conn:
-                        conn.execute(text(full_query))
-                        conn.commit()
-                    print("✅ Esquema actualizado correctamente.")
-                except Exception as e:
-                    print(f"❌ Error actualizando esquema: {e}")
-            else:
-                print("✅ Esquema de Base de Datos ya está actualizado.")
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------

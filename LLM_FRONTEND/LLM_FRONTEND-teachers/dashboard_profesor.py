@@ -1213,7 +1213,7 @@ def main(page: ft.Page):
             tabs=[
                 ft.Tab(text="Mis Estudiantes", icon=ft.Icons.GROUPS, content=tab_students),
                 ft.Tab(text="Mis Tareas", icon=ft.Icons.ASSIGNMENT, content=tab_exercises),
-                ft.Tab(text="Evaluaciones", icon=ft.Icons.grade, content=tab_grading),
+                ft.Tab(text="Evaluaciones", icon=ft.Icons.GRADE, content=tab_grading),
                 ft.Tab(text="Monitoreo", icon=ft.Icons.INSIGHTS, content=tab_monitor),
                 ft.Tab(text="Dashboard", icon=ft.Icons.DASHBOARD, content=tab_dashboard)
             ], expand=True
