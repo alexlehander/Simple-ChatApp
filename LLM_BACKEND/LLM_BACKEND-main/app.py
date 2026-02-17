@@ -799,12 +799,6 @@ def get_student_statuses():
 # Entrypoint
 # ------------------------------------------------------------------------------------
 
-try:
-    print("🚀 Iniciando verificación de esquema de base de datos...")
-    check_and_update_schema()
-except Exception as e:
-    print(f"⚠️ Advertencia: No se pudo verificar el esquema al inicio: {e}")
-
 if __name__ == "__main__":
     # For local dev; in production, gunicorn runs this app
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8000")), debug=False)

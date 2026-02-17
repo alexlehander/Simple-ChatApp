@@ -804,18 +804,18 @@ def main(page: ft.Page):
         chats_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
         
         student_filter = ft.Dropdown(
-            label="Filtrar Estudiante",
-            options=[ft.dropdown.Option("Todos los Estudiantes")], 
-            value="Todos los Estudiantes",
+            label="Filtrar estudiante",
+            options=[ft.dropdown.Option("Todos los estudiantes")], 
+            value="Todos los estudiantes",
             border_color=COLORES["primario"],
             color=COLORES["texto"],
             text_size=12,
             content_padding=10,
         )
         exercise_filter = ft.Dropdown(
-            label="Filtrar Tarea",
-            options=[ft.dropdown.Option("Todas las Tareas")], 
-            value="Todas las Tareas",
+            label="Filtrar tarea",
+            options=[ft.dropdown.Option("Todas las tareas")], 
+            value="Todas las tareas",
             border_color=COLORES["primario"],
             color=COLORES["texto"],
             text_size=12,
@@ -824,10 +824,9 @@ def main(page: ft.Page):
         )
         
         problem_filter = ft.Dropdown(
-            label="Ejercicio",
-            width=100,
-            options=[ft.dropdown.Option("Todos")],
-            value="Todos",
+            label="Filtrar ejercicio",
+            options=[ft.dropdown.Option("Todos los ejercicios")],
+            value="Todos los ejercicios",
             border_color=COLORES["primario"],
             color=COLORES["texto"],
             text_size=12,
@@ -1024,8 +1023,7 @@ def main(page: ft.Page):
                         bgcolor=bg, 
                         padding=10, 
                         border_radius=10,
-                        width=None, # Auto ancho
-                        constraints=ft.BoxConstraints(max_width=400) # Evitar burbujas gigantes
+                        width=None,
                     )
                 ], horizontal_alignment=align))
             
@@ -1058,8 +1056,6 @@ def main(page: ft.Page):
                     bgcolor=COLORES["accento"],
                     border_radius=10
                 ),
-                
-                ft.Divider(color="transparent", height=10),
                 
                 # Columnas divididas
                 ft.Row([
