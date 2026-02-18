@@ -150,8 +150,8 @@ class AnalisisInteraccion(db.Model):
     chat_id = db.Column(db.Integer, db.ForeignKey("railway_chat_log.id"), nullable=False)
     correo_identificacion = db.Column(db.String(128), nullable=True)
     intent = db.Column(db.String(50), nullable=True)     # e.g., "Call for Assistance"
-    dimension = db.Column(db.String(20), nullable=True)   # "Productive" or "Unproductive"
-    color_asignado = db.Column(db.String(20), default="green") # green, yellow, red
+    dimension = db.Column(db.String(50), nullable=True)   # "Productive" or "Unproductive"
+    color_asignado = db.Column(db.String(50), default="green") # green, yellow, red
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
 
 # ------------------------------------------------------------------------------------
