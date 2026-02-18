@@ -1,6 +1,11 @@
 import eventlet
+import warnings
+
+# Silenciar advertencias visuales
+warnings.simplefilter("ignore")
 eventlet.monkey_patch()
 
+# Importar app después del parche
 from app import app, db
 
 def init_database():

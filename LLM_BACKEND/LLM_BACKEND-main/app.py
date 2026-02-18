@@ -1,7 +1,7 @@
 import eventlet
-eventlet.monkey_patch()
 import os, random, string, requests, json, threading
 import datetime as dt
+import warnings
 from typing import List, Dict
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
@@ -11,6 +11,9 @@ from flask_cors import CORS
 from pinecone import Pinecone
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+eventlet.monkey_patch()
 
 def encontrar_raiz_proyecto(marcador="assets"):
     ruta_actual = os.path.dirname(os.path.abspath(__file__))
