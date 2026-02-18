@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 from app import app, db
 
 def init_database():
