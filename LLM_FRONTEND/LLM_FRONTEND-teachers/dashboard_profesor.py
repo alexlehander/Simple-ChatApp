@@ -179,7 +179,7 @@ def main(page: ft.Page):
                     ft.Row([
                         ft.Text("Intención IA:", weight="bold"),
                         ft.Container(
-                            content=ft.Text(data.get('intent', 'N/A'), color="white", size=12),
+                            content=ft.Text(data.get('intent', 'N/A'), color=COLORES["texto"], size=12),
                             bgcolor=COLORES["primario"], padding=5, border_radius=5
                         )
                     ]),
@@ -1245,7 +1245,7 @@ def main(page: ft.Page):
             "Iniciar Sesión en Vivo", 
             icon=ft.Icons.PLAY_ARROW,
             bgcolor=COLORES["exito"],
-            color="white",
+            color=COLORES["texto"],
             height=40,
             on_click=lambda e: toggle_session(e)
         )
@@ -1386,15 +1386,41 @@ def main(page: ft.Page):
             padding=20
         )
 
-        # 1. Define Grading Tab Layout
+        # GRADING: Define Grading Tab Layout
         grading_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
-
-        def load_pending_grades():
-            res = auth_request("GET", "/api/teacher/grades/pending")
-            if res and res.status_code == 200:
-                render_grading_view(res.json())
+        grade_score_field = ft.TextField(label="Calificación (0-10)", width=100)
+        grade_comment_field = ft.TextField(label="Comentario", multiline=True)
+        grade_student_label = ft.Text("", weight="bold") 
+        grade_task_label = ft.Text("", size=12)
+        grade_response_container = ft.Container(bgcolor=COLORES["fondo"], padding=10)
+        grade_btn_approve = ft.ElevatedButton("Aprobar IA", bgcolor=COLORES["exito"], color=COLORES["texto"])
+        grade_btn_save = ft.ElevatedButton("Guardar Cambios", bgcolor=COLORES["boton"], color=COLORES["texto"])
         
-        def submit_grade(item_id, score, comment, action, dialog):
+        grade_dlg = ft.AlertDialog(
+            title=grade_student_label,
+            content=ft.Column([
+                grade_task_label,
+                ft.Text("Respuesta del Estudiante:", weight="bold"),
+                grade_response_container,
+                ft.Divider(),
+                ft.Text("Sugerencia IA:", color=COLORES["primario"]),
+                grade_score_field,
+                grade_comment_field
+            ], tight=True, width=500),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: close_grade_dlg()),
+                grade_btn_approve,
+                grade_btn_save,
+            ]
+        )
+        
+        page.overlay.append(grade_dlg)
+
+        def close_grade_dlg():
+            grade_dlg.open = False
+            page.update()
+
+        def submit_grade(item_id, score, comment, action):
             res = auth_request("POST", "/api/teacher/grades/submit", json={
                 "id": item_id,
                 "score": score,
@@ -1403,43 +1429,34 @@ def main(page: ft.Page):
             })
             if res and res.status_code == 200:
                 flash("Evaluación guardada", ok=True)
-                dialog.open = False
+                grade_dlg.open = False
                 page.update()
                 load_pending_grades()
             else:
                 flash("Error al guardar", ok=False)
-        
+
         def open_grade_dialog(item):
-            # Controls for editing
-            score_field = ft.TextField(label="Calificación (0-10)", value=str(item['llm_score']), width=100)
-            comment_field = ft.TextField(label="Comentario", value=item['llm_comment'], multiline=True)
-            
-            def on_approve(e):
-                submit_grade(item['id'], item['llm_score'], item['llm_comment'], "approve", dlg)
-                
-            def on_edit_save(e):
-                submit_grade(item['id'], score_field.value, comment_field.value, "edit", dlg)
-        
-            dlg = ft.AlertDialog(
-                title=ft.Text(f"Evaluar: {item['correo']}"),
-                content=ft.Column([
-                    ft.Text(f"Práctica: {item['practica']} | Ej: {item['problema_id']}", size=12),
-                    ft.Text("Respuesta del Estudiante:", weight="bold"),
-                    ft.Container(content=ft.Text(item['respuesta']), bgcolor=COLORES["fondo"], padding=10),
-                    ft.Divider(),
-                    ft.Text("Sugerencia IA:", color=COLORES["primario"]),
-                    score_field,
-                    comment_field
-                ], tight=True, width=500),
-                actions=[
-                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, 'open', False) or page.update()),
-                    ft.ElevatedButton("Aprobar IA", on_click=on_approve, bgcolor=COLORES["exito"], color="white"),
-                    ft.ElevatedButton("Guardar Cambios", on_click=on_edit_save, bgcolor=COLORES["boton"], color="white"),
-                ]
+            grade_student_label.value = f"Evaluar: {item['correo']}"
+            grade_task_label.value = f"Práctica: {item['practica']} | Ej: {item['problema_id']}"
+            grade_response_container.content = ft.Text(item['respuesta'])
+            grade_score_field.value = str(item['llm_score'])
+            grade_comment_field.value = item['llm_comment']
+
+            grade_btn_approve.on_click = lambda e: submit_grade(
+                item['id'], item['llm_score'], item['llm_comment'], "approve"
             )
-            page.overlay.append(dlg)
-            dlg.open = True
+            
+            grade_btn_save.on_click = lambda e: submit_grade(
+                item['id'], grade_score_field.value, grade_comment_field.value, "edit"
+            )
+
+            grade_dlg.open = True
             page.update()
+
+        def load_pending_grades():
+            res = auth_request("GET", "/api/teacher/grades/pending")
+            if res and res.status_code == 200:
+                render_grading_view(res.json())
 
         def render_grading_view(items):
             grading_col.controls.clear()
