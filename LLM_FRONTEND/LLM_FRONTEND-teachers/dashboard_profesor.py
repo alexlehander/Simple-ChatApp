@@ -245,7 +245,7 @@ def main(page: ft.Page):
     
             # Update Card UI elements
             card_control.border = ft.border.all(3, new_color)
-            status_icon_control = card_control.content.controls[0].controls[1].controls[0] # Accessing the icon in the layout tree
+            status_icon_control = card_control.content.controls[0].controls[1]
             status_icon_control.name = icon_data[0]
             status_icon_control.color = icon_data[1]
             
