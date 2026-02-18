@@ -9,4 +9,5 @@ pymysql==1.1.1
 cryptography>=42
 pinecone>=5.0.0
 flask-socketio
-eventlet
+gevent
+gevent-websocket

@@ -1,15 +1,11 @@
-import eventlet
-import warnings
+import gevent.monkey
+gevent.monkey.patch_all()
 
+import warnings
 from app import app, db
 from sqlalchemy import text
 
-# Silenciar advertencias visuales
 warnings.simplefilter("ignore")
-eventlet.monkey_patch()
-
-# Importar app después del parche
-from app import app, db
 
 def init_database():
     with app.app_context():
