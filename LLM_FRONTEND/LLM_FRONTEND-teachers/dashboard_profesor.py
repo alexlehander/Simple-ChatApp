@@ -1294,47 +1294,58 @@ def main(page: ft.Page):
 
         def render_dashboard_view(student_list):
             dashboard_grid.controls.clear()
+            memoria_temporal = {}
+            
+            for email, datos in student_cards_state.items():
+                if 'latest_data' in datos:
+                    memoria_temporal[email] = datos['latest_data']
+                    
             student_cards_state.clear() # Limpiar estado anterior
-
+            
             if not student_list:
                 dashboard_grid.controls.append(ft.Text("No hay estudiantes registrados", size=16))
                 page.update()
                 return
-
-            # Calcular totales para barra de progreso (usando ejercicios cargados)
+                
             safe_exercises = [x for x in state["my_exercises"] if isinstance(x, dict)]
             total_tasks = len(safe_exercises)
             
-            # --- CONSTRUIR TARJETAS ---
             for stu in student_list:
-                # Estado inicial visual
-                initial_color = COLORES["borde"]
-                initial_icon = ft.Icons.CIRCLE_OUTLINED
+                datos_previos = memoria_temporal.get(stu)
+                current_color = COLORES["borde"]
+                current_icon = ft.Icons.CIRCLE_OUTLINED
                 
-                # Calcular progreso (simulado o real si tienes datos históricos)
-                # Por ahora iniciamos en 0% o lo que tengas en DB
+                if datos_previos:
+                    status_color = datos_previos.get('status', 'green')
+                    current_color = {
+                        "green": COLORES["exito"], 
+                        "yellow": COLORES["advertencia"], 
+                        "red": COLORES["error"]
+                    }.get(status_color, COLORES["borde"])
+                    
+                    current_icon = {
+                        "green": ft.Icons.CHECK_CIRCLE,
+                        "yellow": ft.Icons.WARNING,
+                        "red": ft.Icons.ERROR
+                    }.get(status_color, ft.Icons.CIRCLE)
+
                 progress_pct = 0 
                 
-                # Tarjeta Interactiva
                 card_content = ft.Column([
                         ft.Row([
                             ft.Column([
                                 ft.Text(stu.split("@")[0], weight="bold", size=16, no_wrap=True, color=COLORES["texto"]),
                                 ft.Text(stu, size=10, color=COLORES["subtitulo"], no_wrap=True),
                             ], expand=True),
-                            # Icono de Estado (Cambiará con SocketIO)
-                            ft.Icon(initial_icon, color=initial_color, size=24),
+                            ft.Icon(current_icon, color=current_color, size=24),
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         
                         ft.Divider(height=10, color="transparent"),
                         
-                        # Barra de progreso
                         ft.ProgressBar(value=progress_pct, color=COLORES["primario"], bgcolor=COLORES["borde"], height=6, border_radius=3),
-                        ft.Text(f"Esperando actividad...", size=10, italic=True, color=COLORES["subtitulo"]),
-                        
+                        ft.Text("Esperando actividad..." if not datos_previos else "Actividad detectada", size=10, italic=True, color=COLORES["subtitulo"]),
                         ft.Divider(height=5, color="transparent"),
                         
-                        # Botón Ver Análisis
                         ft.ElevatedButton(
                             "Ver Análisis", 
                             icon=ft.Icons.VISIBILITY, 
@@ -1342,8 +1353,8 @@ def main(page: ft.Page):
                             style=ft.ButtonStyle(
                                 padding=5, 
                                 shape=ft.RoundedRectangleBorder(radius=5),
-                                color=COLORES["primario"],
-                                bgcolor=COLORES["accento"]
+                                color=COLORES.get("texto_boton", COLORES["texto"]),
+                                bgcolor=COLORES["boton"]
                             ),
                             on_click=lambda e, email=stu: show_student_detail(email)
                         )
@@ -1351,16 +1362,18 @@ def main(page: ft.Page):
 
                 card = ft.Container(
                     content=card_content,
-                    bgcolor=COLORES["fondo"], # Fondo de tarjeta
+                    bgcolor=COLORES["fondo"],
                     padding=15,
                     border_radius=15,
                     shadow=ft.BoxShadow(blur_radius=10, color=COLORES["accento"]),
-                    border=ft.border.all(2, initial_color), # El borde cambiará de color
+                    # Borde más grueso si hay actividad
+                    border=ft.border.all(2 if not datos_previos else 3, current_color), 
                     data=stu 
                 )
                 
-                # GUARDAR REFERENCIA PARA ACTUALIZAR DESPUÉS
                 student_cards_state[stu] = {'control': card}
+                if datos_previos:
+                    student_cards_state[stu]['latest_data'] = datos_previos
                 dashboard_grid.controls.append(card)
                 
             page.update()
