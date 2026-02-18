@@ -119,7 +119,95 @@ def main(page: ft.Page):
     student_cards_state = {}
     dashboard_grid = ft.GridView(expand=True, runs_count=5, max_extent=250, child_aspect_ratio=1.0, spacing=10, run_spacing=10)
     session_status_text = ft.Text("Sesión Inactiva", color=COLORES["subtitulo"])
+
+# --- 2.3 DIALOGO DE DETALLES (Pop-up) ---
+    detail_dlg_title = ft.Text(weight="bold", size=20)
+    detail_dlg_content = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=10)
+        
+    detail_dlg = ft.AlertDialog(
+        title=detail_dlg_title,
+        content=ft.Container(content=detail_dlg_content, width=500, height=400, padding=10),
+        actions=[ft.TextButton("Cerrar", on_click=lambda e: close_detail_dlg())],
+        on_dismiss=lambda e: close_detail_dlg()
+    )
     
+    page.overlay.append(detail_dlg)
+
+    def close_detail_dlg():
+        detail_dlg.open = False
+        page.update()
+
+    def show_student_detail(email):
+        # Verificar si tenemos datos en memoria para este estudiante
+        if email not in student_cards_state or 'latest_data' not in student_cards_state[email]:
+            # Si no hay datos en tiempo real, mostrar mensaje genérico
+            detail_dlg_title.value = f"Estudiante: {email.split('@')[0]}"
+            detail_dlg_content.controls.clear()
+            detail_dlg_content.controls.append(ft.Text("No hay actividad reciente registrada en esta sesión en vivo.", italic=True))
+            detail_dlg.open = True
+            page.update()
+            return
+
+        data = student_cards_state[email]['latest_data']
+        detail_dlg_title.value = f"Análisis: {email.split('@')[0]}"
+        detail_dlg_content.controls.clear()
+
+        if data['type'] == 'chat':
+            # Estructura visual para CHAT (Semáforo)
+            status_map = {"green": "Productivo", "yellow": "Atascado/Distraído", "red": "Crítico/Inapropiado"}
+            status_text = status_map.get(data.get('status'), "Desconocido")
+            status_color = {"green": COLORES["exito"], "yellow": COLORES["advertencia"], "red": COLORES["error"]}.get(data.get('status'), COLORES["texto"])
+
+            detail_dlg_content.controls.extend([
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Text("Estado Detectado:", size=12, color=COLORES["subtitulo"]),
+                            ft.Row([
+                                ft.Icon(ft.Icons.FIBER_MANUAL_RECORD, color=status_color),
+                                ft.Text(status_text, size=18, weight="bold", color=status_color)
+                            ])
+                        ]),
+                        bgcolor=COLORES["accento"], padding=10, border_radius=10
+                    ),
+                    ft.Divider(),
+                    ft.Text("Último Mensaje del Estudiante:", weight="bold"),
+                    ft.Container(
+                        content=ft.Text(f"\"{data.get('last_message', 'N/A')}\"", italic=True, size=14),
+                        bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                    ),
+                    ft.Divider(),
+                    ft.Row([
+                        ft.Text("Intención IA:", weight="bold"),
+                        ft.Container(
+                            content=ft.Text(data.get('intent', 'N/A'), color="white", size=12),
+                            bgcolor=COLORES["primario"], padding=5, border_radius=5
+                        )
+                    ]),
+                    ft.Text(f"Hora: {data.get('timestamp', '').replace('T', ' ')[:16]}", size=10, color=COLORES["subtitulo"])
+            ])
+            
+        elif data['type'] == 'answer':
+                # Estructura visual para RESPUESTA (Grading)
+                detail_dlg_content.controls.extend([
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.ASSIGNMENT_TURNED_IN, color=COLORES["primario"]),
+                            ft.Text("Nueva Tarea Entregada", weight="bold", size=16)
+                        ]),
+                        bgcolor=COLORES["accento"], padding=10, border_radius=10
+                    ),
+                    ft.Text(f"Práctica: {data.get('practice')} - Ejercicio {data.get('problem_id')}", size=14),
+                    ft.Divider(),
+                    ft.Text(f"Calificación Preliminar IA: {data.get('score', 0)}/10", size=24, weight="bold", color=COLORES["primario"]),
+                    ft.Container(
+                        content=ft.Text("⚠️ Esta nota es preliminar. Ve a la pestaña 'Evaluaciones' para confirmarla o editarla.", color=COLORES["texto"]),
+                        bgcolor=COLORES["advertencia"], padding=10, border_radius=5
+                    )
+                ])
+
+        detail_dlg.open = True
+        page.update()
+
     @sio.event
     def connect():
         print("✅ Conectado al servidor de tiempo real")
@@ -1149,92 +1237,6 @@ def main(page: ft.Page):
         # =========================================
         # PESTAÑA 4: Dashboard (Tiempo Real)
         # =========================================
-        
-        # --- 2.3 DIALOGO DE DETALLES (Pop-up) ---
-        detail_dlg_title = ft.Text(weight="bold", size=20)
-        detail_dlg_content = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=10)
-        
-        detail_dlg = ft.AlertDialog(
-            title=detail_dlg_title,
-            content=ft.Container(content=detail_dlg_content, width=500, height=400, padding=10),
-            actions=[ft.TextButton("Cerrar", on_click=lambda e: close_detail_dlg())],
-            on_dismiss=lambda e: close_detail_dlg()
-        )
-
-        def close_detail_dlg():
-            detail_dlg.open = False
-            page.update()
-
-        def show_student_detail(email):
-            # Verificar si tenemos datos en memoria para este estudiante
-            if email not in student_cards_state or 'latest_data' not in student_cards_state[email]:
-                # Si no hay datos en tiempo real, mostrar mensaje genérico
-                detail_dlg_title.value = f"Estudiante: {email.split('@')[0]}"
-                detail_dlg_content.controls.clear()
-                detail_dlg_content.controls.append(ft.Text("No hay actividad reciente registrada en esta sesión en vivo.", italic=True))
-                detail_dlg.open = True
-                page.update()
-                return
-
-            data = student_cards_state[email]['latest_data']
-            detail_dlg_title.value = f"Análisis: {email.split('@')[0]}"
-            detail_dlg_content.controls.clear()
-
-            if data['type'] == 'chat':
-                # Estructura visual para CHAT (Semáforo)
-                status_map = {"green": "Productivo", "yellow": "Atascado/Distraído", "red": "Crítico/Inapropiado"}
-                status_text = status_map.get(data.get('status'), "Desconocido")
-                status_color = {"green": COLORES["exito"], "yellow": COLORES["advertencia"], "red": COLORES["error"]}.get(data.get('status'), COLORES["texto"])
-
-                detail_dlg_content.controls.extend([
-                        ft.Container(
-                            content=ft.Column([
-                                ft.Text("Estado Detectado:", size=12, color=COLORES["subtitulo"]),
-                                ft.Row([
-                                    ft.Icon(ft.Icons.FIBER_MANUAL_RECORD, color=status_color),
-                                    ft.Text(status_text, size=18, weight="bold", color=status_color)
-                                ])
-                            ]),
-                            bgcolor=COLORES["accento"], padding=10, border_radius=10
-                        ),
-                        ft.Divider(),
-                        ft.Text("Último Mensaje del Estudiante:", weight="bold"),
-                        ft.Container(
-                            content=ft.Text(f"\"{data.get('last_message', 'N/A')}\"", italic=True, size=14),
-                            bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])
-                        ),
-                        ft.Divider(),
-                        ft.Row([
-                            ft.Text("Intención IA:", weight="bold"),
-                            ft.Container(
-                                content=ft.Text(data.get('intent', 'N/A'), color="white", size=12),
-                                bgcolor=COLORES["primario"], padding=5, border_radius=5
-                            )
-                        ]),
-                        ft.Text(f"Hora: {data.get('timestamp', '').replace('T', ' ')[:16]}", size=10, color=COLORES["subtitulo"])
-                ])
-            
-            elif data['type'] == 'answer':
-                    # Estructura visual para RESPUESTA (Grading)
-                    detail_dlg_content.controls.extend([
-                        ft.Container(
-                            content=ft.Row([
-                                ft.Icon(ft.Icons.ASSIGNMENT_TURNED_IN, color=COLORES["primario"]),
-                                ft.Text("Nueva Tarea Entregada", weight="bold", size=16)
-                            ]),
-                            bgcolor=COLORES["accento"], padding=10, border_radius=10
-                        ),
-                        ft.Text(f"Práctica: {data.get('practice')} - Ejercicio {data.get('problem_id')}", size=14),
-                        ft.Divider(),
-                        ft.Text(f"Calificación Preliminar IA: {data.get('score', 0)}/10", size=24, weight="bold", color=COLORES["primario"]),
-                        ft.Container(
-                            content=ft.Text("⚠️ Esta nota es preliminar. Ve a la pestaña 'Evaluaciones' para confirmarla o editarla.", color=COLORES["texto"]),
-                            bgcolor=COLORES["advertencia"], padding=10, border_radius=5
-                        )
-                    ])
-
-            detail_dlg.open = True
-            page.update()
 
         # --- 2.4 LÓGICA DEL DASHBOARD (Botón Inicio + Grid) ---
         
@@ -1527,10 +1529,6 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"])
         )
         
-        page.overlay.append(save_snack)
-        page.overlay.append(dialog_msg) # Your existing message dialog
-        page.overlay.append(detail_dlg)
-        
         page.add(
             ft.Column([
                 header,
@@ -1554,9 +1552,6 @@ def main(page: ft.Page):
             show_dashboard()
     else:
         show_login()
-    
-    page.overlay.append(detail_dlg)
-    page.add(app_container)
 
 if __name__ == "__main__":
     print(f"📂 RUTA ASSETS FINAL: {ASSETS_PATH}")
