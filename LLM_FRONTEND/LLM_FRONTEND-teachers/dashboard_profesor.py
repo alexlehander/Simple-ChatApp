@@ -251,7 +251,11 @@ def main(page: ft.Page):
             
             # Save latest data for detailed view click
             card_data['latest_data'] = data
-            card_control.update()
+            try:
+                if card_control.page:
+                    card_control.update()
+            except AssertionError:
+                pass
             
     def _apply_theme():
         target_colors = DARK_COLORS if theme_name == "dark" else LIGHT_COLORS
@@ -352,7 +356,7 @@ def main(page: ft.Page):
         
         # --- 1. Lógica y Controles ---
         email_field = ft.TextField(
-            label="Correo Docente", 
+            label="Correo", 
             width=300,
             bgcolor=COLORES["accento"], 
             border_color=COLORES["primario"],
@@ -672,7 +676,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista de estudiantes inscritos en mis materias", size=16, color=COLORES["primario"]),
+                                ft.Text("Lista de estudiantes inscritos", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_students, sort_btn_my], spacing=5),
@@ -689,7 +693,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista global de estudiantes disponibles", size=16, color=COLORES["primario"]),
+                                ft.Text("Lista de estudiantes disponibles", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_students, sort_btn_global], spacing=5),
@@ -716,7 +720,7 @@ def main(page: ft.Page):
         state["sort_global_tasks"] = "asc"
         
         search_my_tasks = ft.TextField(
-            hint_text="Buscar tareas en mi lista...",
+            hint_text="Buscar tareas seleccionadas...",
             prefix_icon=ft.Icons.SEARCH,
             height=35,
             text_size=12,
@@ -735,7 +739,7 @@ def main(page: ft.Page):
         )
 
         search_global_tasks = ft.TextField(
-            hint_text="Buscar tareas en el catálogo...",
+            hint_text="Buscar tareas disponibles...",
             prefix_icon=ft.Icons.SEARCH,
             height=35,
             text_size=12,
@@ -897,7 +901,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista de tareas que forman parte de mis materias", size=16, color=COLORES["primario"]),
+                                ft.Text("Catálogo de tareas seleccionadas para mis materias", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
@@ -914,7 +918,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Catálogo global de tareas", size=16, color=COLORES["primario"]),
+                                ft.Text("Catálogo global de tareas disponibles", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_tasks, sort_btn_global_tasks], spacing=5),
