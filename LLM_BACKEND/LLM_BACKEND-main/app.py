@@ -436,22 +436,44 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo):
             
 # 2. Automated Grading Function
 def auto_grade_answer(respuesta_id, problem_text, student_answer):
+    example_json = """{
+        "calificación": 10,
+        "comentario": "Solución correcta, cuenta con el procedimiento completo y una explicación exhaustiva."
+    }"""
+    user_prompt = f"""
+        Actúa como un profesor experto de ciencias computacionales que evalúa una práctica universitaria.
+        A continuación se presenta un ejercicio realizado por el estudiante.
+        El bloque contiene la **Descripción del Problema** y la **Respuesta del Estudiante**.
+
+        Tu tarea consiste en:
+        1. Leer la descripción del problema para entender qué se pedía.
+        2. Evaluar si la respuesta del estudiante satisface los requisitos planteados en la descripción.
+        3. Asignar una calificación (0-10) y un comentario justificativo.
+
+        Usa estrictamente esta rúbrica para asignar la calificación y guiar tu comentario:
+        - 10: Solución correcta, cuenta con el procedimiento completo y una explicación exhaustiva.
+        - 8: Solución correcta y explicación exhaustiva, pero el procedimiento es incomplelto.
+        - 8: Solución correcta y procedimiento completo, pero la explicación no es exhaustiva.
+        - 6: Solución incorecta, pero el procedimiento es completo y la explicación es exhaustiva.
+        - 4: Solución incorecta, procedimiento incompleto pero la explicación es exhaustiva.
+        - 4: Solución incorecta, explicación no exhaustiva pero el procedimiento es completo.
+        - 2: Solución incorecta, explicación no exhaustiva y procedimiento incompleto.
+        - 0: Estudiante no proporciono ninguna informacion para responder este ejercicio.
+
+        Devuelve **únicamente** un JSON válido con esta estructura:
+        --- INICIO DEL EJEMPLO ---
+        {example_json}
+        --- FIN DEL EJEMPLO ---
+
+        --- INICIO DE LA RESPUESTA ---
+        Descripción del Problema: {problem_text}
+        Respuesta del Estudiante: {student_answer}
+        --- FIN DE LA RESPUESTA ---
     """
-    Grades the answer 0-10 and provides feedback.
-    """
-    sys_prompt = (
-        "Eres un profesor experto evaluando una respuesta corta.\n"
-        "1. Lee el problema y la respuesta.\n"
-        "2. Asigna una calificación (0-10).\n"
-        "3. Provee un comentario constructivo.\n"
-        "Devuelve SOLO JSON: {\"score\": float, \"comment\": \"string\"}"
-    )
-    
-    user_prompt = f"PROBLEMA: {problem_text}\nRESPUESTA: {student_answer}"
 
     try:
         response_text = call_mistral([
-            {"role": "system", "content": sys_prompt},
+            {"role": "system", "content": "Eres un evaluador académico estricto y justo que responde solo en JSON."},
             {"role": "user", "content": user_prompt}
         ], temperature=0.2)
         
@@ -460,24 +482,30 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer):
             data = json.loads(response_text)
         except:
             match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            data = json.loads(match.group(0)) if match else {"score": 0, "comment": "Error parsing LLM"}
+            data = json.loads(match.group(0)) if match else {"calificación": 0, "comentario": "Error al procesar la evaluación del LLM"}
+
+        nota = float(data.get("calificación", data.get("score", 0)))
+        comentario = data.get("comentario", data.get("comment", "Sin comentarios."))
 
         with app.app_context():
             resp_record = RespuestaUsuario.query.get(respuesta_id)
             if resp_record:
-                resp_record.llm_score = float(data.get("score", 0))
-                resp_record.llm_comment = data.get("comment", "")
+                resp_record.llm_score = nota
+                resp_record.llm_comment = comentario
                 resp_record.status = "pending"
                 db.session.commit()
-                print(f"📝 Graded ID {respuesta_id}: {resp_record.llm_score}/10")
+                
+                print(f"📝 Evaluado ID {respuesta_id}: {resp_record.llm_score}/10 - {comentario[:30]}...")
+                
                 prog_pct = get_student_progress(resp_record.correo_identificacion, resp_record.practice_name)
-                score = resp_record.llm_score or 0
-                color = "green" if score >= 7 else "yellow" if score >= 4 else "red"
+                
+                color = "green" if nota >= 7 else "yellow" if nota >= 4 else "red"
+                
                 socketio.emit('student_activity', {
                     'type': 'answer',
                     'student_email': resp_record.correo_identificacion,
                     'status': color,
-                    'score': score,
+                    'score': nota,
                     'practice': resp_record.practice_name,
                     'problem_id': resp_record.problema_id,
                     'progress_pct': prog_pct,
@@ -486,8 +514,8 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer):
                 })
                 
     except Exception as e:
-        print(f"❌ Error in Auto-Grading: {e}")
-
+        print(f"❌ Error en Auto-Grading: {e}")
+        
 # ------------------------------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------------------------------
