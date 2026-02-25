@@ -329,6 +329,20 @@ def get_exercise_metadata(filename):
             "num_problems": 0
         }
 
+def get_student_progress(correo, practice_name):
+    """Calcula el porcentaje de avance de un alumno en una práctica específica."""
+    if not practice_name: return 0.0
+    meta = get_exercise_metadata(practice_name)
+    total = meta.get("num_problems", 1)
+    if total == 0: total = 1
+    
+    # Cuenta problemas únicos que el alumno ya contestó
+    answered = db.session.query(RespuestaUsuario.problema_id).filter_by(
+        correo_identificacion=correo, practice_name=practice_name
+    ).distinct().count()
+    
+    return min(1.0, float(answered) / float(total))
+
 # 1. Semaphore Analysis Function (Fixed Context)
 def analyze_interaction_semaphore(chat_log_id, user_message, correo):
     """
@@ -399,8 +413,11 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo):
                 color_asignado=color
             )
             db.session.add(analysis)
-            db.session.commit()
-            print(f"🚦 Semaphore: {correo} -> {intent} ({color})")
+            db.session.commit()            
+            chat_log = ChatLog.query.get(chat_log_id)
+            practice_name = chat_log.practice_name if chat_log else ""
+            prog_pct = get_student_progress(correo, practice_name)
+            print(f"🚦 Semaphore: {correo} -> {intent} ({color}) | Prog: {prog_pct*100:.0f}%")
             
             socketio.emit('student_activity', {
                 'type': 'chat',
@@ -408,6 +425,8 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo):
                 'status': color,  # green, yellow, red
                 'intent': intent,
                 'last_message': user_message,
+                'practice': practice_name,
+                'progress_pct': prog_pct, # <-- NUEVO DATO
                 'timestamp': dt.datetime.utcnow().isoformat(),
                 'analysis_id': analysis.id
             })
@@ -448,9 +467,10 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer):
             if resp_record:
                 resp_record.llm_score = float(data.get("score", 0))
                 resp_record.llm_comment = data.get("comment", "")
-                resp_record.status = "pending" # Ready for teacher review
+                resp_record.status = "pending"
                 db.session.commit()
                 print(f"📝 Graded ID {respuesta_id}: {resp_record.llm_score}/10")
+                prog_pct = get_student_progress(resp_record.correo_identificacion, resp_record.practice_name)
                 score = resp_record.llm_score or 0
                 color = "green" if score >= 7 else "yellow" if score >= 4 else "red"
                 socketio.emit('student_activity', {
@@ -460,6 +480,7 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer):
                     'score': score,
                     'practice': resp_record.practice_name,
                     'problem_id': resp_record.problema_id,
+                    'progress_pct': prog_pct,
                     'timestamp': dt.datetime.utcnow().isoformat(),
                     'answer_id': resp_record.id
                 })

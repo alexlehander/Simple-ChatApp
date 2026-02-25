@@ -223,14 +223,15 @@ def main(page: ft.Page):
     
         email = data.get('student_email')
         status_color = data.get('status', 'green')
-        print(f"⚡ Actividad recibida: {email} - {status_color}")
+        prog_pct = data.get('progress_pct', 0.0)
+        print(f"⚡ Actividad recibida: {email} - {status_color} - Progreso: {prog_pct*100}%")
     
-        # Update the specific student card visually
         if email in student_cards_state:
             card_data = student_cards_state[email]
             card_control = card_data['control']
+            bar_ctrl = card_data['bar_ctrl']
+            txt_ctrl = card_data['txt_ctrl']
             
-            # Update the border color and icon based on status
             new_color = {
                 "green": COLORES["exito"], 
                 "yellow": COLORES["advertencia"], 
@@ -243,20 +244,27 @@ def main(page: ft.Page):
                 "red": (ft.Icons.ERROR, COLORES["error"])
             }.get(status_color, (ft.Icons.CIRCLE, COLORES["borde"]))
     
-            # Update Card UI elements
             card_control.border = ft.border.all(3, new_color)
             status_icon_control = card_control.content.controls[0].controls[1]
             status_icon_control.name = icon_data[0]
             status_icon_control.color = icon_data[1]
+            bar_ctrl.value = prog_pct
             
-            # Save latest data for detailed view click
+            if data.get('type') == 'answer':
+                txt_ctrl.value = f"Entregó P{data.get('problem_id', '?')} ({(prog_pct*100):.0f}%)"
+            else:
+                txt_ctrl.value = f"Conversando ({(prog_pct*100):.0f}%)"
+            
             card_data['latest_data'] = data
+            
             try:
                 if card_control.page:
+                    bar_ctrl.update()
+                    txt_ctrl.update()
                     card_control.update()
             except AssertionError:
                 pass
-            
+                
     def _apply_theme():
         target_colors = DARK_COLORS if theme_name == "dark" else LIGHT_COLORS
         COLORES.clear()
@@ -1332,8 +1340,18 @@ def main(page: ft.Page):
                         "yellow": ft.Icons.WARNING,
                         "red": ft.Icons.ERROR
                     }.get(status_color, ft.Icons.CIRCLE)
+                    
+                progress_pct = datos_previos.get('progress_pct', 0.0) if datos_previos else 0.0
+                
+                if not datos_previos:
+                    txt_val = "Esperando actividad..."
+                elif datos_previos.get('type') == 'answer':
+                    txt_val = f"Entregó P{datos_previos.get('problem_id', '?')} ({(progress_pct*100):.0f}%)"
+                else:
+                    txt_val = f"Conversando ({(progress_pct*100):.0f}%)"
 
-                progress_pct = 0 
+                bar_ctrl = ft.ProgressBar(value=progress_pct, color=COLORES["primario"], bgcolor=COLORES["borde"], height=6, border_radius=3)
+                txt_ctrl = ft.Text(txt_val, size=10, italic=True, color=COLORES["subtitulo"])
                 
                 card_content = ft.Column([
                         ft.Row([
@@ -1345,9 +1363,8 @@ def main(page: ft.Page):
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         
                         ft.Divider(height=10, color="transparent"),
-                        
-                        ft.ProgressBar(value=progress_pct, color=COLORES["primario"], bgcolor=COLORES["borde"], height=6, border_radius=3),
-                        ft.Text("Esperando actividad..." if not datos_previos else "Actividad detectada", size=10, italic=True, color=COLORES["subtitulo"]),
+                        bar_ctrl,
+                        txt_ctrl,
                         ft.Divider(height=5, color="transparent"),
                         
                         ft.ElevatedButton(
@@ -1370,14 +1387,18 @@ def main(page: ft.Page):
                     padding=15,
                     border_radius=15,
                     shadow=ft.BoxShadow(blur_radius=10, color=COLORES["accento"]),
-                    # Borde más grueso si hay actividad
                     border=ft.border.all(2 if not datos_previos else 3, current_color), 
                     data=stu 
                 )
                 
-                student_cards_state[stu] = {'control': card}
+                student_cards_state[stu] = {
+                    'control': card,
+                    'bar_ctrl': bar_ctrl,
+                    'txt_ctrl': txt_ctrl
+                }
                 if datos_previos:
                     student_cards_state[stu]['latest_data'] = datos_previos
+                    
                 dashboard_grid.controls.append(card)
                 
             page.update()
