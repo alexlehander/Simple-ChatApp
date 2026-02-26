@@ -139,79 +139,92 @@ def main(page: ft.Page):
 
     def show_student_detail(email):
         detail_dlg_title.value = f"Línea de Tiempo: {email.split('@')[0]}"
-        detail_dlg_content.controls.clear()
         
-        # 1. Mostrar mensaje de carga
-        detail_dlg_content.controls.append(ft.ProgressBar(color=COLORES["primario"], bgcolor=COLORES["borde"]))
+        detail_dlg_content.controls = [
+            ft.Container(
+                content=ft.Column([
+                    ft.ProgressRing(color=COLORES["primario"], stroke_width=4),
+                    ft.Text("Consultando historial clínico...", color=COLORES["subtitulo"], italic=True)
+                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                alignment=ft.alignment.center,
+                height=200
+            )
+        ]
+        
+        detail_dlg.content.width = 800
+        detail_dlg.content.height = 600
         detail_dlg.open = True
         page.update()
 
-        # 2. Consultar al Backend
-        timeline_data = []
-        try:
-            # Petición a tu nueva API
-            res = requests.get(f"{BASE}/api/student_timeline/{email}", timeout=10)
-            if res.status_code == 200:
-                timeline_data = res.json()
-        except Exception as e:
-            print(f"Error fetching timeline: {e}")
-
-        # 3. Limpiar barra de carga
-        detail_dlg_content.controls.clear()
-
-        # 4. Helpers de diseño
-        def get_status_meta(color_name):
-            return {
-                "green": (ft.Icons.CHECK_CIRCLE_OUTLINE, COLORES["exito"]),
-                "yellow": (ft.Icons.WARNING_AMBER_ROUNDED, COLORES["advertencia"]),
-                "red": (ft.Icons.ERROR_OUTLINE, COLORES["error"])
-            }.get(color_name, (ft.Icons.CIRCLE_OUTLINE, COLORES["subtitulo"]))
-
-        # 5. Construir la UI de la línea de tiempo
-        if not timeline_data:
-            detail_dlg_content.controls.append(ft.Text("No hay interacciones recientes registradas.", italic=True, color=COLORES["subtitulo"]))
-        else:
-            for event in timeline_data:
-                try:
-                    dt_obj = dt.datetime.fromisoformat(event['timestamp'])
-                    time_str = dt_obj.strftime("%H:%M - %d/%b")
-                except:
-                    time_str = event['timestamp'][:10]
-
-                icon_shape, icon_color = get_status_meta(event['color'])
-                event_icon = ft.Icons.CHAT_BUBBLE_OUTLINE if event['type'] == 'chat' else ft.Icons.ASSIGNMENT_TURNED_IN_OUTLINE
+        def fetch_and_render_timeline():
+            timeline_data = []
+            try:
+                res = auth_request("GET", f"/api/student_timeline/{email}", timeout=10)
+                if res.status_code == 200:
+                    timeline_data = res.json()
+            except Exception as e:
+                print(f"Error fetching timeline: {e}")
                 
-                # Fila individual de la línea de tiempo
-                item_row = ft.Container(
-                    content=ft.Row([
-                        # Izquierda: Hora e Icono principal
-                        ft.Column([
-                             ft.Text(time_str, size=10, color=COLORES["subtitulo"]),
-                             ft.Icon(event_icon, color=COLORES["primario"], size=20),
-                        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
-                        
-                        # Centro: Separador vertical
-                        ft.Container(width=2, height=40, bgcolor=COLORES["borde"]),
-                        
-                        # Derecha: Descripción y Estado
-                        ft.Row([
-                             ft.Column([
-                                ft.Text(event['description'], weight="bold", size=14, color=COLORES["texto"]),
-                                ft.Text(f"Tipo: {event['type'].title()} | Etiqueta: {event['color'].title()}", size=11, color=COLORES["subtitulo"]),
-                             ], expand=True, spacing=2),
-                             ft.Icon(icon_shape, color=icon_color, size=24)
-                        ], expand=True, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-                    ], spacing=15),
-                    padding=ft.padding.symmetric(vertical=10, horizontal=5),
-                    border=ft.border.only(bottom=ft.border.BorderSide(1, COLORES["borde"]))
+            def get_status_meta(color_name):
+                return {
+                    "green": (ft.Icons.CHECK_CIRCLE_OUTLINE, COLORES["exito"]),
+                    "yellow": (ft.Icons.WARNING_AMBER_ROUNDED, COLORES["advertencia"]),
+                    "red": (ft.Icons.ERROR_OUTLINE, COLORES["error"])
+                }.get(color_name, (ft.Icons.CIRCLE_OUTLINE, COLORES["subtitulo"]))
+                
+            nuevos_controles = []
+            if not timeline_data:
+                nuevos_controles.append(
+                    ft.Container(
+                        content=ft.Text("No hay interacciones recientes registradas.", italic=True, color=COLORES["subtitulo"]),
+                        alignment=ft.alignment.center, padding=20
+                    )
                 )
-                detail_dlg_content.controls.append(item_row)
-
-        # 6. Hacer el Pop-up más grande para acomodar la información
-        detail_dlg.content.width = 800
-        detail_dlg.content.height = 600
-        page.update()
-
+            else:
+                for event in timeline_data:
+                    try:
+                        import datetime as dt_module
+                        dt_obj = dt_module.datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00'))
+                        dt_local = dt_obj - dt_module.timedelta(hours=8)
+                        time_str = dt_local.strftime("%I:%M %p - %d/%b")
+                    except Exception as e:
+                        time_str = event['timestamp'][:10]
+                        
+                    icon_shape, icon_color = get_status_meta(event['color'])
+                    event_icon = ft.Icons.CHAT_BUBBLE_OUTLINE if event['type'] == 'chat' else ft.Icons.ASSIGNMENT_TURNED_IN_OUTLINE
+                    
+                    item_row = ft.Container(
+                        content=ft.Row([
+                            ft.Column([
+                                 ft.Text(time_str, size=10, color=COLORES["subtitulo"]),
+                                 ft.Icon(event_icon, color=COLORES["primario"], size=20),
+                            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                            
+                            ft.Container(width=2, height=40, bgcolor=COLORES["borde"]),
+                            
+                            ft.Row([
+                                 ft.Column([
+                                    ft.Text(event['description'], weight="bold", size=14, color=COLORES["texto"]),
+                                    ft.Text(f"Tipo: {event['type'].title()} | Etiqueta: {event['color'].title()}", size=11, color=COLORES["subtitulo"]),
+                                 ], expand=True, spacing=2),
+                                 ft.Icon(icon_shape, color=icon_color, size=24)
+                            ], expand=True, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+                        ], spacing=15),
+                        padding=ft.padding.symmetric(vertical=10, horizontal=5),
+                        border=ft.border.only(bottom=ft.border.BorderSide(1, COLORES["borde"]))
+                    )
+                    nuevos_controles.append(item_row)
+                    
+            detail_dlg_content.controls = nuevos_controles
+            
+            try:
+                if detail_dlg.open:
+                    detail_dlg_content.update()
+            except Exception:
+                pass
+                
+        threading.Thread(target=fetch_and_render_timeline, daemon=True).start()
+        
     @sio.event
     def connect():
         print("✅ Conectado al servidor de tiempo real")
@@ -904,7 +917,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Catálogo de tareas seleccionadas para mis materias", size=16, color=COLORES["primario"]),
+                                ft.Text("Catálogo local de tareas seleccionadas", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
@@ -1124,6 +1137,8 @@ def main(page: ft.Page):
         def render_data(data):
             answers_col.controls.clear()
             chats_col.controls.clear()
+            nuevas_respuestas = []
+            nuevos_chats = []
             raw_answers = data.get("respuestas", [])
             raw_chats = data.get("chats", [])
             target_prob = problem_filter.value
@@ -1161,7 +1176,7 @@ def main(page: ft.Page):
                     txt_color = COLORES["fondo"]
                     label = f"{c['correo']}"
 
-                chats_col.controls.append(ft.Column([
+                nuevos_chats.append(ft.Column([
                     ft.Text(f"{label} - P{c['problema_id']}", size=10, color=COLORES["subtitulo"]),
                     ft.Container(
                         content=ft.Text(c['content'], color=txt_color, size=13), 
@@ -1172,13 +1187,19 @@ def main(page: ft.Page):
                     )
                 ], horizontal_alignment=align))
             
-            # Si no hay datos tras filtrar
-            if not answers_col.controls:
-                answers_col.controls.append(ft.Text("No hay respuestas registradas con estos filtros", italic=True, color=COLORES["subtitulo"]))
-            if not chats_col.controls:
-                chats_col.controls.append(ft.Text("No hay historial de chat con estos filtros", italic=True, color=COLORES["subtitulo"]))
-            answers_col.update()
-            chats_col.update()
+            if not nuevas_respuestas:
+                nuevas_respuestas.append(ft.Text("No hay respuestas registradas con estos filtros", italic=True, color=COLORES["subtitulo"]))
+            if not nuevos_chats:
+                nuevos_chats.append(ft.Text("No hay historial de chat con estos filtros", italic=True, color=COLORES["subtitulo"]))
+                
+            answers_col.controls = nuevas_respuestas
+            chats_col.controls = nuevos_chats
+            
+            try:
+                answers_col.update()
+                chats_col.update()
+            except Exception:
+                pass
             
         # =========================================
         # NAVEGACIÓN Y CARGA INICIAL
@@ -1457,12 +1478,20 @@ def main(page: ft.Page):
             page.update()
 
         def submit_grade(item_id, score, comment, action):
+            grade_btn_approve.disabled = True
+            grade_btn_save.disabled = True
+            page.update()
+            
             res = auth_request("POST", "/api/teacher/grades/submit", json={
                 "id": item_id,
                 "score": score,
                 "comment": comment,
                 "action": action
             })
+            
+            grade_btn_approve.disabled = False
+            grade_btn_save.disabled = False
+            
             if res and res.status_code == 200:
                 flash("Evaluación guardada", ok=True)
                 grade_dlg.open = False
@@ -1495,29 +1524,35 @@ def main(page: ft.Page):
                 render_grading_view(res.json())
 
         def render_grading_view(items):
-            grading_col.controls.clear()
+            # 1. En lugar de borrar la pantalla directamente, creamos una lista temporal
+            nuevos_controles = []
+            
             if not items:
-                grading_col.controls.append(ft.Text("No hay evaluaciones pendientes 🎉", size=20))
-                page.update()
-                return
-
-            for item in items:
-                card = ft.Container(
-                    content=ft.Row([
-                        ft.Column([
-                            ft.Text(item['correo'], weight="bold"),
-                            ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["subtitulo"])
-                        ], expand=True),
-                        ft.Column([
-                            ft.Text(f"Nota IA: {item['llm_score']}", color=COLORES["primario"], weight="bold"),
-                            ft.Text("Pendiente", size=10, italic=True)
+                nuevos_controles.append(ft.Text("No hay evaluaciones pendientes 🎉", size=20))
+            else:
+                for item in items:
+                    card = ft.Container(
+                        content=ft.Row([
+                            ft.Column([
+                                ft.Text(item['correo'], weight="bold"),
+                                ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["subtitulo"])
+                            ], expand=True),
+                            ft.Column([
+                                ft.Text(f"Nota IA: {item['llm_score']}", color=COLORES["primario"], weight="bold"),
+                                ft.Text("Pendiente", size=10, italic=True)
+                            ]),
+                            ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i))
                         ]),
-                        ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i))
-                    ]),
-                    bgcolor=COLORES["accento"], padding=10, border_radius=5, margin=5
-                )
-                grading_col.controls.append(card)
-            page.update()
+                        bgcolor=COLORES["accento"], padding=10, border_radius=5, margin=5
+                    )
+                    nuevos_controles.append(card)
+            
+            grading_col.controls = nuevos_controles
+            
+            try:
+                grading_col.update() 
+            except Exception:
+                pass
 
         tab_grading = ft.Container(
             content=ft.Column([

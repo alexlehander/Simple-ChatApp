@@ -919,6 +919,7 @@ def get_student_statuses():
     return jsonify(status_map), 200
 
 @app.route('/api/student_timeline/<path:email>', methods=['GET'])
+@jwt_required()
 def get_student_timeline(email):
     """Fetches combined chronological timeline of chat and answers."""
     try:
@@ -936,7 +937,7 @@ def get_student_timeline(email):
         answer_events = [{
             'type': 'answer',
             'id': a.id,
-            'timestamp': a.timestamp.isoformat() if a.timestamp else dt.datetime.utcnow().isoformat(),
+            'timestamp': a.created_at.isoformat() if a.created_at else dt.datetime.utcnow().isoformat(),
             'problem_id': a.problema_id,
             'score': a.llm_score,
             'color': "green" if (a.llm_score or 0) >= 7 else "yellow" if (a.llm_score or 0) >= 4 else "red",
