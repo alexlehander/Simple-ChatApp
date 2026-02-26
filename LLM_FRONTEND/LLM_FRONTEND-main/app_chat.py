@@ -690,12 +690,17 @@ def main(page: ft.Page):
                     return
 
                 practice_name = load_k(page, "selected_session_filename", "unknown_session.json")
+                temp_respuestas = list(respuestas_enviadas)
+                temp_respuestas[problema_actual_id - 1] = True
+                entregados_pred = sum(1 for x in temp_respuestas if x)
+                prog_pred = entregados_pred / NUM_PROBLEMAS if NUM_PROBLEMAS > 0 else 0
                 
                 # DATOS DE LA PETICIÓN
                 payload = {
                     "respuesta": val,
                     "correo_identificacion": correo,
-                    "practice_name": practice_name
+                    "practice_name": practice_name,
+                    "progress_pct": prog_pred
                 }
                 
                 is_success = False
@@ -823,12 +828,15 @@ def main(page: ft.Page):
                 border_radius=ft.border_radius.all(10),
             )
             chat_area.controls.append(page.burbuja_carga)
-            chat_area.update() # Actualización forzada del chat
+            chat_area.update()
+            entregados = sum(1 for x in respuestas_enviadas if x)
+            prog_act = entregados / NUM_PROBLEMAS if NUM_PROBLEMAS > 0 else 0
 
             payload = {
                 "message": msg,
                 "correo_identificacion": correo,
-                "practice_name": load_k(page, "selected_session_filename", "unknown.json")
+                "practice_name": load_k(page, "selected_session_filename", "unknown.json"),
+                "progress_pct": prog_act
             }
 
             def send_request_thread():

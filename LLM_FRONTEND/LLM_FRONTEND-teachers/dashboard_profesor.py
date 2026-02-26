@@ -140,22 +140,6 @@ def main(page: ft.Page):
     def show_student_detail(email):
         detail_dlg_title.value = f"Línea de Tiempo: {email.split('@')[0]}"
         
-        detail_dlg_content.controls = [
-            ft.Container(
-                content=ft.Column([
-                    ft.ProgressRing(color=COLORES["primario"], stroke_width=4),
-                    ft.Text("Consultando historial académico...", color=COLORES["subtitulo"], italic=True)
-                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                alignment=ft.alignment.center,
-                height=200
-            )
-        ]
-        
-        detail_dlg.content.width = 800
-        detail_dlg.content.height = 600
-        detail_dlg.open = True
-        page.update()
-
         def fetch_and_render_timeline():
             timeline_data = []
             try:
@@ -223,7 +207,33 @@ def main(page: ft.Page):
             except Exception:
                 pass
                 
-        threading.Thread(target=fetch_and_render_timeline, daemon=True).start()
+        def trigger_load(e=None):
+            detail_dlg_content.controls = [
+                ft.Container(
+                    content=ft.Column([
+                        ft.ProgressRing(color=COLORES["primario"], stroke_width=4),
+                        ft.Text("Consultando historial académico...", color=COLORES["subtitulo"], italic=True)
+                    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                    alignment=ft.alignment.center,
+                    height=200
+                )
+            ]
+            if detail_dlg.open:
+                detail_dlg_content.update()
+                
+            threading.Thread(target=fetch_and_render_timeline, daemon=True).start()
+
+        detail_dlg.actions = [
+            ft.TextButton("Refrescar", icon=ft.Icons.REFRESH, icon_color=COLORES["primario"], on_click=trigger_load),
+            ft.TextButton("Cerrar", on_click=lambda e: close_detail_dlg())
+        ]
+
+        detail_dlg.content.width = 800
+        detail_dlg.content.height = 600
+        detail_dlg.open = True
+        page.update()
+        
+        trigger_load()
         
     @sio.event
     def connect():

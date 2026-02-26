@@ -336,20 +336,6 @@ def get_exercise_metadata(filename):
             "num_problems": 0
         }
 
-def get_student_progress(correo, practice_name):
-    """Calcula el porcentaje de avance de un alumno en una práctica específica."""
-    if not practice_name: return 0.0
-    meta = get_exercise_metadata(practice_name)
-    total = meta.get("num_problems", 1)
-    if total == 0: total = 1
-    
-    # Cuenta problemas únicos que el alumno ya contestó
-    answered = db.session.query(RespuestaUsuario.problema_id).filter_by(
-        correo_identificacion=correo, practice_name=practice_name
-    ).distinct().count()
-    
-    return min(1.0, float(answered) / float(total))
-
 # 1. Semaphore Analysis Function (Fixed Context)
 def analyze_interaction_semaphore(chat_log_id, user_message, correo):
     """
@@ -430,20 +416,18 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo):
             analysis.color_asignado = calculated_color
             db.session.commit()
 
-            # Get progress needed for the socket update
-            chat_log = ChatLog.query.get(chat_log_id)
-            practice_name = chat_log.practice_name if chat_log else ""
-            prog_pct = get_student_progress(correo, practice_name)
-
             print(f"🚦 Semaphore ({SEMAPHORE_WINDOW_MINUTES}m window): {correo} -> {intent_raw} | State: {calculated_color}")
             
             # Emit the CALCULATED color based on history
             socketio.emit('student_activity', {
                 'type': 'chat',
                 'student_email': correo,
-                'status': calculated_color, # <-- IMPORTANT: Using sliding window color
-                'intent': intent_raw,       # The specific intent of THIS message
-                # ... rest of the socket data ...
+                'status': calculated_color,
+                'intent': intent_raw,
+                'last_message': user_message,
+                'progress_pct': prog_pct,
+                'timestamp': dt.datetime.utcnow().isoformat(),
+                'analysis_id': analysis.id
             })
             
         except Exception as e:
@@ -511,9 +495,6 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer):
                 db.session.commit()
                 
                 print(f"📝 Evaluado ID {respuesta_id}: {resp_record.llm_score}/10 - {comentario[:30]}...")
-                
-                prog_pct = get_student_progress(resp_record.correo_identificacion, resp_record.practice_name)
-                
                 color = "green" if nota >= 7 else "yellow" if nota >= 4 else "red"
                 
                 socketio.emit('student_activity', {
@@ -578,6 +559,7 @@ def verificar_respuesta(problema_id):
     respuesta = data.get("respuesta")
     correo = data.get("correo_identificacion")
     practice_name = data.get("practice_name", "unknown_session.json")
+    prog_pct = float(data.get("progress_pct", 0.0))
     if not respuesta or not correo:
         return jsonify({"error": "Datos incompletos"}), 400
     usuario = get_or_create_user(correo)
@@ -593,7 +575,7 @@ def verificar_respuesta(problema_id):
     problem_text = get_problem_enunciado(practice_name, problema_id)
     thread = threading.Thread(
         target=auto_grade_answer,
-        args=(nueva_respuesta.id, problem_text, respuesta)
+        args=(nueva_respuesta.id, problem_text, respuesta, prog_pct)
     )
     thread.start()
     return jsonify({"message": "Respuesta registrada y enviada a evaluación"}), 200
@@ -604,6 +586,7 @@ def chat(problema_id: int):
     user_msg = (data.get("message") or "").strip()
     correo = (data.get("correo_identificacion") or "").strip()
     practice_name = (data.get("practice_name") or "").strip()
+    prog_pct = float(data.get("progress_pct", 0.0))
 
     if not user_msg:
         return jsonify({"status": "error", "message": "Mensaje vacío"}), 400
@@ -623,7 +606,7 @@ def chat(problema_id: int):
     # 3. Start Semaphore Analysis (using the chat_id from step 1)
     thread_analysis = threading.Thread(
         target=analyze_interaction_semaphore,
-        args=(chat_id, user_msg, correo)
+        args=(chat_id, user_msg, correo, prog_pct)
     )
     thread_analysis.start()
 
@@ -935,7 +918,7 @@ def get_student_timeline(email):
             'description': f"Consultó al LLM: {c.intent}"
         } for c in chats]
 
-        answers = RespuestaUsuario.query.filter_by(correo_identificacion=email).filter(RespuestaUsuario.status != 'processing').order_by(RespuestaUsuario.created_at.desc()).limit(50).all()
+        answers = RespuestaUsuario.query.filter_by(correo_identificacion=email).filter(RespuestaUsuario.status != 'processing').order_by(RespuestaUsuario.created_at.desc()).limit(25).all()
         answer_events = [{
             'type': 'answer',
             'id': a.id,
