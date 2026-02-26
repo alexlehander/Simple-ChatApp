@@ -138,74 +138,78 @@ def main(page: ft.Page):
         page.update()
 
     def show_student_detail(email):
-        # Verificar si tenemos datos en memoria para este estudiante
-        if email not in student_cards_state or 'latest_data' not in student_cards_state[email]:
-            # Si no hay datos en tiempo real, mostrar mensaje genérico
-            detail_dlg_title.value = f"Estudiante: {email.split('@')[0]}"
-            detail_dlg_content.controls.clear()
-            detail_dlg_content.controls.append(ft.Text("No hay actividad reciente registrada en esta sesión en vivo.", italic=True))
-            detail_dlg.open = True
-            page.update()
-            return
+        detail_dlg_title.value = f"Línea de Tiempo: {email.split('@')[0]}"
+        detail_dlg_content.controls.clear()
+        
+        # 1. Mostrar mensaje de carga
+        detail_dlg_content.controls.append(ft.ProgressBar(color=COLORES["primario"], bgcolor=COLORES["borde"]))
+        detail_dlg.open = True
+        page.update()
 
-        data = student_cards_state[email]['latest_data']
-        detail_dlg_title.value = f"Análisis: {email.split('@')[0]}"
+        # 2. Consultar al Backend
+        timeline_data = []
+        try:
+            # Petición a tu nueva API
+            res = requests.get(f"{BASE}/api/student_timeline/{email}", timeout=10)
+            if res.status_code == 200:
+                timeline_data = res.json()
+        except Exception as e:
+            print(f"Error fetching timeline: {e}")
+
+        # 3. Limpiar barra de carga
         detail_dlg_content.controls.clear()
 
-        if data['type'] == 'chat':
-            # Estructura visual para CHAT (Semáforo)
-            status_map = {"green": "Productivo", "yellow": "Atascado/Distraído", "red": "Crítico/Inapropiado"}
-            status_text = status_map.get(data.get('status'), "Desconocido")
-            status_color = {"green": COLORES["exito"], "yellow": COLORES["advertencia"], "red": COLORES["error"]}.get(data.get('status'), COLORES["texto"])
+        # 4. Helpers de diseño
+        def get_status_meta(color_name):
+            return {
+                "green": (ft.Icons.CHECK_CIRCLE_OUTLINE, COLORES["exito"]),
+                "yellow": (ft.Icons.WARNING_AMBER_ROUNDED, COLORES["advertencia"]),
+                "red": (ft.Icons.ERROR_OUTLINE, COLORES["error"])
+            }.get(color_name, (ft.Icons.CIRCLE_OUTLINE, COLORES["subtitulo"]))
 
-            detail_dlg_content.controls.extend([
-                    ft.Container(
-                        content=ft.Column([
-                            ft.Text("Estado Detectado:", size=12, color=COLORES["subtitulo"]),
-                            ft.Row([
-                                ft.Icon(ft.Icons.FIBER_MANUAL_RECORD, color=status_color),
-                                ft.Text(status_text, size=18, weight="bold", color=status_color)
-                            ])
-                        ]),
-                        bgcolor=COLORES["accento"], padding=10, border_radius=10
-                    ),
-                    ft.Divider(),
-                    ft.Text("Último Mensaje del Estudiante:", weight="bold"),
-                    ft.Container(
-                        content=ft.Text(f"\"{data.get('last_message', 'N/A')}\"", italic=True, size=14),
-                        bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])
-                    ),
-                    ft.Divider(),
-                    ft.Row([
-                        ft.Text("Intención IA:", weight="bold"),
-                        ft.Container(
-                            content=ft.Text(data.get('intent', 'N/A'), color=COLORES["texto"], size=12),
-                            bgcolor=COLORES["primario"], padding=5, border_radius=5
-                        )
-                    ]),
-                    ft.Text(f"Hora: {data.get('timestamp', '').replace('T', ' ')[:16]}", size=10, color=COLORES["subtitulo"])
-            ])
-            
-        elif data['type'] == 'answer':
-                # Estructura visual para RESPUESTA (Grading)
-                detail_dlg_content.controls.extend([
-                    ft.Container(
-                        content=ft.Row([
-                            ft.Icon(ft.Icons.ASSIGNMENT_TURNED_IN, color=COLORES["primario"]),
-                            ft.Text("Nueva Tarea Entregada", weight="bold", size=16)
-                        ]),
-                        bgcolor=COLORES["accento"], padding=10, border_radius=10
-                    ),
-                    ft.Text(f"Práctica: {data.get('practice')} - Ejercicio {data.get('problem_id')}", size=14),
-                    ft.Divider(),
-                    ft.Text(f"Calificación Preliminar IA: {data.get('score', 0)}/10", size=24, weight="bold", color=COLORES["primario"]),
-                    ft.Container(
-                        content=ft.Text("⚠️ Esta nota es preliminar. Ve a la pestaña 'Evaluaciones' para confirmarla o editarla.", color=COLORES["texto"]),
-                        bgcolor=COLORES["advertencia"], padding=10, border_radius=5
-                    )
-                ])
+        # 5. Construir la UI de la línea de tiempo
+        if not timeline_data:
+            detail_dlg_content.controls.append(ft.Text("No hay interacciones recientes registradas.", italic=True, color=COLORES["subtitulo"]))
+        else:
+            for event in timeline_data:
+                try:
+                    dt_obj = dt.datetime.fromisoformat(event['timestamp'])
+                    time_str = dt_obj.strftime("%H:%M - %d/%b")
+                except:
+                    time_str = event['timestamp'][:10]
 
-        detail_dlg.open = True
+                icon_shape, icon_color = get_status_meta(event['color'])
+                event_icon = ft.Icons.CHAT_BUBBLE_OUTLINE if event['type'] == 'chat' else ft.Icons.ASSIGNMENT_TURNED_IN_OUTLINE
+                
+                # Fila individual de la línea de tiempo
+                item_row = ft.Container(
+                    content=ft.Row([
+                        # Izquierda: Hora e Icono principal
+                        ft.Column([
+                             ft.Text(time_str, size=10, color=COLORES["subtitulo"]),
+                             ft.Icon(event_icon, color=COLORES["primario"], size=20),
+                        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                        
+                        # Centro: Separador vertical
+                        ft.Container(width=2, height=40, bgcolor=COLORES["borde"]),
+                        
+                        # Derecha: Descripción y Estado
+                        ft.Row([
+                             ft.Column([
+                                ft.Text(event['description'], weight="bold", size=14, color=COLORES["texto"]),
+                                ft.Text(f"Tipo: {event['type'].title()} | Etiqueta: {event['color'].title()}", size=11, color=COLORES["subtitulo"]),
+                             ], expand=True, spacing=2),
+                             ft.Icon(icon_shape, color=icon_color, size=24)
+                        ], expand=True, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+                    ], spacing=15),
+                    padding=ft.padding.symmetric(vertical=10, horizontal=5),
+                    border=ft.border.only(bottom=ft.border.BorderSide(1, COLORES["borde"]))
+                )
+                detail_dlg_content.controls.append(item_row)
+
+        # 6. Hacer el Pop-up más grande para acomodar la información
+        detail_dlg.content.width = 800
+        detail_dlg.content.height = 600
         page.update()
 
     @sio.event
@@ -349,15 +353,6 @@ def main(page: ft.Page):
                     except Exception as e:
                         print(f"Logout background error: {e}")
     threading.Thread(target=inactivity_checker, daemon=True).start()
-
-    def route_change(e):
-        if page.route == "/logout_forced":
-            page.client_storage.remove("teacher_token")
-            state["token"] = None
-            flash("Tu sesión ha expirado por inactividad.", ok=False)
-            show_login()
-            page.route = "/"
-    page.on_route_change = route_change
     
     def show_login():
         page.clean()
@@ -1303,27 +1298,27 @@ def main(page: ft.Page):
             reset_inactivity_timer()
             # Obtenemos lista de estudiantes para pintar las tarjetas iniciales
             render_dashboard_view(state["students"])
-
+        
         def render_dashboard_view(student_list):
             dashboard_grid.controls.clear()
-            memoria_temporal = {}
             
+            # --- 1. RESPALDAR MEMORIA ---
+            memoria_temporal = {}
             for email, datos in student_cards_state.items():
                 if 'latest_data' in datos:
                     memoria_temporal[email] = datos['latest_data']
-                    
-            student_cards_state.clear() # Limpiar estado anterior
-            
+
+            student_cards_state.clear()
+
             if not student_list:
                 dashboard_grid.controls.append(ft.Text("No hay estudiantes registrados", size=16))
                 page.update()
                 return
-                
-            safe_exercises = [x for x in state["my_exercises"] if isinstance(x, dict)]
-            total_tasks = len(safe_exercises)
             
+            # --- CONSTRUIR TARJETAS ---
             for stu in student_list:
                 datos_previos = memoria_temporal.get(stu)
+                
                 current_color = COLORES["borde"]
                 current_icon = ft.Icons.CIRCLE_OUTLINED
                 
@@ -1340,7 +1335,7 @@ def main(page: ft.Page):
                         "yellow": ft.Icons.WARNING,
                         "red": ft.Icons.ERROR
                     }.get(status_color, ft.Icons.CIRCLE)
-                    
+
                 progress_pct = datos_previos.get('progress_pct', 0.0) if datos_previos else 0.0
                 
                 if not datos_previos:
@@ -1377,6 +1372,7 @@ def main(page: ft.Page):
                                 color=COLORES.get("texto_boton", COLORES["texto"]),
                                 bgcolor=COLORES["boton"]
                             ),
+                            # AQUÍ LLAMAMOS A TU NUEVO POP-UP HISTÓRICO
                             on_click=lambda e, email=stu: show_student_detail(email)
                         )
                     ])
@@ -1396,13 +1392,15 @@ def main(page: ft.Page):
                     'bar_ctrl': bar_ctrl,
                     'txt_ctrl': txt_ctrl
                 }
+                
+                # RESTAURAR MEMORIA
                 if datos_previos:
                     student_cards_state[stu]['latest_data'] = datos_previos
                     
                 dashboard_grid.controls.append(card)
                 
             page.update()
-
+        
         tab_dashboard = ft.Container(
             content=ft.Column([
                 ft.Row([

@@ -47,6 +47,11 @@ PINECONE_INDEX_NAME = "evatutor"
 pc_client = Pinecone(api_key=PINECONE_API_KEY)
 pinecone_index = pc_client.Index(PINECONE_INDEX_NAME)
 HF_EMBED_URL = os.getenv("HF_EMBED_URL", "https://EmbeddingsAPI.hf.space/embed")
+SEMAPHORE_WINDOW_MINUTES = 5
+RED_FLAG_INTENTS = ["demand for direct answer", "negative expression"]
+YELLOW_FLAG_INTENTS = ["off-topic", "expression of incomprehension"]
+RED_THRESHOLD = 2    # How many red flags in the window trigger RED state
+YELLOW_THRESHOLD = 2 # How many yellow flags trigger YELLOW state
 # If you want to implement a second layer of security / verification mechanism for LLM-generated answers - uncomment the next line and delete False (The quality of life improvement is very little)
 QC_ENABLED = False  #os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
@@ -404,31 +409,39 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo):
                 if recent_issues >= 2: 
                     color = "yellow"
             
+            intent_raw = data.get("intent", "Other")
+            dimension_safe = str(data.get("dimension", "Neutral"))[:50]
+            
             # Save to DB
             analysis = AnalisisInteraccion(
                 chat_id=chat_log_id,
                 correo_identificacion=correo,
-                intent=intent,
-                dimension=data.get("dimension", "Neutral"),
-                color_asignado=color
+                intent=intent_raw,
+                dimension=dimension_safe,
+                color_asignado="green" 
             )
             db.session.add(analysis)
-            db.session.commit()            
+            db.session.commit()           
+            calculated_color = calculate_sliding_window_color(correo)
+            
+            # Update the record with the calculated color
+            analysis.color_asignado = calculated_color
+            db.session.commit()
+
+            # Get progress needed for the socket update
             chat_log = ChatLog.query.get(chat_log_id)
             practice_name = chat_log.practice_name if chat_log else ""
             prog_pct = get_student_progress(correo, practice_name)
-            print(f"🚦 Semaphore: {correo} -> {intent} ({color}) | Prog: {prog_pct*100:.0f}%")
+
+            print(f"🚦 Semaphore ({SEMAPHORE_WINDOW_MINUTES}m window): {correo} -> {intent_raw} | State: {calculated_color}")
             
+            # Emit the CALCULATED color based on history
             socketio.emit('student_activity', {
                 'type': 'chat',
                 'student_email': correo,
-                'status': color,  # green, yellow, red
-                'intent': intent,
-                'last_message': user_message,
-                'practice': practice_name,
-                'progress_pct': prog_pct, # <-- NUEVO DATO
-                'timestamp': dt.datetime.utcnow().isoformat(),
-                'analysis_id': analysis.id
+                'status': calculated_color, # <-- IMPORTANT: Using sliding window color
+                'intent': intent_raw,       # The specific intent of THIS message
+                # ... rest of the socket data ...
             })
             
         except Exception as e:
@@ -515,7 +528,40 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer):
                 
     except Exception as e:
         print(f"❌ Error en Auto-Grading: {e}")
+
+# --- app.py (Helper functions section) ---
+def calculate_sliding_window_color(student_email):
+    """Calculates status color based on recent interaction history."""
+    with app.app_context():
+        since_time = dt.datetime.utcnow() - dt.timedelta(minutes=SEMAPHORE_WINDOW_MINUTES)
         
+        # Fetch recent interactions for this student
+        recent_interactions = AnalisisInteraccion.query.filter(
+            AnalisisInteraccion.correo_identificacion == student_email,
+            AnalisisInteraccion.created_at >= since_time
+        ).order_by(AnalisisInteraccion.created_at.desc()).all()
+        
+        if not recent_interactions:
+            return "green"
+
+        red_count = 0
+        yellow_count = 0
+        
+        for interaction in recent_interactions:
+            intent_lower = (interaction.intent or "").lower()
+            
+            if any(flag in intent_lower for flag in RED_FLAG_INTENTS):
+                red_count += 1
+            elif any(flag in intent_lower for flag in YELLOW_FLAG_INTENTS):
+                yellow_count += 1
+                
+        # Apply Heuristics (Priority: Red > Yellow > Green)
+        if red_count >= RED_THRESHOLD:
+            return "red"
+        elif yellow_count >= YELLOW_THRESHOLD:
+            return "yellow"
+        else:
+            return "green"
 # ------------------------------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------------------------------
@@ -871,6 +917,42 @@ def get_student_statuses():
     
     status_map = {entry.correo_identificacion: entry.color_asignado for entry in latest_entries}
     return jsonify(status_map), 200
+
+@app.route('/api/student_timeline/<path:email>', methods=['GET'])
+def get_student_timeline(email):
+    """Fetches combined chronological timeline of chat and answers."""
+    try:
+        chats = AnalisisInteraccion.query.filter_by(correo_identificacion=email).order_by(AnalisisInteraccion.created_at.desc()).limit(25).all()
+        chat_events = [{
+            'type': 'chat',
+            'id': c.id,
+            'timestamp': c.created_at.isoformat(),
+            'intent': c.intent,
+            'color': c.color_asignado,
+            'description': f"Consultó al LLM: {c.intent}"
+        } for c in chats]
+
+        answers = RespuestaUsuario.query.filter_by(correo_identificacion=email).filter(RespuestaUsuario.status != 'processing').order_by(RespuestaUsuario.created_at.desc()).limit(50).all()
+        answer_events = [{
+            'type': 'answer',
+            'id': a.id,
+            'timestamp': a.timestamp.isoformat() if a.timestamp else dt.datetime.utcnow().isoformat(),
+            'problem_id': a.problema_id,
+            'score': a.llm_score,
+            'color': "green" if (a.llm_score or 0) >= 7 else "yellow" if (a.llm_score or 0) >= 4 else "red",
+            'description': f"Entregó Respuesta P{a.problema_id} (Calificación: {a.llm_score})"
+        } for a in answers]
+
+        combined_timeline = sorted(
+            chat_events + answer_events, 
+            key=lambda x: x['timestamp'], 
+            reverse=True
+        )
+
+        return jsonify(combined_timeline), 200
+    except Exception as e:
+        print(f"Error fetching timeline: {e}")
+        return jsonify({'error': str(e)}), 500
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------
