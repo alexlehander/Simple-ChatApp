@@ -1141,6 +1141,9 @@ def main(page: ft.Page):
         
         def background_listener():
             while not stop_timer:
+                if not hasattr(page, 'is_alive') or not page.is_alive: 
+                    break
+                
                 sleep_time = 1.5 if page.polling_speed == "fast" else 10.0
                 time.sleep(sleep_time)
                 
@@ -1180,8 +1183,9 @@ def main(page: ft.Page):
                                 page.update()
                                 
                 except Exception as e:
-                    print(f"[Listener] Ping fallido: {e}")
-
+                    if getattr(page, 'is_alive', False):
+                        print(f"[Listener] Ping fallido: {e}")
+                        
         threading.Thread(target=background_listener, daemon=True).start()
         
         def process_pending_queue():

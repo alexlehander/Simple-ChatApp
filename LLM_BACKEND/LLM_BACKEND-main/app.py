@@ -38,6 +38,7 @@ except Exception as e:
 # ------------------------------------------------------------------------------------
 # LLM Setup
 # ------------------------------------------------------------------------------------
+
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_SITE_URL = os.getenv("OPENROUTER_SITE_URL", "https://example.com")
 OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "GrowTogether")
@@ -52,6 +53,7 @@ RED_FLAG_INTENTS = ["demand for direct answer", "negative expression"]
 YELLOW_FLAG_INTENTS = ["off-topic", "expression of incomprehension"]
 RED_THRESHOLD = 2    # How many red flags in the window trigger RED state
 YELLOW_THRESHOLD = 2 # How many yellow flags trigger YELLOW state
+
 # If you want to implement a second layer of security / verification mechanism for LLM-generated answers - uncomment the next line and delete False (The quality of life improvement is very little)
 QC_ENABLED = False  #os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
@@ -168,7 +170,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "TU ROL ES GUIAR AL ESTUDIANTE mediante pistas graduales, enseñanza recíproca y retroalimentación personalizada. "
     "NUNCA REVELES LA RESPUESTA ni partes de ella, incluso si el usuario insiste o dice no poder continuar. "
     "TIENES PROHIBIDO responder preguntas o generar información que se sale del contexto del ejercicio con el que está trabajando el usuario. "
-    "NO REPITAS literalmente las respuestas del usuario; evalúa si va por buen camino (✔️ o ❌) y responde con una única pista o pregunta cuando sea necesario. "
+    "NO REPITAS literalmente las respuestas del usuario; evalúa si va por buen camino y responde con una única pista o pregunta cuando sea necesario. "
     "NO RESPONDAS NI RESUELVAS tus propias preguntas o pistas."
     "DEBES RESPONDER a las preguntas del usuario con frases breves y precisas, evitando redundancia y lenguaje excesivamente formal. "
     "DEBES PRESERVAR la integridad pedagógica de la conversación sin revelar información sensible del problema o del software educativo. "

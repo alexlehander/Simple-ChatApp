@@ -144,7 +144,7 @@ def main(page: ft.Page):
             ft.Container(
                 content=ft.Column([
                     ft.ProgressRing(color=COLORES["primario"], stroke_width=4),
-                    ft.Text("Consultando historial clínico...", color=COLORES["subtitulo"], italic=True)
+                    ft.Text("Consultando historial académico...", color=COLORES["subtitulo"], italic=True)
                 ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 alignment=ft.alignment.center,
                 height=200
@@ -160,17 +160,17 @@ def main(page: ft.Page):
             timeline_data = []
             try:
                 res = auth_request("GET", f"/api/student_timeline/{email}", timeout=10)
-                if res.status_code == 200:
+                if res and res.status_code == 200:
                     timeline_data = res.json()
             except Exception as e:
                 print(f"Error fetching timeline: {e}")
                 
             def get_status_meta(color_name):
                 return {
-                    "green": (ft.Icons.CHECK_CIRCLE_OUTLINE, COLORES["exito"]),
+                    "green": (ft.Icons.CHECK_CIRCLE_OUTLINED, COLORES["exito"]),
                     "yellow": (ft.Icons.WARNING_AMBER_ROUNDED, COLORES["advertencia"]),
-                    "red": (ft.Icons.ERROR_OUTLINE, COLORES["error"])
-                }.get(color_name, (ft.Icons.CIRCLE_OUTLINE, COLORES["subtitulo"]))
+                    "red": (ft.Icons.ERROR_OUTLINED, COLORES["error"])
+                }.get(color_name, (ft.Icons.CIRCLE_OUTLINED, COLORES["subtitulo"]))
                 
             nuevos_controles = []
             if not timeline_data:
@@ -191,7 +191,7 @@ def main(page: ft.Page):
                         time_str = event['timestamp'][:10]
                         
                     icon_shape, icon_color = get_status_meta(event['color'])
-                    event_icon = ft.Icons.CHAT_BUBBLE_OUTLINE if event['type'] == 'chat' else ft.Icons.ASSIGNMENT_TURNED_IN_OUTLINE
+                    event_icon = ft.Icons.CHAT_BUBBLE_OUTLINED if event['type'] == 'chat' else ft.Icons.ASSIGNMENT_TURNED_IN_OUTLINED
                     
                     item_row = ft.Container(
                         content=ft.Row([
