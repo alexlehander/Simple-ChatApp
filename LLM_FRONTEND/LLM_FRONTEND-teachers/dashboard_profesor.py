@@ -685,7 +685,7 @@ def main(page: ft.Page):
                             bgcolor=COLORES["fondo"], 
                             padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
                             border_radius=5, 
-                            border=ft.border.all(1, COLORES["borde"]),
+                            border=ft.border.all(1, COLORES["borde"])
                         )
                     )
                     
@@ -852,7 +852,7 @@ def main(page: ft.Page):
                                         bgcolor=COLORES["fondo"],
                                         padding=15,
                                         border_radius=8,
-                                        border=ft.border.all(1, COLORES["borde"])
+                                        border=ft.border.all(1, COLORES["borde"]),
                                         margin=ft.margin.only(right=15)
                                     )
                                 )
