@@ -120,7 +120,7 @@ def main(page: ft.Page):
     dashboard_grid = ft.GridView(expand=True, runs_count=5, max_extent=250, child_aspect_ratio=1.0, spacing=10, run_spacing=10)
     session_status_text = ft.Text("Sesión Inactiva", color=COLORES["subtitulo"])
     detail_dlg_title = ft.Text(weight="bold", size=20)
-    detail_dlg_content = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=10)
+    detail_dlg_content = ft.ListView(spacing=10, padding=ft.padding.only(right=15))
         
     detail_dlg = ft.AlertDialog(
         title=detail_dlg_title,
@@ -784,7 +784,7 @@ def main(page: ft.Page):
         col_available = ft.ListView(expand=True, spacing=10)
         col_mine = ft.ListView(expand=True, spacing=10)
         ex_detail_dlg_title = ft.Text("", weight="bold", size=20, color=COLORES["primario"])
-        ex_detail_dlg_content = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=10)
+        ex_detail_dlg_content = ft.ListView(spacing=10, padding=ft.padding.only(right=15))
         
         ex_detail_dlg = ft.AlertDialog(
             title=ex_detail_dlg_title,
@@ -882,11 +882,9 @@ def main(page: ft.Page):
         def load_exercises():
             headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                # 1. Cargar MIS ejercicios
                 r1 = requests.get(f"{BASE}/api/teacher/my-exercises", headers=headers)
                 if r1.status_code == 200:
                     state["my_exercises"] = r1.json()
-                # 2. Cargar TODOS los del server
                 r2 = requests.get(f"{BASE}/api/exercises/available", headers=headers)
                 if r2.status_code == 200:
                     state["all_exercises"] = r2.json()
@@ -949,7 +947,7 @@ def main(page: ft.Page):
                     content=ft.Column([
                         ft.Row([
                             ft.Icon(icono, size=20, color=color_icono),
-                            ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=14, expand=True, color=COLORES["texto"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                            ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=16, expand=True, color=COLORES["texto"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                             ft.IconButton(
                                 ft.Icons.DELETE if is_mine else ft.Icons.ADD_CIRCLE, 
                                 icon_color=COLORES["error"] if is_mine else COLORES["exito"],
@@ -959,12 +957,12 @@ def main(page: ft.Page):
                             )
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.START),
                         
-                        ft.Text(ex_data.get("description", ""), size=12, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                        ft.Text(ex_data.get("description", ""), size=14, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                         ft.Container(height=5),
                         
                         ft.Row([
                             ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
-                            ft.Text(f"{minutes} minutos", size=12, color=COLORES["subtitulo"]),
+                            ft.Text(f"{minutes} minutos", size=14, color=COLORES["subtitulo"]),
                             ft.Container(width=10),
                             ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
                             ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
