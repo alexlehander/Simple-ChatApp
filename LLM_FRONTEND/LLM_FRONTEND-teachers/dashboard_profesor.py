@@ -1546,7 +1546,7 @@ def main(page: ft.Page):
         state["sort_completed_grades"] = "asc"
         
         search_completed_grades = ft.TextField(
-            hint_text="Buscar evaluación completada...",
+            hint_text="Buscar evaluaciones completadas...",
             prefix_icon=ft.Icons.SEARCH,
             height=35,
             text_size=12,
@@ -1565,7 +1565,7 @@ def main(page: ft.Page):
         )
 
         search_pending_grades = ft.TextField(
-            hint_text="Buscar evaluación pendiente...",
+            hint_text="Buscar evaluaciones pendientes...",
             prefix_icon=ft.Icons.SEARCH,
             height=35,
             text_size=12,
@@ -1586,13 +1586,14 @@ def main(page: ft.Page):
         col_completed_grades = ft.ListView(expand=True, spacing=10)
         col_pending_grades = ft.ListView(expand=True, spacing=10)
         
-        grade_score_field = ft.TextField(label="Calificación (0-10)", width=100)
+        grade_score_field = ft.TextField(label="Calificación", width=100)
         grade_comment_field = ft.TextField(label="Comentario", multiline=True)
         grade_student_label = ft.Text("", weight="bold") 
         grade_task_label = ft.Text("", size=12)
         grade_response_container = ft.Container(bgcolor=COLORES["fondo"], padding=10)
-        grade_btn_approve = ft.ElevatedButton("Aprobar IA", bgcolor=COLORES["exito"], color=COLORES["texto"])
-        grade_btn_save = ft.ElevatedButton("Guardar Cambios", bgcolor=COLORES["boton"], color=COLORES["texto"])
+        grade_btn_cancel = ft.ElevatedButton("Regresar", bgcolor=COLORES["advertencia"], color=COLORES["texto"], on_click=lambda e: close_grade_dlg())
+        grade_btn_approve = ft.ElevatedButton("Aprobar análisis de la IA", bgcolor=COLORES["boton"], color=COLORES["texto"])
+        grade_btn_save = ft.ElevatedButton("Calificar bajo mi criterio", bgcolor=COLORES["exito"], color=COLORES["texto"])
         
         grade_dlg = ft.AlertDialog(
             title=grade_student_label,
@@ -1601,12 +1602,12 @@ def main(page: ft.Page):
                 ft.Text("Respuesta del Estudiante:", weight="bold"),
                 grade_response_container,
                 ft.Divider(),
-                ft.Text("Sugerencia IA / Evaluación Actual:", color=COLORES["primario"]),
+                ft.Text("Calificación sugerida por la IA", color=COLORES["primario"]),
                 grade_score_field,
                 grade_comment_field
             ], tight=True, width=500),
             actions=[
-                ft.TextButton("Cancelar", on_click=lambda e: close_grade_dlg()),
+                grade_btn_cancel,
                 grade_btn_approve,
                 grade_btn_save,
             ]
@@ -1646,7 +1647,6 @@ def main(page: ft.Page):
             grade_task_label.value = f"Práctica: {item['practica']} | Ej: {item['problema_id']}"
             grade_response_container.content = ft.Text(item['respuesta'])
             
-            # Si ya fue evaluado, mostramos la nota del maestro, sino la de la IA
             if is_completed:
                 grade_score_field.value = str(item.get('teacher_score', item['llm_score']))
                 grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
@@ -1715,10 +1715,9 @@ def main(page: ft.Page):
                         ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i, is_completed), icon_color=COLORES["primario"], tooltip="Editar Evaluación")
                     ]),
                     bgcolor=COLORES["fondo"], 
-                    padding=10, 
+                    padding=ft.padding.only(left=10, top=5, right=20, bottom=5),
                     border_radius=5, 
                     border=ft.border.all(1, border_color),
-                    margin=ft.margin.symmetric(horizontal=5)
                 )
 
             # --- 1. Filtrar y Ordenar COMPLETADAS ---
@@ -1758,7 +1757,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Evaluaciones Realizadas", size=16, color=COLORES["primario"]),
+                                ft.Text("Evaluaciones completadas", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_completed_grades, sort_btn_completed_grades], spacing=5),
@@ -1775,7 +1774,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Evaluaciones Pendientes", size=16, color=COLORES["primario"]),
+                                ft.Text("Evaluaciones pendientes", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_pending_grades, sort_btn_pending_grades], spacing=5),
