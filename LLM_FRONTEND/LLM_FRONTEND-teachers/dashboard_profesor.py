@@ -784,7 +784,7 @@ def main(page: ft.Page):
         col_available = ft.ListView(expand=True, spacing=10)
         col_mine = ft.ListView(expand=True, spacing=10)
         ex_detail_dlg_title = ft.Text("", weight="bold", size=20, color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
-        ex_detail_dlg_content = ft.ListView(spacing=10, padding=ft.padding.only(right=15))
+        ex_detail_dlg_content = ft.ListView(spacing=10)
         
         ex_detail_dlg = ft.AlertDialog(
             title=ex_detail_dlg_title,
@@ -849,10 +849,9 @@ def main(page: ft.Page):
                                             ft.Text(p.get("enunciado", "Sin enunciado"), color=COLORES["texto"], size=13, text_align=ft.TextAlign.JUSTIFY)
                                         ], spacing=5),
                                         bgcolor=COLORES["fondo"],
-                                        padding=15,
+                                        padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
                                         border_radius=8,
                                         border=ft.border.all(1, COLORES["borde"]),
-                                        margin=ft.margin.symmetric(horizontal=15)
                                     )
                                 )
                         ex_detail_dlg_content.controls = [info_col] + prob_list
@@ -971,7 +970,7 @@ def main(page: ft.Page):
                             ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
                             ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
                         ])
-                    ], spacing=2),
+                    ], spacing=5),
                     bgcolor=COLORES["fondo"], 
                     padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
                     border_radius=5, 
@@ -1045,7 +1044,6 @@ def main(page: ft.Page):
             ], expand=True), 
             padding=20
         )
-        
         # =========================================
         # PESTAÑA 3: Monitoreo
         # =========================================
@@ -1803,8 +1801,8 @@ def main(page: ft.Page):
                 load_full_dashboard() if e.control.selected_index == 4 else None
             ),
             tabs=[
-                ft.Tab(text="Mis Estudiantes", icon=ft.Icons.GROUPS, content=tab_students),
-                ft.Tab(text="Mis Tareas", icon=ft.Icons.ASSIGNMENT, content=tab_exercises),
+                ft.Tab(text="Estudiantes", icon=ft.Icons.GROUPS, content=tab_students),
+                ft.Tab(text="Tareas", icon=ft.Icons.ASSIGNMENT, content=tab_exercises),
                 ft.Tab(text="Evaluaciones", icon=ft.Icons.GRADE, content=tab_grading),
                 ft.Tab(text="Monitoreo", icon=ft.Icons.INSIGHTS, content=tab_monitor),
                 ft.Tab(text="Dashboard", icon=ft.Icons.DASHBOARD, content=tab_dashboard)
