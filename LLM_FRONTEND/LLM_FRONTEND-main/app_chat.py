@@ -1173,7 +1173,8 @@ def main(page: ft.Page):
                         if status == "completed":
                             
                             if current_p_id != problema_actual_id:
-                                continuetexto = data.get("response")
+                                continue
+                            texto = data.get("response")
                             rol = data.get("role", "assistant")
                             chat_history = load_k(page, STATE_KEYS["chat"], {})
                             msgs_actuales = chat_history.get(str(problema_actual_id), [])

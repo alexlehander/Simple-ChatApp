@@ -337,7 +337,7 @@ def get_exercise_metadata(filename):
         }
 
 # 1. Semaphore Analysis Function (Fixed Context)
-def analyze_interaction_semaphore(chat_log_id, user_message, correo):
+def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
     """
     Classifies intent and assigns a color based on the Article's heuristics.
     """
@@ -434,7 +434,7 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo):
             print(f"❌ Error in Semaphore Analysis: {e}")
             
 # 2. Automated Grading Function
-def auto_grade_answer(respuesta_id, problem_text, student_answer):
+def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
     example_json = """{
         "calificación": 10,
         "comentario": "Solución correcta, cuenta con el procedimiento completo y una explicación exhaustiva."

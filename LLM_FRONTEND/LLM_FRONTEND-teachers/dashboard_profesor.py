@@ -825,7 +825,6 @@ def main(page: ft.Page):
                         
                         info_col = ft.Container(
                             content=ft.Column([
-                                ft.Text("Descripción General", weight="bold", color=COLORES["primario"], size=16, text_align=ft.TextAlign.CENTER),
                                 ft.Text(desc, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY),
                                 ft.Row([
                                     ft.Icon(ft.Icons.TIMER, size=16, color=COLORES["subtitulo"]),
@@ -836,7 +835,7 @@ def main(page: ft.Page):
                             ], 
                             spacing=5, 
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                            margin=ft.margin.only(right=15)
+                            margin=ft.margin.symmetric(horizontal=15)
                         )
                         prob_list = []
                         if not problemas:
@@ -853,7 +852,7 @@ def main(page: ft.Page):
                                         padding=15,
                                         border_radius=8,
                                         border=ft.border.all(1, COLORES["borde"]),
-                                        margin=ft.margin.only(right=15)
+                                        margin=ft.margin.symmetric(horizontal=15)
                                     )
                                 )
                         ex_detail_dlg_content.controls = [info_col] + prob_list
