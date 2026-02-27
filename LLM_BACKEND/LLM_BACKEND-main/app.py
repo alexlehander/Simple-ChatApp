@@ -300,7 +300,7 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
                 correo_identificacion=correo, 
                 problema_id=problema_id, 
                 role="user"
-            ).order_by(ChatLog.created_at.desc()).first()
+            ).order_by(ChatLog.id.desc()).first()
             user_query_text = last_user_msg.content if last_user_msg else ""
             print("🔍 Searching Pinecone...")
             context = get_rag_context(user_query_text)
@@ -619,9 +619,8 @@ def check_new_messages(problema_id):
     last_msg = ChatLog.query.filter_by(
         correo_identificacion=correo, 
         problema_id=problema_id
-    ).order_by(ChatLog.created_at.desc()).first()
+    ).order_by(ChatLog.id.desc()).first()
     if last_msg and last_msg.role in ["assistant", "teacher"]:
-        # Agregamos 'role' a la respuesta para que el frontend sepa quién habla
         return jsonify({"status": "completed", "response": last_msg.content, "role": last_msg.role})
     else:
         return jsonify({"status": "waiting"})

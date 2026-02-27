@@ -1157,6 +1157,8 @@ def main(page: ft.Page):
                 
                 if not page.is_alive: return
                 
+                current_p_id = problema_actual_id
+                
                 try:
                     r = requests.post(
                         f"{BASE}/check_new_messages/{problema_actual_id}",
@@ -1169,7 +1171,9 @@ def main(page: ft.Page):
                         status = data.get("status")
                         
                         if status == "completed":
-                            texto = data.get("response")
+                            
+                            if current_p_id != problema_actual_id:
+                                continuetexto = data.get("response")
                             rol = data.get("role", "assistant")
                             chat_history = load_k(page, STATE_KEYS["chat"], {})
                             msgs_actuales = chat_history.get(str(problema_actual_id), [])
@@ -1184,7 +1188,7 @@ def main(page: ft.Page):
                                     page.polling_speed = "slow"
                                     
                                 add_chat_bubble(rol, texto)
-                                update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": rol, "text": texto})
+                                update_map(page, STATE_KEYS["chat"], current_p_id, {"role": rol, "text": texto})
                                 
                                 if rol == "teacher":
                                     flash("🔔 Nuevo mensaje del profesor", ok=True)

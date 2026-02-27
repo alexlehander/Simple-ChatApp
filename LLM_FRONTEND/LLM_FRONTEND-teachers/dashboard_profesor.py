@@ -783,7 +783,7 @@ def main(page: ft.Page):
         
         col_available = ft.ListView(expand=True, spacing=10)
         col_mine = ft.ListView(expand=True, spacing=10)
-        ex_detail_dlg_title = ft.Text("", weight="bold", size=20, color=COLORES["primario"])
+        ex_detail_dlg_title = ft.Text("", weight="bold", size=20, color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
         ex_detail_dlg_content = ft.ListView(spacing=10, padding=ft.padding.only(right=15))
         
         ex_detail_dlg = ft.AlertDialog(
@@ -823,20 +823,24 @@ def main(page: ft.Page):
                         
                         ex_detail_dlg_title.value = title
                         
-                        info_col = ft.Column([
-                            ft.Text("Descripción General:", weight="bold", color=COLORES["primario"], size=16),
-                            ft.Text(desc, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY),
-                            ft.Row([
-                                ft.Icon(ft.Icons.TIMER, size=16, color=COLORES["subtitulo"]),
-                                ft.Text(f"Tiempo máximo de la sesión: {max_time} minutos", color=COLORES["subtitulo"], italic=True)
-                            ]),
-                            ft.Divider(color=COLORES["borde"], height=20),
-                            ft.Text(f"Ejercicios Incluidos ({len(problemas)}):", weight="bold", size=16, color=COLORES["primario"])
-                        ], spacing=5)
-                        
+                        info_col = ft.Container(
+                            content=ft.Column([
+                                ft.Text("Descripción General", weight="bold", color=COLORES["primario"], size=16, text_align=ft.TextAlign.CENTER),
+                                ft.Text(desc, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.TIMER, size=16, color=COLORES["subtitulo"]),
+                                    ft.Text(f"Tiempo límite para resolver la tarea: {max_time} minutos", color=COLORES["subtitulo"], italic=True)
+                                ], alignment=ft.MainAxisAlignment.CENTER),
+                                ft.Divider(color=COLORES["borde"], height=20),
+                                ft.Text(f"{len(problemas)} Ejercicios Incluidos", weight="bold", size=16, color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
+                            ], 
+                            spacing=5, 
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            margin=ft.margin.only(right=15)
+                        )
                         prob_list = []
                         if not problemas:
-                            prob_list.append(ft.Text("No hay ejercicios configurados en esta práctica.", color=COLORES["subtitulo"], italic=True))
+                            prob_list.append(ft.Text("No hay ejercicios configurados en esta práctica", color=COLORES["subtitulo"], italic=True))
                         else:
                             for p in problemas:
                                 prob_list.append(
@@ -849,6 +853,7 @@ def main(page: ft.Page):
                                         padding=15,
                                         border_radius=8,
                                         border=ft.border.all(1, COLORES["borde"])
+                                        margin=ft.margin.only(right=15)
                                     )
                                 )
                         ex_detail_dlg_content.controls = [info_col] + prob_list
@@ -1225,8 +1230,6 @@ def main(page: ft.Page):
                 render_data(res.json())
                 
         def render_data(data):
-            answers_col.controls.clear()
-            chats_col.controls.clear()
             nuevas_respuestas = []
             nuevos_chats = []
             raw_answers = data.get("respuestas", [])
@@ -1239,8 +1242,8 @@ def main(page: ft.Page):
                 raw_answers = [r for r in raw_answers if r['problema_id'] == pid]
                 raw_chats = [c for c in raw_chats if c['problema_id'] == pid]
             
-            for r in reversed(raw_answers): 
-                answers_col.controls.append(ft.Container(content=ft.Column([
+            for r in reversed(raw_answers):
+                nuevas_respuestas.append(ft.Container(content=ft.Column([
                     ft.Text(f"{r['correo']} - P{r['problema_id']}", size=12, color=COLORES["primario"], weight="bold"),
                     ft.Text(r['respuesta'], selectable=True, color=COLORES["texto"], size=13),
                     ft.Text(f"📅 {r['fecha'][:16].replace('T', ' ')}", size=10, color=COLORES["subtitulo"])
