@@ -1535,8 +1535,57 @@ def main(page: ft.Page):
             padding=20
         )
 
-        # GRADING: Define Grading Tab Layout
-        grading_col = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+        # =========================================
+        # PESTAÑA 3: Evaluaciones
+        # =========================================
+        state["pending_grades"] = []
+        state["completed_grades"] = []
+        state["filter_pending_grades"] = ""
+        state["sort_pending_grades"] = "asc"
+        state["filter_completed_grades"] = ""
+        state["sort_completed_grades"] = "asc"
+        
+        search_completed_grades = ft.TextField(
+            hint_text="Buscar evaluación completada...",
+            prefix_icon=ft.Icons.SEARCH,
+            height=35,
+            text_size=12,
+            content_padding=10,
+            border_radius=15,
+            bgcolor=COLORES["fondo"],
+            color=COLORES["texto"],
+            on_change=lambda e: update_grade_filters("completed", e.control.value)
+        )
+        
+        sort_btn_completed_grades = ft.IconButton(
+            icon=ft.Icons.SORT_BY_ALPHA,
+            tooltip="Ordenar A-Z / Z-A",
+            icon_color=COLORES["primario"],
+            on_click=lambda e: toggle_grade_sort("completed")
+        )
+
+        search_pending_grades = ft.TextField(
+            hint_text="Buscar evaluación pendiente...",
+            prefix_icon=ft.Icons.SEARCH,
+            height=35,
+            text_size=12,
+            content_padding=10,
+            border_radius=15,
+            bgcolor=COLORES["fondo"],
+            color=COLORES["texto"],
+            on_change=lambda e: update_grade_filters("pending", e.control.value)
+        )
+
+        sort_btn_pending_grades = ft.IconButton(
+            icon=ft.Icons.SORT_BY_ALPHA,
+            tooltip="Ordenar A-Z / Z-A",
+            icon_color=COLORES["primario"],
+            on_click=lambda e: toggle_grade_sort("pending")
+        )
+
+        col_completed_grades = ft.ListView(expand=True, spacing=10)
+        col_pending_grades = ft.ListView(expand=True, spacing=10)
+        
         grade_score_field = ft.TextField(label="Calificación (0-10)", width=100)
         grade_comment_field = ft.TextField(label="Comentario", multiline=True)
         grade_student_label = ft.Text("", weight="bold") 
@@ -1552,7 +1601,7 @@ def main(page: ft.Page):
                 ft.Text("Respuesta del Estudiante:", weight="bold"),
                 grade_response_container,
                 ft.Divider(),
-                ft.Text("Sugerencia IA:", color=COLORES["primario"]),
+                ft.Text("Sugerencia IA / Evaluación Actual:", color=COLORES["primario"]),
                 grade_score_field,
                 grade_comment_field
             ], tight=True, width=500),
@@ -1562,7 +1611,6 @@ def main(page: ft.Page):
                 grade_btn_save,
             ]
         )
-        
         page.overlay.append(grade_dlg)
 
         def close_grade_dlg():
@@ -1588,21 +1636,27 @@ def main(page: ft.Page):
                 flash("Evaluación guardada", ok=True)
                 grade_dlg.open = False
                 page.update()
-                load_pending_grades()
+                load_grades()
             else:
                 flash("Error al guardar", ok=False)
+                page.update()
 
-        def open_grade_dialog(item):
+        def open_grade_dialog(item, is_completed):
             grade_student_label.value = f"Evaluar: {item['correo']}"
             grade_task_label.value = f"Práctica: {item['practica']} | Ej: {item['problema_id']}"
             grade_response_container.content = ft.Text(item['respuesta'])
-            grade_score_field.value = str(item['llm_score'])
-            grade_comment_field.value = item['llm_comment']
+            
+            # Si ya fue evaluado, mostramos la nota del maestro, sino la de la IA
+            if is_completed:
+                grade_score_field.value = str(item.get('teacher_score', item['llm_score']))
+                grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
+            else:
+                grade_score_field.value = str(item['llm_score'])
+                grade_comment_field.value = item['llm_comment']
 
             grade_btn_approve.on_click = lambda e: submit_grade(
                 item['id'], item['llm_score'], item['llm_comment'], "approve"
             )
-            
             grade_btn_save.on_click = lambda e: submit_grade(
                 item['id'], grade_score_field.value, grade_comment_field.value, "edit"
             )
@@ -1610,50 +1664,135 @@ def main(page: ft.Page):
             grade_dlg.open = True
             page.update()
 
-        def load_pending_grades():
-            res = auth_request("GET", "/api/teacher/grades/pending")
-            if res and res.status_code == 200:
-                render_grading_view(res.json())
+        def update_grade_filters(target, value):
+            if target == "completed": state["filter_completed_grades"] = value.lower()
+            else: state["filter_pending_grades"] = value.lower()
+            render_grades()
 
-        def render_grading_view(items):
-            # 1. En lugar de borrar la pantalla directamente, creamos una lista temporal
-            nuevos_controles = []
+        def toggle_grade_sort(target):
+            key = f"sort_{target}_grades"
+            state[key] = "desc" if state[key] == "asc" else "asc"
+            btn = sort_btn_completed_grades if target == "completed" else sort_btn_pending_grades
+            btn.icon = ft.Icons.ARROW_DOWNWARD if state[key] == "asc" else ft.Icons.ARROW_UPWARD
+            btn.update()
+            render_grades()
+
+        def load_grades():
+            res_pend = auth_request("GET", "/api/teacher/grades/pending")
+            if res_pend and res_pend.status_code == 200:
+                state["pending_grades"] = res_pend.json()
+                
+            res_comp = auth_request("GET", "/api/teacher/grades/completed")
+            if res_comp and res_comp.status_code == 200:
+                state["completed_grades"] = res_comp.json()
             
-            if not items:
-                nuevos_controles.append(ft.Text("No hay evaluaciones pendientes 🎉", size=20))
+            render_grades()
+
+        def render_grades():
+            nuevas_completadas = []
+            nuevas_pendientes = []
+            
+            def create_grade_card(item, is_completed):
+                if is_completed:
+                    score_to_show = item.get("teacher_score", item.get("llm_score", 0))
+                    status_txt = "Evaluado"
+                    border_color = COLORES["exito"]
+                else:
+                    score_to_show = item.get("llm_score", 0)
+                    status_txt = "Pendiente"
+                    border_color = COLORES["advertencia"]
+                    
+                return ft.Container(
+                    content=ft.Row([
+                        ft.Column([
+                            ft.Text(item['correo'], weight="bold", size=14, color=COLORES["texto"]),
+                            ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["subtitulo"])
+                        ], expand=True),
+                        ft.Column([
+                            ft.Text(f"Nota: {score_to_show}", color=COLORES["primario"], weight="bold"),
+                            ft.Text(status_txt, size=10, italic=True)
+                        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.END),
+                        ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i, is_completed), icon_color=COLORES["primario"], tooltip="Editar Evaluación")
+                    ]),
+                    bgcolor=COLORES["fondo"], 
+                    padding=10, 
+                    border_radius=5, 
+                    border=ft.border.all(1, border_color),
+                    margin=ft.margin.symmetric(horizontal=5)
+                )
+
+            # --- 1. Filtrar y Ordenar COMPLETADAS ---
+            filtered_comp = [g for g in state["completed_grades"] if state["filter_completed_grades"] in g.get("correo", "").lower() or state["filter_completed_grades"] in g.get("practica", "").lower()]
+            filtered_comp.sort(key=lambda x: x.get("correo", "").lower(), reverse=(state["sort_completed_grades"] == "desc"))
+            
+            if not filtered_comp:
+                nuevas_completadas.append(ft.Text("No hay evaluaciones completadas.", color=COLORES["subtitulo"]))
             else:
-                for item in items:
-                    card = ft.Container(
-                        content=ft.Row([
-                            ft.Column([
-                                ft.Text(item['correo'], weight="bold"),
-                                ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["subtitulo"])
-                            ], expand=True),
-                            ft.Column([
-                                ft.Text(f"Nota IA: {item['llm_score']}", color=COLORES["primario"], weight="bold"),
-                                ft.Text("Pendiente", size=10, italic=True)
-                            ]),
-                            ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i))
-                        ]),
-                        bgcolor=COLORES["accento"], padding=10, border_radius=5, margin=5
-                    )
-                    nuevos_controles.append(card)
+                for g in filtered_comp:
+                    nuevas_completadas.append(create_grade_card(g, True))
+
+            # --- 2. Filtrar y Ordenar PENDIENTES ---
+            filtered_pend = [g for g in state["pending_grades"] if state["filter_pending_grades"] in g.get("correo", "").lower() or state["filter_pending_grades"] in g.get("practica", "").lower()]
+            filtered_pend.sort(key=lambda x: x.get("correo", "").lower(), reverse=(state["sort_pending_grades"] == "desc"))
+
+            if not filtered_pend:
+                nuevas_pendientes.append(ft.Text("No hay evaluaciones pendientes 🎉", color=COLORES["subtitulo"]))
+            else:
+                for g in filtered_pend:
+                    nuevas_pendientes.append(create_grade_card(g, False))
             
-            grading_col.controls = nuevos_controles
+            # Asignación atómica (Anti-Crasheos)
+            col_completed_grades.controls = nuevas_completadas
+            col_pending_grades.controls = nuevas_pendientes
             
             try:
-                grading_col.update() 
+                col_completed_grades.update()
+                col_pending_grades.update()
             except Exception:
                 pass
 
         tab_grading = ft.Container(
             content=ft.Column([
-                ft.Row([ft.Text("Evaluaciones Pendientes", size=20, weight="bold"), 
-                        ft.IconButton(ft.Icons.REFRESH, on_click=lambda e: load_pending_grades())]),
-                grading_col
-            ], expand=True),
+                ft.Row([
+                    # COLUMNA IZQUIERDA: Realizadas
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Text("Evaluaciones Realizadas", size=16, color=COLORES["primario"]),
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            ft.Row([search_completed_grades, sort_btn_completed_grades], spacing=5),
+                            ft.Divider(height=5, color="transparent"),
+                            col_completed_grades
+                        ], expand=True),
+                        expand=1, 
+                        bgcolor=COLORES["accento"], 
+                        padding=10, 
+                        border_radius=10,
+                        margin=ft.margin.only(right=5)
+                    ),
+                    # COLUMNA DERECHA: Pendientes
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Text("Evaluaciones Pendientes", size=16, color=COLORES["primario"]),
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
+                            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                            ft.Row([search_pending_grades, sort_btn_pending_grades], spacing=5),
+                            ft.Divider(height=5, color="transparent"),
+                            col_pending_grades
+                        ], expand=True),
+                        expand=1, 
+                        bgcolor=COLORES["accento"], 
+                        padding=10, 
+                        border_radius=10,
+                        margin=ft.margin.only(left=5)
+                    )
+                ], expand=True)
+            ], expand=True), 
             padding=20
         )
+        
         # Tabs Principales
         tabs = ft.Tabs(
             selected_index=0,
@@ -1661,7 +1800,7 @@ def main(page: ft.Page):
             on_change=lambda e: (
                 reset_inactivity_timer(),
                 load_exercises() if e.control.selected_index == 1 else None,
-                load_pending_grades() if e.control.selected_index == 2 else None,
+                load_grades() if e.control.selected_index == 2 else None,
                 load_full_dashboard() if e.control.selected_index == 4 else None
             ),
             tabs=[
@@ -1718,6 +1857,7 @@ def main(page: ft.Page):
         
         load_students()
         load_exercises()
+        load_grades()
 
     stored_token = page.client_storage.get("teacher_token")
     last_act_stored = page.client_storage.get("last_activity")

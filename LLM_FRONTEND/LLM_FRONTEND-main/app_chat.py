@@ -737,7 +737,7 @@ def main(page: ft.Page):
                 if is_success:
                     estado_text.value = "Estado: ✅ Entregado"
                     estado_text.color = COLORES["exito"]
-                    save_snack.open = True
+                    flash("Respuesta guardada", ok=True)
                 else:
                     estado_text.value = "Estado: ⚠️ Pendiente de Envío"
                     estado_text.color = COLORES["error"]

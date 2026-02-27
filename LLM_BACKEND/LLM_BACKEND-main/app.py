@@ -872,6 +872,28 @@ def get_pending_grades():
     } for r in pending]
     return jsonify(data), 200
 
+@app.route("/api/teacher/grades/completed", methods=["GET"])
+@jwt_required()
+def get_completed_grades():
+    # Obtiene las respuestas que ya fueron aprobadas o editadas por el maestro
+    completed = RespuestaUsuario.query.filter(
+        RespuestaUsuario.status.in_(["approved", "edited"])
+    ).order_by(RespuestaUsuario.created_at.desc()).limit(100).all()
+    
+    data = [{
+        "id": r.id,
+        "correo": r.correo_identificacion,
+        "practica": r.practice_name,
+        "problema_id": r.problema_id,
+        "respuesta": r.respuesta,
+        "llm_score": r.llm_score,
+        "llm_comment": r.llm_comment,
+        "teacher_score": r.teacher_score,
+        "teacher_comment": r.teacher_comment,
+        "status": r.status
+    } for r in completed]
+    return jsonify(data), 200
+
 @app.route("/api/teacher/grades/submit", methods=["POST"])
 @jwt_required()
 def submit_teacher_grade():
