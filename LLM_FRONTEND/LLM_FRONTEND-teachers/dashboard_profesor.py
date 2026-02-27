@@ -119,8 +119,6 @@ def main(page: ft.Page):
     student_cards_state = {}
     dashboard_grid = ft.GridView(expand=True, runs_count=5, max_extent=250, child_aspect_ratio=1.0, spacing=10, run_spacing=10)
     session_status_text = ft.Text("Sesión Inactiva", color=COLORES["subtitulo"])
-
-# --- 2.3 DIALOGO DE DETALLES (Pop-up) ---
     detail_dlg_title = ft.Text(weight="bold", size=20)
     detail_dlg_content = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=10)
         
@@ -785,6 +783,88 @@ def main(page: ft.Page):
         
         col_available = ft.ListView(expand=True, spacing=10)
         col_mine = ft.ListView(expand=True, spacing=10)
+        ex_detail_dlg_title = ft.Text("", weight="bold", size=20, color=COLORES["primario"])
+        ex_detail_dlg_content = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=10)
+        
+        ex_detail_dlg = ft.AlertDialog(
+            title=ex_detail_dlg_title,
+            content=ft.Container(content=ex_detail_dlg_content, width=700, height=500, padding=10),
+            actions=[ft.TextButton("Cerrar", on_click=lambda e: close_ex_detail_dlg())],
+            on_dismiss=lambda e: close_ex_detail_dlg()
+        )
+        
+        page.overlay.append(ex_detail_dlg)
+
+        def close_ex_detail_dlg():
+            ex_detail_dlg.open = False
+            page.update()
+
+        def show_exercise_detail(filename):
+            ex_detail_dlg_title.value = "Cargando detalles..."
+            ex_detail_dlg_content.controls = [
+                ft.Container(
+                    content=ft.ProgressRing(color=COLORES["primario"], stroke_width=4),
+                    alignment=ft.alignment.center,
+                    height=200
+                )
+            ]
+            ex_detail_dlg.open = True
+            page.update()
+            
+            def fetch_and_render_ex():
+                try:
+                    res = auth_request("GET", f"/api/exercises/detail/{filename}", timeout=10)
+                    if res and res.status_code == 200:
+                        data = res.json()
+                        title = data.get("title", filename)
+                        desc = data.get("description", "Sin descripción")
+                        max_time = data.get("max_time", 0) // 60
+                        problemas = data.get("problemas", [])
+                        
+                        ex_detail_dlg_title.value = title
+                        
+                        info_col = ft.Column([
+                            ft.Text("Descripción General:", weight="bold", color=COLORES["primario"], size=16),
+                            ft.Text(desc, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY),
+                            ft.Row([
+                                ft.Icon(ft.Icons.TIMER, size=16, color=COLORES["subtitulo"]),
+                                ft.Text(f"Tiempo máximo de la sesión: {max_time} minutos", color=COLORES["subtitulo"], italic=True)
+                            ]),
+                            ft.Divider(color=COLORES["borde"], height=20),
+                            ft.Text(f"Ejercicios Incluidos ({len(problemas)}):", weight="bold", size=16, color=COLORES["primario"])
+                        ], spacing=5)
+                        
+                        prob_list = []
+                        if not problemas:
+                            prob_list.append(ft.Text("No hay ejercicios configurados en esta práctica.", color=COLORES["subtitulo"], italic=True))
+                        else:
+                            for p in problemas:
+                                prob_list.append(
+                                    ft.Container(
+                                        content=ft.Column([
+                                            ft.Text(f"Problema {p.get('id', '?')}", weight="bold", color=COLORES["secundario"], size=14),
+                                            ft.Text(p.get("enunciado", "Sin enunciado"), color=COLORES["texto"], size=13, text_align=ft.TextAlign.JUSTIFY)
+                                        ], spacing=5),
+                                        bgcolor=COLORES["fondo"],
+                                        padding=15,
+                                        border_radius=8,
+                                        border=ft.border.all(1, COLORES["borde"])
+                                    )
+                                )
+                        ex_detail_dlg_content.controls = [info_col] + prob_list
+                    else:
+                        ex_detail_dlg_content.controls = [ft.Text("No se pudo cargar la información de la tarea.", color=COLORES["error"])]
+                except Exception as e:
+                    print(f"Error fetch detail: {e}")
+                    ex_detail_dlg_content.controls = [ft.Text("Error de conexión al cargar detalles.", color=COLORES["error"])]
+                    
+                try:
+                    if ex_detail_dlg.open:
+                        ex_detail_dlg.update()
+                except Exception:
+                    pass
+                    
+            threading.Thread(target=fetch_and_render_ex, daemon=True).start()
         
         def update_task_filters(target, value):
             if target == "my": state["filter_my_tasks"] = value.lower()
@@ -893,7 +973,9 @@ def main(page: ft.Page):
                     bgcolor=COLORES["fondo"], 
                     padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
                     border_radius=5, 
-                    border=ft.border.all(1, COLORES["borde"])
+                    border=ft.border.all(1, COLORES["borde"]),
+                    ink=True, 
+                    on_click=lambda e, f=ex_data["filename"]: show_exercise_detail(f)
                 )
 
             # --- 1. Filtrar y Ordenar MIS TAREAS ---

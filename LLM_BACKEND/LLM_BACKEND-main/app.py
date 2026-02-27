@@ -701,6 +701,20 @@ def get_all_server_exercises():
     except Exception as e:
         print(f"Error listando ejercicios: {e}")
         return jsonify([]), 500
+        
+@app.route("/api/exercises/detail/<path:filename>", methods=["GET"])
+@jwt_required()
+def get_exercise_detail(filename):
+    try:
+        path = os.path.join(EXERCISES_PATH, filename)
+        if not os.path.exists(path):
+            return jsonify({"error": "Archivo no encontrado"}), 404
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return jsonify(data), 200
+    except Exception as e:
+        print(f"Error leyendo los detalles del ejercicio {filename}: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/teacher/my-exercises", methods=["GET", "POST", "DELETE"])
 @jwt_required()
