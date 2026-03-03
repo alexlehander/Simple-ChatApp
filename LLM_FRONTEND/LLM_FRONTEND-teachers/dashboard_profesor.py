@@ -1828,6 +1828,17 @@ def main(page: ft.Page):
                     page.update()
             threading.Thread(target=fetch, daemon=True).start()
             
+        def generate_report_for_practice(email, prac_name):
+            flash(f"Analizando interacciones con IA para {prac_name}... esto tomará unos segundos.", ok=True, ms=6000)
+            def fetch():
+                res = auth_request("POST", "/api/teacher/generate-report", json={"student_email": email, "practice_name": prac_name}, timeout=60)
+                if res and res.status_code == 200:
+                    flash("¡Reporte cualitativo generado con éxito!", ok=True)
+                    load_student_profile(email) # Recargar la vista para mostrarlo
+                else:
+                    flash("Error al generar el reporte con la IA.", ok=False)
+            threading.Thread(target=fetch, daemon=True).start()
+            
         def render_student_profile(data, email):
             profile_content.controls.clear()
             if not data:
@@ -1839,6 +1850,46 @@ def main(page: ft.Page):
                 problemas = prac_data.get("problemas", {})
                 
                 prob_controls = []
+                # --- UI DEL REPORTE DE INTELIGENCIA ARTIFICIAL ---
+                reporte = prac_data.get("reporte")
+                if reporte:
+                    reporte_ui = ft.Container(
+                        content=ft.Column([
+                            ft.Row([
+                                ft.Icon(ft.Icons.AUTO_AWESOME, color=COLORES["advertencia"]),
+                                ft.Text("Diagnóstico Cualitativo de la IA", weight="bold", size=16, color=COLORES["primario"]),
+                                ft.IconButton(ft.Icons.REFRESH, tooltip="Regenerar Reporte", icon_color=COLORES["subtitulo"], on_click=lambda e, pr=prac_name: generate_report_for_practice(email, pr))
+                            ]),
+                            ft.Row([
+                                ft.Container(
+                                    content=ft.Column([ft.Text("Perfil de Aprendizaje", size=11, color=COLORES["subtitulo"]), ft.Text(reporte["perfil_estudiante"], weight="bold", color=COLORES["texto"])]),
+                                    bgcolor=COLORES["fondo"], padding=10, border_radius=5, expand=1, border=ft.border.all(1, COLORES["borde"])
+                                ),
+                                ft.Container(
+                                    content=ft.Column([ft.Text("Nivel de Persistencia", size=11, color=COLORES["subtitulo"]), ft.Text(reporte["persistencia"], weight="bold", color=COLORES["texto"])]),
+                                    bgcolor=COLORES["fondo"], padding=10, border_radius=5, expand=1, border=ft.border.all(1, COLORES["borde"])
+                                )
+                            ]),
+                            ft.Text("Análisis Pedagógico:", weight="bold", size=12, color=COLORES["subtitulo"]),
+                            ft.Text(reporte["diagnostico_general"], size=13, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY)
+                        ], spacing=10),
+                        bgcolor=COLORES["accento"],
+                        border=ft.border.all(1, COLORES["advertencia"]),
+                        border_radius=8,
+                        padding=15,
+                        margin=ft.margin.only(bottom=15, right=15)
+                    )
+                else:
+                    reporte_ui = ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.INSIGHTS, color=COLORES["primario"]),
+                            ft.Text("Aún no se ha generado un reporte de desempeño para esta sesión.", expand=True, color=COLORES["subtitulo"], italic=True),
+                            ft.ElevatedButton("Generar Reporte con IA", icon=ft.Icons.AUTO_AWESOME, bgcolor=COLORES["boton"], color=COLORES["texto"], on_click=lambda e, pr=prac_name: generate_report_for_practice(email, pr))
+                        ]),
+                        bgcolor=COLORES["fondo"], padding=15, border_radius=8, border=ft.border.all(1, COLORES["borde"]), margin=ft.margin.only(bottom=15, right=15)
+                    )
+                # Insertar el reporte hasta arriba de la lista de ejercicios
+                prob_controls.append(reporte_ui)
                 for pid, pdata in sorted(problemas.items(), key=lambda x: int(x[0])):
                     ans = pdata.get("respuesta")
                     chats = pdata.get("chats", [])

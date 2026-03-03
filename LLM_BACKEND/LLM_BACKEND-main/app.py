@@ -161,6 +161,16 @@ class AnalisisInteraccion(db.Model):
     color_asignado = db.Column(db.String(50), default="green") # green, yellow, red
     created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
 
+class ReporteDesempeno(db.Model):
+    __tablename__ = "railway_reporte_desempeno"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    student_email = db.Column(db.String(128), nullable=False)
+    practice_name = db.Column(db.String(255), nullable=False)
+    perfil_estudiante = db.Column(db.String(50), nullable=True)
+    persistencia = db.Column(db.String(50), nullable=True)
+    diagnostico_general = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=dt.datetime.utcnow)
+
 # ------------------------------------------------------------------------------------
 # System Prompts
 # ------------------------------------------------------------------------------------
@@ -1035,8 +1045,99 @@ def get_student_profile(student_email):
             "content": c.content,
             "fecha": c.created_at.isoformat()
         })
-
+    
+    reportes = ReporteDesempeno.query.filter_by(student_email=student_email).all()
+    for r in reportes:
+        if r.practice_name in profile_data:
+            profile_data[r.practice_name]["reporte"] = {
+                "perfil_estudiante": r.perfil_estudiante,
+                "persistencia": r.persistencia,
+                "diagnostico_general": r.diagnostico_general,
+                "fecha": r.created_at.isoformat()
+            }
+            
     return jsonify(profile_data), 200
+
+@app.route('/api/teacher/generate-report', methods=['POST'])
+@jwt_required()
+def generate_student_report():
+    data = request.get_json()
+    email = data.get('student_email')
+    practice = data.get('practice_name')
+
+    # 1. Recopilar datos de la sesión
+    chats = ChatLog.query.filter_by(correo_identificacion=email, practice_name=practice).order_by(ChatLog.id.asc()).all()
+    respuestas = RespuestaUsuario.query.filter_by(correo_identificacion=email, practice_name=practice).order_by(RespuestaUsuario.problema_id.asc()).all()
+
+    if not chats and not respuestas:
+        return jsonify({"error": "No hay datos suficientes para analizar."}), 400
+
+    # 2. Construir Transcripción para el LLM
+    transcript_lines = []
+    for c in chats:
+        role = "ESTUDIANTE" if c.role == "user" else ("PROFESOR" if c.role == "teacher" else "TUTOR IA")
+        transcript_lines.append(f"[{role} - P{c.problema_id}]: {c.content}")
+    
+    transcript_lines.append("\n--- RESPUESTAS FINALES ENTREGADAS ---")
+    for r in respuestas:
+        nota = r.teacher_score if r.teacher_score is not None else (r.llm_score or 0)
+        transcript_lines.append(f"[P{r.problema_id} - Nota: {nota}/10]: {r.respuesta}")
+
+    transcript = "\n".join(transcript_lines)
+
+    # 3. Prompt Basado en tu Jupyter Notebook
+    global_json = """{
+      "perfil_estudiante": "Autorregulado",
+      "persistencia": "Alta (productiva)",
+      "diagnostico_general": "Fortalezas... Debilidades..."
+    }"""
+    
+    prompt = f"""
+    Actúa como un investigador educativo que analiza interacciones entre estudiantes y un Tutor Inteligente potenciado por LLMs.
+    Busca patrones generales de aprendizaje en la conversación del estudiante durante la práctica '{practice}'.
+    Identifica:
+    1. **perfil_estudiante**: Elige UNO: "Autorregulado", "Dependiente de pistas", o "Abuso del sistema (gaming)".
+    2. **persistencia**: Elige UNA: "Alta (productiva)", "Media (mixta)", "Baja (rendición temprana)", o "Improductiva (insistente en error)".
+    3. **diagnostico_general**: Un resumen cualitativo técnico corto sobre sus fortalezas y debilidades cognitivas...
+    
+    Devuelve ÚNICAMENTE un objeto JSON válido con esta estructura:
+    {global_json}
+
+    Estudiante: {email}
+    --- INICIO DE TRANSCRIPCIÓN ---
+    {transcript}
+    --- FIN DE TRANSCRIPCIÓN ---
+    """
+
+    try:
+        response_text = call_mistral([
+            {"role": "system", "content": "Eres un investigador educativo experto. Responde sólo en JSON."},
+            {"role": "user", "content": prompt}
+        ], temperature=0.2, max_tokens=1000)
+
+        import re
+        try:
+            parsed = json.loads(response_text)
+        except:
+            match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            parsed = json.loads(match.group(0)) if match else {}
+
+        # 4. Guardar o Actualizar en la Base de Datos
+        reporte = ReporteDesempeno.query.filter_by(student_email=email, practice_name=practice).first()
+        if not reporte:
+            reporte = ReporteDesempeno(student_email=email, practice_name=practice)
+            db.session.add(reporte)
+        
+        reporte.perfil_estudiante = parsed.get("perfil_estudiante", "No determinado")
+        reporte.persistencia = parsed.get("persistencia", "No determinada")
+        reporte.diagnostico_general = parsed.get("diagnostico_general", "Error al procesar el diagnóstico.")
+        reporte.created_at = dt.datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({"msg": "Reporte generado"}), 200
+    except Exception as e:
+        print(f"Error generando reporte: {e}")
+        return jsonify({"error": str(e)}), 500
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------
