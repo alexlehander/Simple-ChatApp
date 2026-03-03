@@ -974,6 +974,69 @@ def get_student_timeline(email):
     except Exception as e:
         print(f"Error fetching timeline: {e}")
         return jsonify({'error': str(e)}), 500
+        
+@app.route('/api/teacher/student-profile/<path:student_email>', methods=['GET'])
+@jwt_required()
+def get_student_profile(student_email):
+    profesor_id = get_jwt_identity()
+
+    student_records = ListaClase.query.filter_by(profesor_id=profesor_id).all()
+    my_student_emails = [s.student_email for s in student_records]
+    if student_email not in my_student_emails:
+        return jsonify({"error": "Estudiante no autorizado"}), 403
+
+    exercise_records = ListaEjercicios.query.filter_by(profesor_id=profesor_id).all()
+    my_exercise_filenames = [e.exercise_filename for e in exercise_records]
+
+    if not my_exercise_filenames:
+        return jsonify({}), 200
+
+    respuestas = RespuestaUsuario.query.filter(
+        RespuestaUsuario.correo_identificacion == student_email,
+        RespuestaUsuario.practice_name.in_(my_exercise_filenames)
+    ).order_by(RespuestaUsuario.problema_id.asc()).all()
+
+    chats = ChatLog.query.filter(
+        ChatLog.correo_identificacion == student_email,
+        ChatLog.practice_name.in_(my_exercise_filenames)
+    ).order_by(ChatLog.created_at.asc()).all()
+
+    profile_data = {}
+    
+    for r in respuestas:
+        p_name = r.practice_name
+        if p_name not in profile_data:
+            profile_data[p_name] = {"problemas": {}}
+        
+        prob_id = str(r.problema_id)
+        if prob_id not in profile_data[p_name]["problemas"]:
+            profile_data[p_name]["problemas"][prob_id] = {"respuesta": None, "chats": []}
+            
+        profile_data[p_name]["problemas"][prob_id]["respuesta"] = {
+            "texto": r.respuesta,
+            "llm_score": r.llm_score,
+            "llm_comment": r.llm_comment,
+            "teacher_score": r.teacher_score,
+            "teacher_comment": r.teacher_comment,
+            "status": r.status,
+            "fecha": r.created_at.isoformat()
+        }
+
+    for c in chats:
+        p_name = c.practice_name
+        prob_id = str(c.problema_id)
+        if p_name not in profile_data:
+            profile_data[p_name] = {"problemas": {}}
+        if prob_id not in profile_data[p_name]["problemas"]:
+            profile_data[p_name]["problemas"][prob_id] = {"respuesta": None, "chats": []}
+        
+        profile_data[p_name]["problemas"][prob_id]["chats"].append({
+            "role": c.role,
+            "content": c.content,
+            "fecha": c.created_at.isoformat()
+        })
+
+    return jsonify(profile_data), 200
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------

@@ -1110,6 +1110,12 @@ def main(page: ft.Page):
             ]
             problem_filter.value = "Todos los ejercicios"
             problem_filter.disabled = True
+            try:
+                profile_student_dropdown.options = [ft.dropdown.Option(e) for e in state["students"]]
+                profile_student_dropdown.update()
+            except Exception:
+                pass
+                
             page.update()
             
         # --- SECCIÓN MENSAJERÍA ---
@@ -1790,6 +1796,153 @@ def main(page: ft.Page):
             padding=20
         )
         
+        # =========================================
+        # PESTAÑA: Perfil Alumno
+        # =========================================
+        
+        # 1. El Buscador (¡Ahora sí en su propia pestaña!)
+        profile_student_dropdown = ft.Dropdown(
+            label="Selecciona un estudiante",
+            options=[],
+            width=400,
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            on_change=lambda e: load_student_profile(e.control.value)
+        )
+        
+        profile_content = ft.ListView(expand=True, spacing=15, padding=ft.padding.only(right=15))
+        
+        def load_student_profile(email):
+            if not email: return
+            profile_content.controls = [
+                ft.Container(content=ft.ProgressRing(color=COLORES["primario"]), alignment=ft.alignment.center, height=100)
+            ]
+            page.update()
+            
+            def fetch():
+                res = auth_request("GET", f"/api/teacher/student-profile/{email}")
+                if res and res.status_code == 200:
+                    render_student_profile(res.json(), email)
+                else:
+                    profile_content.controls = [ft.Text("Error al cargar perfil", color=COLORES["error"])]
+                    page.update()
+            threading.Thread(target=fetch, daemon=True).start()
+            
+        def render_student_profile(data, email):
+            profile_content.controls.clear()
+            if not data:
+                profile_content.controls.append(ft.Text("El estudiante aún no tiene actividad registrada en tus tareas.", italic=True, color=COLORES["subtitulo"]))
+                page.update()
+                return
+
+            for prac_name, prac_data in data.items():
+                problemas = prac_data.get("problemas", {})
+                
+                prob_controls = []
+                for pid, pdata in sorted(problemas.items(), key=lambda x: int(x[0])):
+                    ans = pdata.get("respuesta")
+                    chats = pdata.get("chats", [])
+                    
+                    # UI de Calificación
+                    score_ui = ft.Container()
+                    if ans:
+                        final_score = ans.get("teacher_score") if ans.get("teacher_score") is not None else ans.get("llm_score", 0.0)
+                        status_str = "Evaluado por Profesor" if ans.get("teacher_score") is not None else ("Evaluado por IA" if ans.get("status") == "pending" else "Evaluado")
+                        border_color = COLORES["exito"] if ans.get("status") in ["approved", "edited"] else COLORES["advertencia"]
+                        
+                        score_ui = ft.Container(
+                            content=ft.Column([
+                                ft.Text(f"Calificación: {final_score}/10", weight="bold", color=COLORES["primario"]),
+                                ft.Text(f"Estado: {status_str}", size=11, color=COLORES["subtitulo"]),
+                                ft.Text(f"Comentario: {ans.get('teacher_comment') or ans.get('llm_comment') or 'Sin comentarios'}", size=12, italic=True, color=COLORES["texto"])
+                            ], spacing=2),
+                            bgcolor=COLORES["accento"], padding=10, border_radius=5, border=ft.border.all(1, border_color)
+                        )
+                    else:
+                        score_ui = ft.Text("Pregunta no respondida aún.", italic=True, color=COLORES["advertencia"])
+
+                    # UI de Historial de Chat
+                    chat_ui_controls = []
+                    if chats:
+                        for c in chats:
+                            role = c.get("role", "user")
+                            bg = COLORES["secundario"] if role == "user" else (COLORES["primario"] if role == "teacher" else COLORES["borde"])
+                            tc = COLORES["fondo"] if role in ["user", "teacher"] else COLORES["texto"]
+                            align = ft.CrossAxisAlignment.END if role == "user" else ft.CrossAxisAlignment.START
+                            who = "Estudiante" if role == "user" else ("Profesor" if role=="teacher" else "Tutor IA")
+                            
+                            chat_ui_controls.append(
+                                ft.Column([
+                                    ft.Text(f"{who} - {c['fecha'][:16].replace('T', ' ')}", size=10, color=COLORES["subtitulo"]),
+                                    ft.Container(content=ft.Text(c["content"], color=tc, size=13), bgcolor=bg, padding=10, border_radius=8)
+                                ], horizontal_alignment=align, spacing=2)
+                            )
+                    
+                    chat_scroll = ft.Column(chat_ui_controls, spacing=10, scroll=ft.ScrollMode.AUTO)
+                    chat_container = ft.Container(
+                        content=chat_scroll,
+                        height=250, padding=10, bgcolor=COLORES["fondo"], 
+                        border=ft.border.all(1, COLORES["borde"]), border_radius=5,
+                    ) if chats else ft.Text("No hay interacciones de chat en este problema.", size=12, color=COLORES["subtitulo"])
+
+                    # Ensamblar la Tarjeta del Problema
+                    prob_card = ft.Container(
+                        content=ft.Column([
+                            ft.Text(f"Problema {pid}", weight="bold", size=16, color=COLORES["secundario"]),
+                            ft.Divider(height=2, color="transparent"),
+                            ft.Row([
+                                ft.Column([
+                                    ft.Text("Evaluación General:", weight="bold", size=12, color=COLORES["texto"]),
+                                    score_ui,
+                                    ft.Text("Respuesta Entregada:", weight="bold", size=12, color=COLORES["texto"]) if ans else ft.Container(),
+                                    ft.Text(ans["texto"], size=13, color=COLORES["texto"], selectable=True) if ans and ans.get("texto") else ft.Container(),
+                                ], expand=1),
+                                
+                                ft.Column([
+                                    ft.Text("Historial de Conversación:", weight="bold", size=12, color=COLORES["texto"]),
+                                    chat_container
+                                ], expand=1)
+                            ], vertical_alignment=ft.CrossAxisAlignment.START)
+                        ], spacing=5),
+                        padding=15, border=ft.border.all(1, COLORES["borde"]), border_radius=8, bgcolor=COLORES["fondo"],
+                        margin=ft.margin.only(bottom=10, right=15)
+                    )
+                    prob_controls.append(prob_card)
+
+                # Acordeón de la Práctica
+                prac_tile = ft.ExpansionTile(
+                    title=ft.Text(f"Práctica: {prac_name}", weight="bold", color=COLORES["primario"]),
+                    subtitle=ft.Text(f"Ejercicios con actividad: {len(problemas)}", size=12, color=COLORES["subtitulo"]),
+                    controls=prob_controls,
+                    collapsed_text_color=COLORES["primario"],
+                    text_color=COLORES["primario"],
+                    initially_expanded=False,
+                )
+                profile_content.controls.append(prac_tile)
+
+            try:
+                profile_content.update()
+            except Exception:
+                pass
+                
+        tab_profile = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Icon(ft.Icons.PERSON_SEARCH, size=30, color=COLORES["primario"]),
+                    ft.Column([
+                        ft.Text("Expediente del Alumno", size=20, weight="bold", color=COLORES["primario"]),
+                        ft.Text("Selecciona un estudiante para revisar todas sus entregas, calificaciones y conversaciones.", color=COLORES["subtitulo"], size=12)
+                    ])
+                ]),
+                ft.Divider(color=COLORES["borde"]),
+                profile_student_dropdown,
+                ft.Divider(color="transparent", height=10),
+                ft.Container(content=profile_content, expand=True, bgcolor=COLORES["accento"], padding=15, border_radius=10)
+            ], expand=True),
+            padding=20,
+            expand=True
+        )
+        
         # Tabs Principales
         tabs = ft.Tabs(
             selected_index=0,
@@ -1798,13 +1951,14 @@ def main(page: ft.Page):
                 reset_inactivity_timer(),
                 load_exercises() if e.control.selected_index == 1 else None,
                 load_grades() if e.control.selected_index == 2 else None,
-                load_full_dashboard() if e.control.selected_index == 4 else None
+                load_full_dashboard() if e.control.selected_index == 5 else None
             ),
             tabs=[
                 ft.Tab(text="Estudiantes", icon=ft.Icons.GROUPS, content=tab_students),
                 ft.Tab(text="Tareas", icon=ft.Icons.ASSIGNMENT, content=tab_exercises),
                 ft.Tab(text="Evaluaciones", icon=ft.Icons.GRADE, content=tab_grading),
                 ft.Tab(text="Monitoreo", icon=ft.Icons.INSIGHTS, content=tab_monitor),
+                ft.Tab(text="Perfil Alumno", icon=ft.Icons.PERSON_SEARCH, content=tab_profile),
                 ft.Tab(text="Dashboard", icon=ft.Icons.DASHBOARD, content=tab_dashboard)
             ], expand=True
         )
