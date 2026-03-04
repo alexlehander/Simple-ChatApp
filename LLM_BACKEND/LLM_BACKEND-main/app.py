@@ -9,6 +9,7 @@ from flask_socketio import SocketIO, emit
 from sqlalchemy import text, inspect
 from flask_cors import CORS
 from pinecone import Pinecone
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
@@ -241,9 +242,11 @@ def get_or_create_user(correo_identificacion: str | None) -> Usuario:
     return u
 
 def history_for_chat(correo_identificacion: str | None, problema_id: int, practice_name: str | None, rag_context: str = "") -> List[Dict]:
+    limite_tiempo = dt.datetime.utcnow() - dt.timedelta(hours=24)
     logs = (
         ChatLog.query
         .filter_by(correo_identificacion=correo_identificacion, practice_name=practice_name, problema_id=problema_id)
+        .filter(ChatLog.created_at >= limite_tiempo)
         .order_by(ChatLog.created_at.asc())
         .all()
     )
@@ -631,6 +634,9 @@ def check_new_messages(problema_id):
         problema_id=problema_id
     ).order_by(ChatLog.id.desc()).first()
     if last_msg and last_msg.role in ["assistant", "teacher"]:
+        tiempo_transcurrido = dt.datetime.utcnow() - last_msg.created_at
+        if tiempo_transcurrido.total_seconds() > 86400:
+            return jsonify({"status": "waiting"})
         return jsonify({"status": "completed", "response": last_msg.content, "role": last_msg.role})
     else:
         return jsonify({"status": "waiting"})
