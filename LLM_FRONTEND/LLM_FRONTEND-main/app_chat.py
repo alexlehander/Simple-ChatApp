@@ -1,5 +1,6 @@
 import flet as ft
 import requests, time, threading, os, json
+from flask_socketio import SocketIO, emit
 
 def encontrar_raiz_proyecto(marcador="assets"):
     ruta_actual = os.path.dirname(os.path.abspath(__file__))
@@ -134,9 +135,25 @@ def add_to_pending_queue(page, item: dict):
     
 def main(page: ft.Page):
     page.is_alive = True
-    # Global state for Adaptive Polling
-    page.polling_speed = "slow" # 'slow' (10s) or 'fast' (1.5s)
-    
+    sio = socketio.Client()
+    page.polling_speed = "slow"
+    @sio.on('nuevo_mensaje_bot')
+    def on_nuevo_mensaje(data):
+        # Verificar que el mensaje sea para este alumno y este problema
+        if data['correo'] == state["correo_identificacion"] and data['problema_id'] == problema_actual_id:
+            # Apagar el indicador de escritura ("El tutor está escribiendo...")
+            hide_typing_indicator()
+            
+            # Agregar el mensaje a la interfaz
+            add_message(data['content'], "assistant")
+            page.update()
+
+    # Conectar al servidor al cargar la página
+    try:
+        sio.connect(BASE)
+    except Exception as e:
+        print("Error conectando sockets en el chat:", e)
+        
     try:
         last_heartbeat = page.client_storage.get("last_heartbeat")
         now = time.time()

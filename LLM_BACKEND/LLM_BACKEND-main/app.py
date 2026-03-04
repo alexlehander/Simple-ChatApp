@@ -319,12 +319,20 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
                 role="user"
             ).order_by(ChatLog.id.desc()).first()
             user_query_text = last_user_msg.content if last_user_msg else ""
-            print("🔍 Searching Pinecone...")
-            context = get_rag_context(user_query_text)
+            context = ""
+            if len(user_query_text.strip()) > 15:
+                print("🔍 Searching Pinecone...")
+                context = get_rag_context(user_query_text)
             messages = history_for_chat(correo, problema_id, practice_name, rag_context=context)
             bot_response = call_mistral(messages)
             usuario = Usuario.query.get(usuario_id)
             save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", bot_response)
+            socketio.emit('nuevo_mensaje_bot', {
+                'correo': correo,
+                'problema_id': problema_id,
+                'role': 'assistant',
+                'content': bot_response
+            })
             print(f"✅ [Background] Respuesta guardada para {correo}")
         except Exception as e:
             print(f"❌ [Background] Error generando respuesta: {e}")
@@ -629,22 +637,6 @@ def chat(problema_id: int):
 
     return jsonify({"status": "processing", "message": "Procesando..."})
     
-@app.route("/check_new_messages/<int:problema_id>", methods=["POST"])
-def check_new_messages(problema_id):
-    data = request.get_json()
-    correo = data.get("correo_identificacion")
-    last_msg = ChatLog.query.filter_by(
-        correo_identificacion=correo, 
-        problema_id=problema_id
-    ).order_by(ChatLog.id.desc()).first()
-    if last_msg and last_msg.role in ["assistant", "teacher"]:
-        tiempo_transcurrido = hora_ensenada() - last_msg.created_at
-        if tiempo_transcurrido.total_seconds() > 86400:
-            return jsonify({"status": "waiting"})
-        return jsonify({"status": "completed", "response": last_msg.content, "role": last_msg.role})
-    else:
-        return jsonify({"status": "waiting"})
-
 @app.route("/api/teacher/register", methods=["POST"])
 def teacher_register():
     data = request.get_json()
