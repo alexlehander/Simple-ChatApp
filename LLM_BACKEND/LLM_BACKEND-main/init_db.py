@@ -1,10 +1,8 @@
 import gevent.monkey
 gevent.monkey.patch_all()
-
 import warnings
 from app import app, db
 from sqlalchemy import text
-
 warnings.simplefilter("ignore")
 
 def init_database():

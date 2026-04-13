@@ -736,8 +736,11 @@ def manage_my_exercises():
     
     if request.method == "GET":
         exs = ListaEjercicios.query.filter_by(profesor_id=prof_id).all()
-        filenames = [e.exercise_filename for e in exs]
-        data = [get_exercise_metadata(f) for f in filenames]
+        data = []
+        for e in exs:
+            meta = get_exercise_metadata(e.exercise_filename)
+            meta["is_active"] = e.is_active # INJECTING THE FLAG HERE
+            data.append(meta)
         return jsonify(data), 200
         
     if request.method == "POST":
@@ -1142,6 +1145,98 @@ def generate_student_report():
     except Exception as e:
         print(f"Error generando reporte: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/public/teachers", methods=["GET"])
+def get_public_teachers():
+    """Returns a list of all teachers for the student registration dropdown."""
+    teachers = Profesor.query.all()
+    data = [{"id": t.id, "nombre": t.nombre, "email": t.email} for t in teachers]
+    return jsonify(data), 200
+
+@app.route("/api/student/register", methods=["POST"])
+def student_register():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+    nombre = data.get("nombre")
+    teacher_ids = data.get("teacher_ids", [])
+
+    if not email or not password or not nombre or not teacher_ids:
+        return jsonify({"msg": "Faltan datos obligatorios o no seleccionó profesores"}), 400
+
+    if Usuario.query.filter_by(correo_identificacion=email).first():
+        return jsonify({"msg": "El correo ya está registrado"}), 400
+
+    hashed = generate_password_hash(password)
+    nuevo_estudiante = Usuario(correo_identificacion=email, password_hash=hashed, nombre=nombre)
+    db.session.add(nuevo_estudiante)
+    db.session.commit()
+
+    for t_id in teacher_ids:
+        exists = ListaClase.query.filter_by(profesor_id=t_id, student_email=email).first()
+        if not exists:
+            db.session.add(ListaClase(profesor_id=t_id, student_email=email))
+    
+    db.session.commit()
+    return jsonify({"msg": "Estudiante registrado y adscrito a profesores exitosamente"}), 201
+    
+@app.route("/api/student/login", methods=["POST"])
+def student_login():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+    
+    user = Usuario.query.filter_by(correo_identificacion=email).first()
+    
+    if not user or not check_password_hash(user.password_hash, password):
+        return jsonify({"msg": "Credenciales inválidas"}), 401
+        
+    additional_claims = {"role": "student", "email": user.correo_identificacion}
+    access_token = create_access_token(identity=str(user.id), additional_claims=additional_claims)
+    
+    return jsonify(access_token=access_token, nombre=user.nombre, correo=user.correo_identificacion), 200
+
+@app.route("/api/student/my-active-exercises", methods=["GET"])
+@jwt_required()
+def get_student_active_exercises():
+    """Returns only ACTIVE exercises assigned by the specific teachers the student is registered to."""
+    claims = get_jwt()
+    if claims.get("role") != "student":
+        return jsonify({"msg": "Acceso denegado. Rol incorrecto."}), 403
+    
+    student_email = claims.get("email")
+    
+    clases = ListaClase.query.filter_by(student_email=student_email).all()
+    mis_profesores_ids = [c.profesor_id for c in clases]
+    
+    if not mis_profesores_ids:
+        return jsonify([]), 200
+
+    ejercicios_activos = ListaEjercicios.query.filter(
+        ListaEjercicios.profesor_id.in_(mis_profesores_ids),
+        ListaEjercicios.is_active == True
+    ).all()
+    
+    unique_filenames = {e.exercise_filename for e in ejercicios_activos}
+    
+    data = [get_exercise_metadata(f) for f in unique_filenames]
+    return jsonify(data), 200
+
+@app.route("/api/teacher/my-exercises/toggle", methods=["PUT"])
+@jwt_required()
+def toggle_exercise_visibility():
+    prof_id = get_jwt_identity()
+    filename = request.get_json().get("filename")
+    
+    ejercicio = ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=filename).first()
+    if not ejercicio:
+        return jsonify({"msg": "Ejercicio no encontrado en tu lista"}), 404
+        
+    ejercicio.is_active = not ejercicio.is_active
+    db.session.commit()
+    
+    status_str = "Activo" if ejercicio.is_active else "Oculto"
+    return jsonify({"msg": f"Ejercicio ahora está {status_str}", "is_active": ejercicio.is_active}), 200
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------

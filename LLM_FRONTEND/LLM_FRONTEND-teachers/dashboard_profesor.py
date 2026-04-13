@@ -2,7 +2,7 @@ import flet as ft
 import requests, time, threading, os, json
 import socketio
 
-BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 
 def encontrar_raiz_proyecto(marcador="assets"):
     ruta_actual = os.path.dirname(os.path.abspath(__file__))
@@ -26,43 +26,43 @@ except Exception as e:
 
 # Light Theme
 LIGHT_COLORS = {
-    "fondo":       "#F5F7FA",
-    "accento":     "#E8F1FA",
-    "texto":       "#1E2A38",
-    "subtitulo":   "#4E5D6C",
-    "primario":    "#1A4E8A",
-    "secundario":  "#5BA3D0",
-    "boton":       "#1A4E8A",
-    "borde":       "#C8D6E5",
-    "exito":       "#2E8B57",
-    "error":       "#D64541",
-    "advertencia": "#E0A800",
+    "fondo":        "#F5F7FA",
+    "accento":      "#E8F1FA",
+    "texto":        "#1E2A38",
+    "subtitulo":    "#4E5D6C",
+    "primario":     "#1A4E8A",
+    "secundario":   "#5BA3D0",
+    "boton":        "#1A4E8A",
+    "borde":        "#C8D6E5",
+    "exito":        "#2E8B57",
+    "error":        "#D64541",
+    "advertencia":  "#E0A800",
 }
 
 # Dark Theme
 DARK_COLORS = {
-    "fondo":       "#0B0F14",
-    "accento":     "#161A20",
-    "texto":       "#E6E9EF",
-    "subtitulo":   "#AAB3C0",
-    "primario":    "#8FB7FF",
-    "secundario":  "#5B96F7",
-    "boton":       "#1F3B86",
-    "borde":       "#2B323A",
-    "exito":       "#2ECC95",
-    "error":       "#F2797B",
-    "advertencia": "#F6A721",
+    "fondo":        "#0B0F14",
+    "accento":      "#161A20",
+    "texto":        "#E6E9EF",
+    "subtitulo":    "#AAB3C0",
+    "primario":     "#8FB7FF",
+    "secundario":   "#5B96F7",
+    "boton":        "#1F3B86",
+    "borde":        "#2B323A",
+    "exito":        "#2ECC95",
+    "error":        "#F2797B",
+    "advertencia":  "#F6A721",
 }
 
 # Persistent Helpers
 STATE_KEYS = {
-    "screen":          "ui_screen",
-    "code":            "correo_identificacion",
-    "current_problem": "current_problem_id",
-    "answers":         "answers_map",
-    "chat":            "chat_map",
-    "timer_start":     "timer_start_epoch",
-    "pending_queue":   "pending_queue_list",
+    "screen":           "ui_screen",
+    "code":             "correo_identificacion",
+    "current_problem":  "current_problem_id",
+    "answers":          "answers_map",
+    "chat":             "chat_map",
+    "timer_start":      "timer_start_epoch",
+    "pending_queue":    "pending_queue_list",
 }
 
 def main(page: ft.Page):
