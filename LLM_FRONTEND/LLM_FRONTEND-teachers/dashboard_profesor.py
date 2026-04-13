@@ -66,7 +66,6 @@ STATE_KEYS = {
 }
 
 def main(page: ft.Page):
-    
     state = {
         "token": page.client_storage.get("teacher_token"),
         "last_activity": time.time(),
@@ -913,7 +912,19 @@ def main(page: ft.Page):
             else:
                 flash("Error al eliminar tarea", ok=False)
             load_exercises()
-
+            
+        def toggle_exercise_status(filename):
+            headers = {"Authorization": f"Bearer {state['token']}"}
+            res = requests.put(f"{BASE}/api/teacher/my-exercises/toggle", headers=headers, json={"filename": filename})
+            if res.status_code == 200:
+                data = res.json()
+                is_active = data.get("is_active", False)
+                status_str = "Activo (Visible para alumnos)" if is_active else "Oculto (Invisible para alumnos)"
+                flash(f"Ejercicio {status_str}", ok=is_active)
+                load_exercises() # Recargar para actualizar los colores de la UI
+            else:
+                flash("Error al cambiar estado", ok=False)
+                
         def render_exercises():
             col_available.controls.clear()
             col_mine.controls.clear()
@@ -923,11 +934,11 @@ def main(page: ft.Page):
                 if isinstance(item, str):
                     safe_my_exercises.append({
                         "filename": item, "title": item, 
-                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0
+                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0, "is_active": False
                     })
                 else:
                     safe_my_exercises.append(item)
-            
+                    
             safe_all_exercises = []
             
             for item in state["all_exercises"]:
@@ -946,19 +957,62 @@ def main(page: ft.Page):
                 minutes = ex_data.get('max_time', 0) // 60
                 icono = ft.Icons.ASSIGNMENT if is_mine else ft.Icons.LIBRARY_BOOKS
                 color_icono = COLORES["primario"]
+                top_row_controls = [
+                    ft.Icon(icono, size=20, color=color_icono)
+                ]
+                
+                if is_mine:
+                    is_active = ex_data.get("is_active", False)
+                    btn_color = COLORES["exito"] if is_active else COLORES["error"]
+                    btn_icon = ft.Icons.VISIBILITY if is_active else ft.Icons.VISIBILITY_OFF
+                    btn_tooltip = "Visible para alumnos (Click para Ocultar)" if is_active else "Oculto para alumnos (Click para Mostrar)"
+                    
+                    toggle_btn = ft.IconButton(
+                        icon=btn_icon,
+                        icon_color=btn_color,
+                        tooltip=btn_tooltip,
+                        icon_size=20,
+                        on_click=lambda e, f=ex_data["filename"]: toggle_exercise_status(f)
+                    )
+                    top_row_controls.append(toggle_btn)
+                    
+                title_text = ft.Text(
+                    ex_data.get("title", "Sin Título"), 
+                    weight="bold", 
+                    size=16, 
+                    expand=True, 
+                    color=COLORES["texto"], 
+                    max_lines=2, 
+                    overflow=ft.TextOverflow.ELLIPSIS
+                )
+                top_row_controls.append(title_text)
+                
+                if is_mine:
+                    del_btn = ft.IconButton(
+                        icon=ft.Icons.DELETE,
+                        icon_color=COLORES["error"],
+                        tooltip="Quitar de mi lista",
+                        icon_size=20,
+                        on_click=lambda e, f=ex_data["filename"]: remove_exercise(f)
+                    )
+                    top_row_controls.append(del_btn)
+                else:
+                    add_btn = ft.IconButton(
+                        icon=ft.Icons.ADD_CIRCLE, 
+                        icon_color=COLORES["exito"],
+                        tooltip="Agregar a mis tareas", 
+                        icon_size=20,
+                        on_click=lambda e, f=ex_data["filename"]: add_exercise(f)
+                    )
+                    top_row_controls.append(add_btn)
+                    
+                borde_color = COLORES["borde"]
+                if is_mine:
+                    borde_color = COLORES["exito"] if ex_data.get("is_active") else COLORES["error"]
+                    
                 return ft.Container(
                     content=ft.Column([
-                        ft.Row([
-                            ft.Icon(icono, size=20, color=color_icono),
-                            ft.Text(ex_data.get("title", "Sin Título"), weight="bold", size=16, expand=True, color=COLORES["texto"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                            ft.IconButton(
-                                ft.Icons.DELETE if is_mine else ft.Icons.ADD_CIRCLE, 
-                                icon_color=COLORES["error"] if is_mine else COLORES["exito"],
-                                tooltip="Quitar" if is_mine else "Agregar", 
-                                icon_size=20,
-                                on_click=lambda e, f=ex_data["filename"]: remove_exercise(f) if is_mine else add_exercise(f)
-                            )
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.START),
+                        ft.Row(top_row_controls, alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                         
                         ft.Text(ex_data.get("description", ""), size=14, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
                         ft.Container(height=5),
@@ -972,13 +1026,13 @@ def main(page: ft.Page):
                         ])
                     ], spacing=5),
                     bgcolor=COLORES["fondo"], 
-                    padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
+                    padding=ft.padding.only(left=10, top=5, right=5, bottom=5), 
                     border_radius=5, 
-                    border=ft.border.all(1, COLORES["borde"]),
+                    border=ft.border.all(1, borde_color),
                     ink=True, 
                     on_click=lambda e, f=ex_data["filename"]: show_exercise_detail(f)
                 )
-
+                
             # --- 1. Filtrar y Ordenar MIS TAREAS ---
             filtered_mine = [e for e in safe_my_exercises if state["filter_my_tasks"] in e.get("title", "").lower()]
             filtered_mine.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_my_tasks"] == "desc"))

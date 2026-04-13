@@ -134,9 +134,31 @@ def add_to_pending_queue(page, item: dict):
     save_k(page, STATE_KEYS["pending_queue"], queue)
     
 def main(page: ft.Page):
+    state = {
+        "token": page.client_storage.get("student_token"),
+        "correo": page.client_storage.get("correo_identificacion"),
+        "nombre": page.client_storage.get("student_name", "Estudiante"),
+        "teachers_list": []
+    }
+    
     page.is_alive = True
     sio = socketio.Client()
     page.polling_speed = "slow"
+    
+    def auth_request(method, endpoint, **kwargs):
+        if not state["token"]: return None
+        headers = kwargs.get("headers", {})
+        headers["Authorization"] = f"Bearer {state['token']}"
+        kwargs["headers"] = headers
+        try:
+            url = f"{BASE}{endpoint}"
+            if "timeout" not in kwargs: kwargs["timeout"] = 30
+            if method == "GET": return requests.get(url, **kwargs)
+            if method == "POST": return requests.post(url, **kwargs)
+        except Exception as e:
+            print(f"Error request: {e}")
+            return None
+    
     @sio.on('nuevo_mensaje_bot')
     def on_nuevo_mensaje(data):
         # Verificar que el mensaje sea para este alumno y este problema
@@ -226,20 +248,27 @@ def main(page: ft.Page):
         _render_current_screen()
 
     def _render_current_screen():
-        screen = load_k(page, STATE_KEYS["screen"], "consent")
-        if screen in ("instructions", "survey"):
-            mostrar_pantalla_seleccion_sesion()
+        if not state.get("token"):
+            show_login_register()
+            return
+            
+        screen = load_k(page, STATE_KEYS["screen"], "dashboard")
+        
+        if screen == "dashboard":
+            show_student_dashboard()
+        elif screen == "consent":
+            mostrar_pantalla_consentimiento()
         elif screen == "problems":
             titulo = load_k(page, "selected_session_title", "Sesión")
             problemas = load_k(page, "selected_session_problems", [])
             if problemas:
                 mostrar_pantalla_intervencion(titulo, problemas)
             else:
-                mostrar_pantalla_seleccion_sesion()
+                show_student_dashboard()
         elif screen == "final":
             mostrar_pantalla_encuesta_final()
         else:
-            mostrar_pantalla_consentimiento()
+            show_student_dashboard()
             
     def toggle_theme(e=None):
         new_theme = "light" if load_k(page, "theme", "dark") == "dark" else "dark"
@@ -247,6 +276,107 @@ def main(page: ft.Page):
         _apply_theme_and_redraw()
 
     page.overlay.append(save_snack)
+    
+    # =============== PANTALLA 1: LOGIN Y REGISTRO =============== 
+    def show_login_register(is_register=False):
+        save_k(page, STATE_KEYS["screen"], "login")
+        page.clean()
+        
+        email_field = ft.TextField(label="Correo Institucional", width=300, bgcolor=COLORES["accento"], border_color=COLORES["primario"], color=COLORES["texto"], border_radius=10)
+        pass_field = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, width=300, bgcolor=COLORES["accento"], border_color=COLORES["primario"], color=COLORES["texto"], border_radius=10)
+        name_field = ft.TextField(label="Nombre Completo", width=300, bgcolor=COLORES["accento"], border_color=COLORES["primario"], color=COLORES["texto"], border_radius=10, visible=is_register)
+        
+        teacher_dropdown = ft.Dropdown(
+            label="Selecciona a tu Profesor", width=300,
+            bgcolor=COLORES["accento"], border_color=COLORES["primario"], color=COLORES["texto"], border_radius=10,
+            visible=is_register
+        )
+
+        if is_register:
+            try:
+                res = requests.get(f"{BASE}/api/public/teachers", timeout=10)
+                if res.status_code == 200:
+                    state["teachers_list"] = res.json()
+                    teacher_dropdown.options = [ft.dropdown.Option(key=str(t["id"]), text=f"{t['nombre']} ({t['email']})") for t in state["teachers_list"]]
+            except Exception as e:
+                print("Error cargando profesores:", e)
+
+        def submit_action(e):
+            if is_register:
+                if not email_field.value or not pass_field.value or not name_field.value or not teacher_dropdown.value:
+                    flash("Por favor, llena todos los campos", ok=False)
+                    return
+                try:
+                    res = requests.post(f"{BASE}/api/student/register", json={
+                        "email": email_field.value,
+                        "password": pass_field.value,
+                        "nombre": name_field.value,
+                        "teacher_ids": [int(teacher_dropdown.value)]
+                    }, timeout=10)
+                    if res.status_code == 201:
+                        flash("Registro exitoso. Iniciando sesión...", ok=True)
+                        # Auto-login after registration
+                        login_action(email_field.value, pass_field.value)
+                    else:
+                        flash(res.json().get("msg", "Error al registrar"), ok=False)
+                except Exception:
+                    flash("Error de conexión", ok=False)
+            else:
+                login_action(email_field.value, pass_field.value)
+
+        def login_action(email, password):
+            if not email or not password:
+                flash("Ingresa correo y contraseña", ok=False)
+                return
+            try:
+                res = requests.post(f"{BASE}/api/student/login", json={"email": email, "password": password}, timeout=10)
+                if res.status_code == 200:
+                    data = res.json()
+                    state["token"] = data.get("access_token")
+                    state["correo"] = data.get("correo")
+                    state["nombre"] = data.get("nombre")
+                    page.client_storage.set("student_token", state["token"])
+                    page.client_storage.set("correo_identificacion", state["correo"])
+                    page.client_storage.set("student_name", state["nombre"])
+                    flash(f"Bienvenido, {state['nombre']}", ok=True)
+                    show_student_dashboard()
+                else:
+                    flash("Credenciales inválidas", ok=False)
+            except Exception:
+                flash("Error de conexión", ok=False)
+
+        card = ft.Container(
+            content=ft.Column([
+                ft.Icon(ft.Icons.ACCOUNT_CIRCLE, size=50, color=COLORES["primario"]),
+                ft.Text("Registro de Alumno" if is_register else "Acceso a Estudiantes", size=24, weight="bold", color=COLORES["texto"]),
+                ft.Divider(height=10, color="transparent"),
+                name_field,
+                email_field,
+                pass_field,
+                teacher_dropdown,
+                ft.Divider(height=10, color="transparent"),
+                ft.Column([
+                    ft.ElevatedButton("Registrarse" if is_register else "Entrar", on_click=submit_action, bgcolor=COLORES["boton"], color=COLORES["texto"], width=300, height=45),
+                    ft.TextButton(
+                        "¿Ya tienes cuenta? Inicia Sesión" if is_register else "¿No tienes cuenta? Regístrate",
+                        on_click=lambda e: show_login_register(not is_register),
+                        style=ft.ButtonStyle(color=COLORES["primario"])
+                    )
+                ], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
+            bgcolor=COLORES["fondo"], padding=40, border_radius=15, border=ft.border.all(1, COLORES["borde"]),
+            shadow=ft.BoxShadow(blur_radius=20, color=COLORES["accento"], offset=ft.Offset(0, 10)),
+            width=400, height=650 if is_register else 500
+        )
+
+        background_image = ft.Image(src="/fondo_login.jpg", fit=ft.ImageFit.COVER, opacity=1.0)
+        layout_login = ft.Stack(
+            controls=[
+                ft.Container(content=background_image, left=0, top=0, right=0, bottom=0),
+                ft.Container(content=card, alignment=ft.alignment.center, left=0, top=0, right=0, bottom=0)
+            ], expand=True
+        )
+        page.add(layout_login)
     
     # =============== PANTALLA 1: CONSENTIMIENTO =============== 
     def mostrar_pantalla_consentimiento():
@@ -273,7 +403,10 @@ def main(page: ft.Page):
             disabled=True,
             bgcolor=COLORES["boton"],
             color=COLORES["texto"],
-            on_click=lambda e: mostrar_pantalla_seleccion_sesion(),
+            on_click=lambda e: mostrar_pantalla_intervencion(
+                load_k(page, "selected_session_title"), 
+                load_k(page, "selected_session_problems")
+            )
         )
         
         def on_check(e):
@@ -322,132 +455,99 @@ def main(page: ft.Page):
         page.clean()
         page.add(final_view)
         
-    # =============== PANTALLA 2: INSTRUCCIONES =============== 
-    def mostrar_pantalla_seleccion_sesion():
-        save_k(page, STATE_KEYS["screen"], "instructions")
+    # =============== PANTALLA 2: DASHBOARD DEL ESTUDIANTE =============== 
+    def show_student_dashboard():
+        save_k(page, STATE_KEYS["screen"], "dashboard")
         page.clean()
-        archivos = listar_sesiones()
         
-        if not archivos:
-            page.add(ft.Text("No hay sesiones disponibles en la carpeta 'exercises/'.", color=COLORES["error"]))
-            return
-            
-        opciones = [ft.dropdown.Option(a) for a in archivos]
+        exercises_grid = ft.GridView(expand=True, runs_count=3, max_extent=350, child_aspect_ratio=1.2, spacing=20, run_spacing=20)
         
-        email_input = ft.TextField(
-            label=ft.Container(
-                content=ft.Text("Correo institucional", text_align=ft.TextAlign.CENTER),
-                alignment=ft.alignment.center
-            ),
-            hint_text="nombre@uabc.edu.mx",
-            width=None,
-            expand=True,
-            text_align=ft.TextAlign.CENTER,
-            color=COLORES["texto"],
-            bgcolor=COLORES["accento"],
-            border_color=COLORES["borde"],
-        )
-        
-        def on_change_sesion(e):
-            nombre_archivo = e.control.value
-            if not nombre_archivo:
-                return
+        def iniciar_practica(filename, title):
+            # Fetch the actual problem data securely from the backend instead of local files
             try:
-                with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                descripcion = data.get("description", "No se encontró descripción para esta práctica.")
-                descripcion_text.value = descripcion
-                page.update()
-            except Exception as err:
-                print(f"⚠️ Error al leer descripción de {nombre_archivo}: {err}")
-        
-        dropdown_label_text = ft.Text(
-            "Selecciona una actividad para resolver",
-            size=18,
-            weight="bold",
-            color=COLORES["primario"],
-            text_align=ft.TextAlign.CENTER
-        )
-        
-        sesion_dropdown = ft.Dropdown(
-            options=opciones,
-            expand=True,
-            on_change=on_change_sesion,
-            text_style=ft.TextStyle(size=16),
-        )
-        
-        descripcion_label = ft.Text(
-            "Descripción de la práctica",
-            size=18,
-            weight="bold",
-            color=COLORES["primario"],
-            text_align=ft.TextAlign.CENTER,
-        )
-        
-        descripcion_text = ft.Text(
-            "Selecciona una práctica para ver su descripción",
-            color=COLORES["texto"],
-            size=16,
-            text_align=ft.TextAlign.JUSTIFY,
-        )
-        
-        def iniciar_sesion(e):
-            correo = email_input.value.strip()
-            nombre_archivo = sesion_dropdown.value
-            if "@" not in correo:
-                flash("Ingresa un correo válido")
-                return
-            if not nombre_archivo:
-                flash("Selecciona una actividad antes de continuar")
-                return
-            page.client_storage.set("correo_identificacion", correo)
-            titulo, problemas = cargar_sesion(nombre_archivo)
-            with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
-                data = json.load(f)
-            save_k(page, "selected_session_meta", data)
-            save_k(page, "selected_session_title", titulo)
-            save_k(page, "selected_session_problems", problemas)
-            save_k(page, "selected_session_filename", nombre_archivo)
-            mostrar_pantalla_intervencion(titulo, problemas)
+                res = auth_request("GET", f"/api/exercises/detail/{filename}")
+                if res and res.status_code == 200:
+                    data = res.json()
+                    problemas = data.get("problemas", [])
+                    
+                    save_k(page, "selected_session_meta", data)
+                    save_k(page, "selected_session_title", title)
+                    save_k(page, "selected_session_problems", problemas)
+                    save_k(page, "selected_session_filename", filename)
+                    
+                    # Proceed to the Consent Screen before starting the problems
+                    mostrar_pantalla_consentimiento()
+                else:
+                    flash("Error al descargar la práctica del servidor.", ok=False)
+            except Exception as e:
+                print("Error loading practice:", e)
+                flash("Error de conexión.", ok=False)
+
+        def load_active_exercises():
+            exercises_grid.controls.clear()
+            exercises_grid.controls.append(ft.ProgressRing(color=COLORES["primario"]))
+            page.update()
             
-        iniciar_button = ft.ElevatedButton(
-            "Comenzar la actividad",
-            icon=ft.Icons.PLAY_ARROW,
-            bgcolor=COLORES["boton"],
-            color=COLORES["texto"],
-            on_click=iniciar_sesion,
-        )
-        
-        layout = ft.Column(
-            [
-                ft.Text(
-                    "Inicia sesión con tu correo institucional y selecciona una actividad de la lista",
-                    size=22,
-                    weight="bold",
-                    color=COLORES["primario"],
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                email_input,
-                dropdown_label_text,
-                sesion_dropdown,
-                descripcion_label,
-                descripcion_text,
-                iniciar_button,
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=20,
-        )
-        
-        container = ft.Container(
-            content=layout,
-            col={"xs": 12, "sm": 10, "md": 8, "lg": 6, "xl": 5},
-            padding=20, 
-            bgcolor=COLORES["accento"], 
-            border_radius=10
+            try:
+                res = auth_request("GET", "/api/student/my-active-exercises", timeout=10)
+                exercises_grid.controls.clear()
+                
+                if res and res.status_code == 200:
+                    active_exercises = res.json()
+                    if not active_exercises:
+                        exercises_grid.controls.append(ft.Text("No tienes tareas activas asignadas en este momento.", color=COLORES["subtitulo"], size=16))
+                    else:
+                        for ex in active_exercises:
+                            minutes = ex.get('max_time', 0) // 60
+                            title = ex.get('title', 'Sin Título')
+                            filename = ex.get('filename')
+                            
+                            # Card UI for the assignment
+                            card = ft.Container(
+                                content=ft.Column([
+                                    ft.Row([
+                                        ft.Icon(ft.Icons.ASSIGNMENT, color=COLORES["primario"], size=30),
+                                        ft.Text(title, weight="bold", size=18, color=COLORES["texto"], expand=True, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS)
+                                    ], vertical_alignment=ft.CrossAxisAlignment.START),
+                                    ft.Divider(color=COLORES["borde"]),
+                                    ft.Text(ex.get('description', ''), size=14, color=COLORES["texto"], max_lines=3, overflow=ft.TextOverflow.ELLIPSIS, expand=True),
+                                    ft.Row([
+                                        ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["subtitulo"]),
+                                        ft.Text(f"{minutes} min", size=12, color=COLORES["subtitulo"]),
+                                        ft.Container(width=10),
+                                        ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["subtitulo"]),
+                                        ft.Text(f"{ex.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"]),
+                                    ]),
+                                    ft.ElevatedButton("Comenzar Práctica", icon=ft.Icons.PLAY_ARROW, bgcolor=COLORES["boton"], color=COLORES["texto"], width=float("inf"), on_click=lambda e, f=filename, t=title: iniciar_practica(f, t))
+                                ]),
+                                bgcolor=COLORES["accento"], padding=20, border_radius=10, border=ft.border.all(1, COLORES["borde"]),
+                                shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"])
+                            )
+                            exercises_grid.controls.append(card)
+                else:
+                    exercises_grid.controls.append(ft.Text("Error al cargar tareas.", color=COLORES["error"]))
+            except Exception as e:
+                print("Dashboard load error:", e)
+                exercises_grid.controls.clear()
+                exercises_grid.controls.append(ft.Text("Error de conexión.", color=COLORES["error"]))
+                
+            page.update()
+
+        header = ft.Container(
+            content=ft.Row([
+                ft.Row([ft.Icon(ft.Icons.SCHOOL, color=COLORES["primario"], size=30), ft.Text(f"Portal de Alumnos - {state['nombre']}", size=24, weight="bold", color=COLORES["texto"])]),
+                ft.Row([
+                    ft.IconButton(icon=ft.Icons.LIGHT_MODE if theme_name == "dark" else ft.Icons.DARK_MODE, icon_color=COLORES["primario"], on_click=toggle_theme, tooltip="Cambiar Tema"),
+                    ft.IconButton(icon=ft.Icons.LOGOUT, icon_color=COLORES["error"], tooltip="Cerrar Sesión", on_click=lambda e: (page.client_storage.remove("student_token"), state.update({"token": None, "correo": None, "nombre": None}), show_login_register()))
+                ])
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            padding=20, bgcolor=COLORES["fondo"], border=ft.border.only(bottom=ft.border.BorderSide(1, COLORES["borde"]))
         )
 
-        page.add(ft.ResponsiveRow([container], alignment=ft.MainAxisAlignment.CENTER))
+        page.add(ft.Column([header, ft.Container(content=exercises_grid, padding=30, expand=True)], expand=True))
+        
+        # Load the assignments dynamically
+        threading.Thread(target=load_active_exercises, daemon=True).start()
         
     def reiniciar_practica(e):
         try:
