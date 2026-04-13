@@ -636,7 +636,7 @@ def main(page: ft.Page):
             mis_emails_filtrados.sort(reverse=(state["sort_my_students"] == "desc"))
             
             if not mis_emails_filtrados:
-                msg = "No se encontraron resultados" if state["filter_my_students"] else "No tienes estudiantes aún"
+                msg = "No se encontraron resultados" if state["filter_my_students"] else "No hay estudiantes inscritos"
                 my_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
             else:
                 for email in mis_emails_filtrados:
@@ -666,7 +666,7 @@ def main(page: ft.Page):
             disponibles_filtrados.sort(reverse=(state["sort_global_students"] == "desc"))
 
             if not disponibles_filtrados:
-                msg = "No se encontraron estudiantes inscritos" if state["filter_global_students"] else "No se encontraron estudiantes disponibles"
+                msg = "No se encontraron estudiantes inscritos" if state["filter_global_students"] else "No hay estudiantes disponibles"
                 global_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
             else:
                 for email in disponibles_filtrados:
@@ -984,7 +984,7 @@ def main(page: ft.Page):
             filtered_mine.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_my_tasks"] == "desc"))
             
             if not filtered_mine:
-                col_mine.controls.append(ft.Text("No tienes tareas asignadas.", color=COLORES["subtitulo"]))
+                col_mine.controls.append(ft.Text("No hay tareas seleccionadas", color=COLORES["subtitulo"]))
             else:
                 for ex in filtered_mine:
                     col_mine.controls.append(create_exercise_card(ex, True))
@@ -994,7 +994,7 @@ def main(page: ft.Page):
             filtered_global.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_global_tasks"] == "desc"))
 
             if not filtered_global:
-                col_available.controls.append(ft.Text("No hay tareas disponibles.", color=COLORES["subtitulo"]))
+                col_available.controls.append(ft.Text("No hay tareas disponibles", color=COLORES["subtitulo"]))
             else:
                 for ex in filtered_global:
                     col_available.controls.append(create_exercise_card(ex, False))
@@ -1729,7 +1729,7 @@ def main(page: ft.Page):
             filtered_comp.sort(key=lambda x: x.get("correo", "").lower(), reverse=(state["sort_completed_grades"] == "desc"))
             
             if not filtered_comp:
-                nuevas_completadas.append(ft.Text("No hay evaluaciones completadas.", color=COLORES["subtitulo"]))
+                nuevas_completadas.append(ft.Text("No hay evaluaciones completadas", color=COLORES["subtitulo"]))
             else:
                 for g in filtered_comp:
                     nuevas_completadas.append(create_grade_card(g, True))
@@ -1739,7 +1739,7 @@ def main(page: ft.Page):
             filtered_pend.sort(key=lambda x: x.get("correo", "").lower(), reverse=(state["sort_pending_grades"] == "desc"))
 
             if not filtered_pend:
-                nuevas_pendientes.append(ft.Text("No hay evaluaciones pendientes 🎉", color=COLORES["subtitulo"]))
+                nuevas_pendientes.append(ft.Text("No hay evaluaciones pendientes", color=COLORES["subtitulo"]))
             else:
                 for g in filtered_pend:
                     nuevas_pendientes.append(create_grade_card(g, False))
@@ -1982,7 +1982,7 @@ def main(page: ft.Page):
                     ft.Icon(ft.Icons.PERSON_SEARCH, size=30, color=COLORES["primario"]),
                     ft.Column([
                         ft.Text("Expediente del Alumno", size=20, weight="bold", color=COLORES["primario"]),
-                        ft.Text("Selecciona un estudiante para revisar todas sus entregas, calificaciones y conversaciones.", color=COLORES["subtitulo"], size=12)
+                        ft.Text("Selecciona un estudiante para revisar todas sus entregas, calificaciones y conversaciones", color=COLORES["subtitulo"], size=12)
                     ])
                 ]),
                 ft.Divider(color=COLORES["borde"]),
