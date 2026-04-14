@@ -647,20 +647,31 @@ def main(page: ft.Page):
         correo = page.client_storage.get("correo_identificacion") or "No disponible"
         stop_timer = False
         page.input_is_focused = False
+        
         def on_input_focus(e): page.input_is_focused = True
+        
         def on_input_blur(e): page.input_is_focused = False
+        
         def on_global_keyboard(e):
             if e.key and len(e.key) == 1 and not page.input_is_focused: user_input.focus()
+            
         def handle_bot_message(data):
             if data['problema_id'] == problema_actual_id:
                 if getattr(page, "burbuja_carga", None) in chat_area.controls:
-                    chat_area.controls.remove(page.burbuja_carga)
+                    try:
+                        chat_area.controls.remove(page.burbuja_carga)
+                    except Exception:
+                        pass
                     page.burbuja_carga = None
-                
                 add_chat_bubble(data['role'], data['content'])
                 update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": data['role'], "text": data['content']})
                 page.polling_speed = "slow"
-                page.update()
+                try:
+                    if page.is_alive:
+                        page.update()
+                except Exception:
+                    pass
+                    
         page.on_bot_message = handle_bot_message # Bind the socket to this screen
         page.on_keyboard_event = on_global_keyboard
         problema_actual_id = 1
@@ -756,7 +767,11 @@ def main(page: ft.Page):
             
             chat_area.controls.append(bubble_container)
             chat_area.auto_scroll = True
-            chat_area.update()
+            try:
+                if chat_area.page:
+                    chat_area.update()
+            except Exception:
+                pass
             chat_area.auto_scroll = False
             
         def cargar_chat_guardado(id_problema):
