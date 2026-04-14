@@ -135,9 +135,9 @@ def add_to_pending_queue(page, item: dict):
     
 def main(page: ft.Page):
     state = {
-        "token": page.client_storage.get("student_token"),
-        "correo": page.client_storage.get("correo_identificacion"),
-        "nombre": page.client_storage.get("student_name", "Estudiante"),
+        "token": load_k(page, "student_token"),
+        "correo": load_k(page, "correo_identificacion"),
+        "nombre": load_k(page, "student_name", "Estudiante"),
         "teachers_list": []
     }
     
@@ -587,6 +587,7 @@ def main(page: ft.Page):
             if pid in debounce_timers and debounce_timers[pid] is not None:
                 debounce_timers[pid].cancel()
             def perform_save():
+                if not getattr(page, 'is_alive', False): return
                 try:
                     save_k(page, f"respuesta_{id_problema}", value)
                 except Exception as _:
@@ -1418,7 +1419,7 @@ def main(page: ft.Page):
         
         codigo_btn = ft.TextButton(
             content=ft.Text(
-                page.client_storage.get("correo_identificacion"),
+                load_k(page, "correo_identificacion", "No_Disponible"),
                 size=26,
                 weight="bold",
                 color=COLORES["texto"],
