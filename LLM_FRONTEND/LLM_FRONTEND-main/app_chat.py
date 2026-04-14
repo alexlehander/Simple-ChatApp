@@ -196,9 +196,7 @@ def main(page: ft.Page):
     COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
     page.title = "Grow Together"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-    page.vertical_alignment = ft.MainAxisAlignment.START  # 👈 pin everything to the top
-    page.scroll = ft.ScrollMode.ALWAYS
-    page.padding = 20
+    page.vertical_alignment = ft.MainAxisAlignment.START 
     page.bgcolor = COLORES["fondo"]
     page.theme_mode = ft.ThemeMode.DARK if theme_name == "dark" else ft.ThemeMode.LIGHT
     
@@ -280,6 +278,8 @@ def main(page: ft.Page):
     # =============== PANTALLA 1: LOGIN Y REGISTRO =============== 
     def show_login_register(is_register=False):
         save_k(page, STATE_KEYS["screen"], "login")
+        page.scroll = False
+        page.padding = 0
         page.clean()
         
         email_field = ft.TextField(label="Correo Institucional", width=300, bgcolor=COLORES["accento"], border_color=COLORES["primario"], color=COLORES["texto"], border_radius=10)
@@ -368,8 +368,14 @@ def main(page: ft.Page):
             shadow=ft.BoxShadow(blur_radius=20, color=COLORES["accento"], offset=ft.Offset(0, 10)),
             width=400, height=650 if is_register else 500
         )
-
-        background_image = ft.Image(src="/fondo_login.jpg", fit=ft.ImageFit.COVER, opacity=1.0)
+        
+        background_image = ft.Image(
+            src="/fondo_login.jpg",
+            fit=ft.ImageFit.COVER,
+            opacity=1.0,
+            gapless_playback=True,
+        )
+        
         layout_login = ft.Stack(
             controls=[
                 ft.Container(content=background_image, left=0, top=0, right=0, bottom=0),
