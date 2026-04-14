@@ -11,7 +11,7 @@ from flask_cors import CORS
 from pinecone import Pinecone
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from zoneinfo import ZoneInfo
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -1194,6 +1194,25 @@ def student_login():
     access_token = create_access_token(identity=str(user.id), additional_claims=additional_claims)
     
     return jsonify(access_token=access_token, nombre=user.nombre, correo=user.correo_identificacion), 200
+
+@app.route("/api/student/my-teachers", methods=["GET"])
+@jwt_required()
+def get_student_teachers():
+    """Returns the list of teachers this student is officially registered to."""
+    claims = get_jwt()
+    if claims.get("role") != "student":
+        return jsonify({"msg": "Acceso denegado. Rol incorrecto."}), 403
+    
+    student_email = claims.get("email")
+    clases = ListaClase.query.filter_by(student_email=student_email).all()
+    mis_profesores_ids = [c.profesor_id for c in clases]
+    
+    if not mis_profesores_ids:
+        return jsonify([]), 200
+        
+    profesores = Profesor.query.filter(Profesor.id.in_(mis_profesores_ids)).all()
+    data = [{"nombre": p.nombre, "email": p.email} for p in profesores]
+    return jsonify(data), 200
 
 @app.route("/api/student/my-active-exercises", methods=["GET"])
 @jwt_required()

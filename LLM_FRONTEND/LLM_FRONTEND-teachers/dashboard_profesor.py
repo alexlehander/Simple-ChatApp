@@ -915,7 +915,7 @@ def main(page: ft.Page):
             if res.status_code == 200:
                 data = res.json()
                 is_active = data.get("is_active", False)
-                status_str = "Activo (Visible para alumnos)" if is_active else "Oculto (Invisible para alumnos)"
+                status_str = "Activo (visible para estudiantes)" if is_active else "Inactivo (oculto para estudiantes)"
                 flash(f"Ejercicio {status_str}", ok=is_active)
                 load_exercises() # Recargar para actualizar los colores de la UI
             else:
@@ -961,7 +961,7 @@ def main(page: ft.Page):
                     is_active = ex_data.get("is_active", False)
                     btn_color = COLORES["exito"] if is_active else COLORES["error"]
                     btn_icon = ft.Icons.VISIBILITY if is_active else ft.Icons.VISIBILITY_OFF
-                    btn_tooltip = "Visible para alumnos (Click para Ocultar)" if is_active else "Oculto para alumnos (Click para Mostrar)"
+                    btn_tooltip = "Visible para estudiantes (click para ocultar)" if is_active else "Oculto para estudiantes (click para visualizar)"
                     
                     toggle_btn = ft.IconButton(
                         icon=btn_icon,
@@ -1879,7 +1879,7 @@ def main(page: ft.Page):
             threading.Thread(target=fetch, daemon=True).start()
             
         def generate_report_for_practice(email, prac_name):
-            flash(f"Analizando interacciones con IA para {prac_name}... esto tomará unos segundos.", ok=True, ms=6000)
+            flash(f"Analizando interacciones con IA para {prac_name}... esto tomará unos segundos...", ok=True, ms=6000)
             def fetch():
                 res = auth_request("POST", "/api/teacher/generate-report", json={"student_email": email, "practice_name": prac_name}, timeout=60)
                 if res and res.status_code == 200:
@@ -1892,7 +1892,7 @@ def main(page: ft.Page):
         def render_student_profile(data, email):
             profile_content.controls.clear()
             if not data:
-                profile_content.controls.append(ft.Text("El estudiante aún no tiene actividad registrada en tus tareas.", italic=True, color=COLORES["subtitulo"]))
+                profile_content.controls.append(ft.Text("El estudiante aún no cuenta con actividad registrada", italic=True, color=COLORES["subtitulo"]))
                 page.update()
                 return
 

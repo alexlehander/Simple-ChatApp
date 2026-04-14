@@ -360,11 +360,11 @@ def main(page: ft.Page):
                 ft.Text("Registro Estudiante" if is_register else "Acceso Estudiante", size=24, weight="bold", color=COLORES["texto"]),
                 ft.Divider(height=20, color="transparent"),
                 name_field,
-                ft.Divider(height=20, color="transparent"),
+                ft.Divider(height=20, color="transparent", visible=is_register),
                 email_field,
                 ft.Divider(height=20, color="transparent"),
                 pass_field,
-                ft.Divider(height=20, color="transparent"),
+                ft.Divider(height=20, color="transparent", visible=is_register),
                 teacher_dropdown,
                 ft.Divider(height=20, color="transparent"),
                 ft.Column([
@@ -515,9 +515,9 @@ def main(page: ft.Page):
         page.clean()
         
         exercises_grid = ft.GridView(expand=True, runs_count=3, max_extent=350, child_aspect_ratio=1.2, spacing=20, run_spacing=20)
+        teachers_row = ft.Row(wrap=True, spacing=10)
         
         def iniciar_practica(filename, title):
-            # Fetch the actual problem data securely from the backend instead of local files
             try:
                 res = auth_request("GET", f"/api/exercises/detail/{filename}")
                 if res and res.status_code == 200:
@@ -529,7 +529,6 @@ def main(page: ft.Page):
                     save_k(page, "selected_session_problems", problemas)
                     save_k(page, "selected_session_filename", filename)
                     
-                    # Proceed to the Consent Screen before starting the problems
                     mostrar_pantalla_consentimiento()
                 else:
                     flash("Error al descargar la práctica del servidor.", ok=False)
@@ -537,17 +536,35 @@ def main(page: ft.Page):
                 print("Error loading practice:", e)
                 flash("Error de conexión.", ok=False)
 
-        def load_active_exercises():
+        def load_dashboard_data():
             exercises_grid.controls.clear()
+            teachers_row.controls.clear()
             exercises_grid.controls.append(ft.ProgressRing(color=COLORES["primario"]))
             page.update()
             
             try:
-                res = auth_request("GET", "/api/student/my-active-exercises", timeout=10)
+                # 1. Cargar Profesores
+                res_teachers = auth_request("GET", "/api/student/my-teachers", timeout=10)
+                if res_teachers and res_teachers.status_code == 200:
+                    profesores = res_teachers.json()
+                    if not profesores:
+                        teachers_row.controls.append(ft.Text("No estás inscrito con ningún profesor.", color=COLORES["advertencia"], italic=True))
+                    else:
+                        for prof in profesores:
+                            teachers_row.controls.append(
+                                ft.Chip(
+                                    label=ft.Text(f"{prof['nombre']} ({prof['email']})", color=COLORES["texto"]),
+                                    leading=ft.Icon(ft.Icons.PERSON, color=COLORES["primario"]),
+                                    bgcolor=COLORES["accento"],
+                                )
+                            )
+                
+                # 2. Cargar Tareas
+                res_tasks = auth_request("GET", "/api/student/my-active-exercises", timeout=10)
                 exercises_grid.controls.clear()
                 
-                if res and res.status_code == 200:
-                    active_exercises = res.json()
+                if res_tasks and res_tasks.status_code == 200:
+                    active_exercises = res_tasks.json()
                     if not active_exercises:
                         exercises_grid.controls.append(ft.Text("No tienes tareas activas asignadas en este momento.", color=COLORES["subtitulo"], size=16))
                     else:
@@ -556,7 +573,6 @@ def main(page: ft.Page):
                             title = ex.get('title', 'Sin Título')
                             filename = ex.get('filename')
                             
-                            # Card UI for the assignment
                             card = ft.Container(
                                 content=ft.Column([
                                     ft.Row([
@@ -579,11 +595,11 @@ def main(page: ft.Page):
                             )
                             exercises_grid.controls.append(card)
                 else:
-                    exercises_grid.controls.append(ft.Text("Error al cargar tareas.", color=COLORES["error"]))
+                    exercises_grid.controls.append(ft.Text("Error al cargar tareas", color=COLORES["error"]))
             except Exception as e:
                 print("Dashboard load error:", e)
                 exercises_grid.controls.clear()
-                exercises_grid.controls.append(ft.Text("Error de conexión.", color=COLORES["error"]))
+                exercises_grid.controls.append(ft.Text("Error de conexión", color=COLORES["error"]))
                 
             page.update()
 
@@ -597,11 +613,22 @@ def main(page: ft.Page):
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             padding=20, bgcolor=COLORES["fondo"], border=ft.border.only(bottom=ft.border.BorderSide(1, COLORES["borde"]))
         )
-
-        page.add(ft.Column([header, ft.Container(content=exercises_grid, padding=30, expand=True)], expand=True))
         
-        # Load the assignments dynamically
-        threading.Thread(target=load_active_exercises, daemon=True).start()
+        profesores_section = ft.Container(
+            content=ft.Column([
+                ft.Text("Mis Profesores Asignados:", weight="bold", size=16, color=COLORES["primario"]),
+                teachers_row
+            ]),
+            padding=ft.padding.only(left=30, right=30, top=10)
+        )
+
+        page.add(ft.Column([
+            header, 
+            profesores_section,
+            ft.Container(content=exercises_grid, padding=30, expand=True)
+        ], expand=True))
+        
+        threading.Thread(target=load_dashboard_data, daemon=True).start()
         
     def reiniciar_practica(e):
         try:
