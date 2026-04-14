@@ -670,7 +670,6 @@ def teacher_login():
         return jsonify({"msg": "Credenciales inválidas"}), 401
         
     access_token = create_access_token(identity=str(prof.id))
-    
     return jsonify(access_token=access_token, nombre=prof.nombre), 200
 
 @app.route("/api/teacher/students", methods=["GET", "POST", "DELETE"])

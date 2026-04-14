@@ -18,13 +18,11 @@ def encontrar_raiz_proyecto(marcador="assets"):
 try:
     ROOT_DIR = encontrar_raiz_proyecto("assets") 
     ASSETS_PATH = os.path.join(ROOT_DIR, "assets")
-    EXERCISES_PATH = os.path.join(ROOT_DIR, "exercises")
     print(f"✅ Raíz del proyecto encontrada en: {ROOT_DIR}")
 except Exception as e:
     print(f"⚠️ Advertencia: {e}. Usando rutas relativas locales.")
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     ASSETS_PATH = "assets"
-    EXERCISES_PATH = "exercises"
 
 # Light Theme
 LIGHT_COLORS = {
@@ -67,21 +65,6 @@ STATE_KEYS = {
     "pending_queue":    "pending_queue_list",
 }
 
-def listar_sesiones():
-    try:
-        return [f for f in os.listdir(EXERCISES_PATH) if f.endswith(".json")]
-    except FileNotFoundError:
-        return []
-        
-def cargar_sesion(nombre_archivo):
-    try:
-        with open(os.path.join(EXERCISES_PATH, nombre_archivo), "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data.get("title", nombre_archivo), data.get("problemas", [])
-    except Exception as e:
-        print(f"⚠️ Error al cargar sesión {nombre_archivo}: {e}")
-        return nombre_archivo, []
-        
 def save_k(page, k, v):
     page.client_storage.set(k, v)
     try:
@@ -107,13 +90,16 @@ def update_map(page, key, problem_id, item):
     
 def reset_progress(page):
     try:
+        claves_protegidas = ["student_token", "correo_identificacion", "student_name", "theme", "last_heartbeat"]
         keys = page.client_storage.get_keys("")
-        print(f"🧹 Eliminando {len(keys)} claves del almacenamiento local...")
+        print(f"🧹 Eliminando datos temporales de la práctica...")
         for k in keys:
-            try:
-                page.client_storage.remove(k)
-            except Exception as err:
-                print(f"⚠️ No se pudo borrar clave {k}: {err}")
+            if k not in claves_protegidas:
+                try:
+                    page.client_storage.remove(k)
+                except Exception as err:
+                    print(f"⚠️ No se pudo borrar clave {k}: {err}")
+                    
         if hasattr(page, "_is_loading_problem"):
             delattr(page, "_is_loading_problem")
         page.clean()
@@ -122,7 +108,7 @@ def reset_progress(page):
             page.session.clear()
         except Exception:
             pass
-        print("✅ Limpieza interna de Flet completada.")
+        print("✅ Limpieza interna completada. Sesión conservada.")
     except Exception as e:
         print("❌ Error durante reset_progress:", e)
         
@@ -158,19 +144,12 @@ def main(page: ft.Page):
         except Exception as e:
             print(f"Error request: {e}")
             return None
-    
+            
+    page.on_bot_message = lambda data: None
     @sio.on('nuevo_mensaje_bot')
     def on_nuevo_mensaje(data):
-        # Verificar que el mensaje sea para este alumno y este problema
-        if data['correo'] == state["correo_identificacion"] and data['problema_id'] == problema_actual_id:
-            # Apagar el indicador de escritura ("El tutor está escribiendo...")
-            hide_typing_indicator()
-            
-            # Agregar el mensaje a la interfaz
-            add_message(data['content'], "assistant")
-            page.update()
-
-    # Conectar al servidor al cargar la página
+        if data['correo'] == state["correo"]:
+            page.on_bot_message(data)
     try:
         sio.connect(BASE)
     except Exception as e:
@@ -282,16 +261,47 @@ def main(page: ft.Page):
         page.padding = 0
         page.clean()
         
-        email_field = ft.TextField(label="Correo Institucional", width=300, bgcolor=COLORES["accento"], border_color=COLORES["primario"], color=COLORES["texto"], border_radius=10)
-        pass_field = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, width=300, bgcolor=COLORES["accento"], border_color=COLORES["primario"], color=COLORES["texto"], border_radius=10)
-        name_field = ft.TextField(label="Nombre Completo", width=300, bgcolor=COLORES["accento"], border_color=COLORES["primario"], color=COLORES["texto"], border_radius=10, visible=is_register)
+        email_field = ft.TextField(
+            label="Correo", 
+            width=300,
+            bgcolor=COLORES["accento"], 
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            border_radius=10
+        )
         
-        teacher_dropdown = ft.Dropdown(
-            label="Selecciona a tu Profesor", width=300,
-            bgcolor=COLORES["accento"], border_color=COLORES["primario"], color=COLORES["texto"], border_radius=10,
+        pass_field = ft.TextField(
+            label="Contraseña", 
+            password=True, 
+            width=300, 
+            bgcolor=COLORES["accento"],
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            border_radius=10,
+            can_reveal_password=True,
+            on_submit=lambda e: submit_action(e)
+        )
+        
+        name_field = ft.TextField(
+            label="Nombre Completo",
+            width=300,
+            bgcolor=COLORES["accento"],
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            border_radius=10,
             visible=is_register
         )
-
+        
+        teacher_dropdown = ft.Dropdown(
+            label="Selecciona a tu Profesor",
+            width=300,
+            bgcolor=COLORES["accento"],
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            border_radius=10,
+            visible=is_register
+        )
+        
         if is_register:
             try:
                 res = requests.get(f"{BASE}/api/public/teachers", timeout=10)
@@ -315,7 +325,6 @@ def main(page: ft.Page):
                     }, timeout=10)
                     if res.status_code == 201:
                         flash("Registro exitoso. Iniciando sesión...", ok=True)
-                        # Auto-login after registration
                         login_action(email_field.value, pass_field.value)
                     else:
                         flash(res.json().get("msg", "Error al registrar"), ok=False)
@@ -326,7 +335,7 @@ def main(page: ft.Page):
 
         def login_action(email, password):
             if not email or not password:
-                flash("Ingresa correo y contraseña", ok=False)
+                flash("Por favor, ingresa correo y contraseña para iniciar sesión", ok=False)
                 return
             try:
                 res = requests.post(f"{BASE}/api/student/login", json={"email": email, "password": password}, timeout=10)
@@ -348,39 +357,76 @@ def main(page: ft.Page):
         card = ft.Container(
             content=ft.Column([
                 ft.Icon(ft.Icons.ACCOUNT_CIRCLE, size=50, color=COLORES["primario"]),
-                ft.Text("Registro de Alumno" if is_register else "Acceso a Estudiantes", size=24, weight="bold", color=COLORES["texto"]),
-                ft.Divider(height=10, color="transparent"),
+                ft.Text("Registro Estudiante" if is_register else "Acceso Estudiante", size=24, weight="bold", color=COLORES["texto"]),
+                ft.Divider(height=20, color="transparent"),
                 name_field,
+                ft.Divider(height=20, color="transparent"),
                 email_field,
+                ft.Divider(height=20, color="transparent"),
                 pass_field,
+                ft.Divider(height=20, color="transparent"),
                 teacher_dropdown,
-                ft.Divider(height=10, color="transparent"),
+                ft.Divider(height=20, color="transparent"),
                 ft.Column([
-                    ft.ElevatedButton("Registrarse" if is_register else "Entrar", on_click=submit_action, bgcolor=COLORES["boton"], color=COLORES["texto"], width=300, height=45),
+                    ft.ElevatedButton(
+                        "Registrarse" if is_register else "Entrar",
+                        on_click=submit_action,
+                        bgcolor=COLORES["boton"],
+                        color=COLORES["texto"],
+                        width=300,
+                        height=45
+                    ),
                     ft.TextButton(
                         "¿Ya tienes cuenta? Inicia Sesión" if is_register else "¿No tienes cuenta? Regístrate",
                         on_click=lambda e: show_login_register(not is_register),
                         style=ft.ButtonStyle(color=COLORES["primario"])
                     )
-                ], spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
-            bgcolor=COLORES["fondo"], padding=40, border_radius=15, border=ft.border.all(1, COLORES["borde"]),
-            shadow=ft.BoxShadow(blur_radius=20, color=COLORES["accento"], offset=ft.Offset(0, 10)),
-            width=400, height=650 if is_register else 500
+                ],
+                spacing=10,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=5),
+            bgcolor=COLORES["fondo"],
+            padding=40,
+            border_radius=15,
+            border=ft.border.all(1, COLORES["borde"]),
+            shadow=ft.BoxShadow(
+                blur_radius=20,
+                color=COLORES["accento"],
+                offset=ft.Offset(0, 10)
+            ),
+            width=400,
+            height=800 if is_register else 600
         )
         
         background_image = ft.Image(
-            src="/fondo_login.jpg",
+            src="fondo_login.jpg",
             fit=ft.ImageFit.COVER,
             opacity=1.0,
-            gapless_playback=True,
+            gapless_playback=True
         )
         
         layout_login = ft.Stack(
             controls=[
-                ft.Container(content=background_image, left=0, top=0, right=0, bottom=0),
-                ft.Container(content=card, alignment=ft.alignment.center, left=0, top=0, right=0, bottom=0)
-            ], expand=True
+                ft.Container(
+                    content=background_image,
+                    left=0,
+                    top=0,
+                    right=0,
+                    bottom=0
+                ),
+                ft.Container(
+                    content=card,
+                    alignment=ft.alignment.center,
+                    left=0,
+                    top=0,
+                    right=0,
+                    bottom=0
+                )
+            ],
+            expand=True
         )
         page.add(layout_login)
     
@@ -464,6 +510,8 @@ def main(page: ft.Page):
     # =============== PANTALLA 2: DASHBOARD DEL ESTUDIANTE =============== 
     def show_student_dashboard():
         save_k(page, STATE_KEYS["screen"], "dashboard")
+        page.scroll = ft.ScrollMode.AUTO
+        page.padding = 20
         page.clean()
         
         exercises_grid = ft.GridView(expand=True, runs_count=3, max_extent=350, child_aspect_ratio=1.2, spacing=20, run_spacing=20)
@@ -566,6 +614,8 @@ def main(page: ft.Page):
     # =============== PANTALLA 3: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
     def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
         save_k(page, STATE_KEYS["screen"], "problems")
+        page.scroll = ft.ScrollMode.AUTO
+        page.padding = 20
         user_input = None
         correo = page.client_storage.get("correo_identificacion") or "No disponible"
         stop_timer = False
@@ -574,6 +624,17 @@ def main(page: ft.Page):
         def on_input_blur(e): page.input_is_focused = False
         def on_global_keyboard(e):
             if e.key and len(e.key) == 1 and not page.input_is_focused: user_input.focus()
+        def handle_bot_message(data):
+            if data['problema_id'] == problema_actual_id:
+                if getattr(page, "burbuja_carga", None) in chat_area.controls:
+                    chat_area.controls.remove(page.burbuja_carga)
+                    page.burbuja_carga = None
+                
+                add_chat_bubble(data['role'], data['content'])
+                update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": data['role'], "text": data['content']})
+                page.polling_speed = "slow"
+                page.update()
+        page.on_bot_message = handle_bot_message # Bind the socket to this screen
         page.on_keyboard_event = on_global_keyboard
         problema_actual_id = 1
         NUM_PROBLEMAS = len(PROBLEMAS)
@@ -1270,61 +1331,7 @@ def main(page: ft.Page):
             threading.Thread(target=cuenta, daemon=True).start()
         
         iniciar_temporizador()
-        
-        def background_listener():
-            while not stop_timer:
-                if not hasattr(page, 'is_alive') or not page.is_alive: 
-                    break
                 
-                sleep_time = 1.5 if page.polling_speed == "fast" else 10.0
-                time.sleep(sleep_time)
-                
-                if not page.is_alive: return
-                
-                current_p_id = problema_actual_id
-                
-                try:
-                    r = requests.post(
-                        f"{BASE}/check_new_messages/{problema_actual_id}",
-                        json={"correo_identificacion": correo},
-                        timeout=5
-                    )
-                    
-                    if r.status_code == 200:
-                        data = r.json()
-                        status = data.get("status")
-                        
-                        if status == "completed":
-                            
-                            if current_p_id != problema_actual_id:
-                                continue
-                            texto = data.get("response")
-                            rol = data.get("role", "assistant")
-                            chat_history = load_k(page, STATE_KEYS["chat"], {})
-                            msgs_actuales = chat_history.get(str(problema_actual_id), [])
-                            ultimo_local = msgs_actuales[-1]["text"] if msgs_actuales else ""
-                            
-                            if texto != ultimo_local:
-                                if getattr(page, "burbuja_carga", None) in chat_area.controls:
-                                    chat_area.controls.remove(page.burbuja_carga)
-                                    page.burbuja_carga = None
-                                    
-                                if rol == "assistant":
-                                    page.polling_speed = "slow"
-                                    
-                                add_chat_bubble(rol, texto)
-                                update_map(page, STATE_KEYS["chat"], current_p_id, {"role": rol, "text": texto})
-                                
-                                if rol == "teacher":
-                                    flash("🔔 Nuevo mensaje del profesor", ok=True)
-                                page.update()
-                                
-                except Exception as e:
-                    if getattr(page, 'is_alive', False):
-                        print(f"[Listener] Ping fallido: {e}")
-                        
-        threading.Thread(target=background_listener, daemon=True).start()
-        
         def process_pending_queue():
             nonlocal is_retransmiting
             while not stop_timer:

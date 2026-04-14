@@ -403,13 +403,8 @@ def main(page: ft.Page):
             if not email_field.value or not pass_field.value:
                 flash("Por favor, ingresa correo y contraseña para iniciar sesión", ok=False)
                 return
-                
             try:
-                res = requests.post(f"{BASE}/api/teacher/login", json={
-                    "email": email_field.value,
-                    "password": pass_field.value
-                }, timeout=10)
-                
+                res = requests.post(f"{BASE}/api/teacher/login", json={"email": email_field.value, "password": pass_field.value}, timeout=10)
                 if res.status_code == 200:
                     data = res.json()
                     token = data.get("access_token")
@@ -420,7 +415,7 @@ def main(page: ft.Page):
                     show_dashboard()
                 else:
                     try:
-                        msg_error = res.json().get("msg", "Credenciales incorrectas")
+                        msg_error = res.json().get("msg", "Credenciales inválidas")
                     except:
                         msg_error = f"Error del servidor ({res.status_code}) o Credenciales incorrectas"
                     flash(msg_error, ok=False)
@@ -496,12 +491,11 @@ def main(page: ft.Page):
             height=600
         )
 
-        # --- 3. IMAGEN CON POSICIONAMIENTO ABSOLUTO ---
         background_image = ft.Image(
-            src="/fondo_login.jpg",
+            src="fondo_login.jpg",
             fit=ft.ImageFit.COVER,
             opacity=1.0,
-            gapless_playback=True,
+            gapless_playback=True
         )
 
         layout_login = ft.Stack(
@@ -511,17 +505,19 @@ def main(page: ft.Page):
                     left=0,
                     top=0,
                     right=0,
-                    bottom=0,
+                    bottom=0
                 ),
                 ft.Container(
                     content=card,
                     alignment=ft.alignment.center,
-                    left=0, top=0, right=0, bottom=0,
+                    left=0,
+                    top=0,
+                    right=0,
+                    bottom=0
                 )
             ],
             expand=True
         )
-
         page.add(layout_login)
     
     def show_dashboard():
@@ -2093,7 +2089,7 @@ def main(page: ft.Page):
                         ft.Icons.LOGOUT, 
                         icon_color=COLORES["error"], 
                         tooltip="Cerrar Sesión",
-                        on_click=lambda e: (page.client_storage.remove("teacher_token"), show_login())
+                        on_click=lambda e: (page.client_storage.remove("teacher_token"), state.update({"token": None}), show_login())
                     )
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN
