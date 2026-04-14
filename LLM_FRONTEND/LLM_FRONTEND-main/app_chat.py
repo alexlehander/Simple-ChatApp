@@ -861,7 +861,7 @@ def main(page: ft.Page):
             threading.Timer(3.0, limpiar).start()
         
         def ir_a_problema(delta):
-            nonlocal problema_actual_id
+            nonlocal problema_actual_id, stop_timer
             guardar_respuesta_actual()
             nuevo_id = problema_actual_id + delta
 

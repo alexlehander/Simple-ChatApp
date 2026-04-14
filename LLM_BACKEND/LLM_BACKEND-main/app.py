@@ -1,4 +1,5 @@
 import gevent.monkey
+gevent.monkey.patch_all()
 import os, random, string, requests, json, threading
 import datetime as dt
 import warnings
@@ -13,9 +14,7 @@ from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from zoneinfo import ZoneInfo
-
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-gevent.monkey.patch_all()
 
 def hora_ensenada():
     return dt.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None)
@@ -327,7 +326,7 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
                 context = get_rag_context(user_query_text)
             messages = history_for_chat(correo, problema_id, practice_name, rag_context=context)
             bot_response = call_mistral(messages)
-            usuario = Usuario.query.get(usuario_id)
+            usuario = db.session.get(Usuario, usuario_id)
             save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", bot_response)
             socketio.emit('nuevo_mensaje_bot', {
                 'correo': correo,
@@ -338,7 +337,7 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
             print(f"✅ [Background] Respuesta guardada para {correo}")
         except Exception as e:
             print(f"❌ [Background] Error generando respuesta: {e}")
-            usuario = Usuario.query.get(usuario_id)
+            usuario = db.session.get(Usuario, usuario_id)
             save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", "Lo siento, tuve un error técnico al pensar mi respuesta.")
 
 def get_exercise_metadata(filename):
@@ -514,7 +513,7 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
         comentario = data.get("comentario", data.get("comment", "Sin comentarios."))
 
         with app.app_context():
-            resp_record = RespuestaUsuario.query.get(respuesta_id)
+            resp_record = db.session.get(RespuestaUsuario, respuesta_id)
             if resp_record:
                 resp_record.llm_score = nota
                 resp_record.llm_comment = comentario
@@ -599,12 +598,9 @@ def verificar_respuesta(problema_id):
     )
     db.session.add(nueva_respuesta)
     db.session.commit()
+    import gevent
     problem_text = get_problem_enunciado(practice_name, problema_id)
-    thread = threading.Thread(
-        target=auto_grade_answer,
-        args=(nueva_respuesta.id, problem_text, respuesta, prog_pct)
-    )
-    thread.start()
+    gevent.spawn(auto_grade_answer, nueva_respuesta.id, problem_text, respuesta, prog_pct)
     return jsonify({"message": "Respuesta registrada y enviada a evaluación"}), 200
 
 @app.route("/chat/<int:problema_id>", methods=["POST"])
@@ -614,29 +610,13 @@ def chat(problema_id: int):
     correo = (data.get("correo_identificacion") or "").strip()
     practice_name = (data.get("practice_name") or "").strip()
     prog_pct = float(data.get("progress_pct", 0.0))
-
     if not user_msg:
         return jsonify({"status": "error", "message": "Mensaje vacío"}), 400
-
     usuario = get_or_create_user(correo)
-
-    # 1. Save User Message ONCE and capture the ID
     chat_id = save_chat_turn(usuario, correo, practice_name, problema_id, "user", user_msg)
-
-    # 2. Start Background LLM Response (Bot Reply)
-    thread_bot = threading.Thread(
-        target=background_llm_task,
-        args=(app, usuario.id, correo, practice_name, problema_id)
-    )
-    thread_bot.start()
-    
-    # 3. Start Semaphore Analysis (using the chat_id from step 1)
-    thread_analysis = threading.Thread(
-        target=analyze_interaction_semaphore,
-        args=(chat_id, user_msg, correo, prog_pct)
-    )
-    thread_analysis.start()
-
+    import gevent
+    gevent.spawn(background_llm_task, app, usuario.id, correo, practice_name, problema_id)
+    gevent.spawn(analyze_interaction_semaphore, chat_id, user_msg, correo, prog_pct)
     return jsonify({"status": "processing", "message": "Procesando..."})
     
 @app.route("/api/teacher/register", methods=["POST"])
@@ -675,7 +655,7 @@ def teacher_login():
 @app.route("/api/teacher/students", methods=["GET", "POST", "DELETE"])
 @jwt_required()
 def manage_students():
-    profesor_id = get_jwt_identity()
+    profesor_id = int(get_jwt_identity())
     
     if request.method == "GET":
         students = ListaClase.query.filter_by(profesor_id=profesor_id).all()
@@ -777,7 +757,7 @@ def teacher_send_message():
 @app.route("/api/teacher/dashboard-data", methods=["GET"])
 @jwt_required()
 def dashboard_data():
-    profesor_id = get_jwt_identity()
+    profesor_id = int(get_jwt_identity())
     
     target_student = request.args.get('student_email')
     target_practice = request.args.get('practice_name')
@@ -994,7 +974,7 @@ def get_student_timeline(email):
 @app.route('/api/teacher/student-profile/<path:student_email>', methods=['GET'])
 @jwt_required()
 def get_student_profile(student_email):
-    profesor_id = get_jwt_identity()
+    profesor_id = int(get_jwt_identity())
 
     student_records = ListaClase.query.filter_by(profesor_id=profesor_id).all()
     my_student_emails = [s.student_email for s in student_records]
