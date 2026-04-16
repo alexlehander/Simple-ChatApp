@@ -658,8 +658,9 @@ def manage_students():
     profesor_id = int(get_jwt_identity())
     
     if request.method == "GET":
-        students = ListaClase.query.filter_by(profesor_id=profesor_id).all()
-        return jsonify([s.student_email for s in students]), 200
+        resultados = db.session.query(Usuario).join(ListaClase, Usuario.correo_identificacion == ListaClase.student_email).filter(ListaClase.profesor_id == profesor_id).all()
+        data = [{"email": u.correo_identificacion, "nombre": u.nombre or "Estudiante"} for u in resultados]
+        return jsonify(data), 200
         
     if request.method == "POST":
         data = request.get_json()
@@ -840,8 +841,8 @@ def dashboard_data():
 def get_all_registered_users():
     try:
         users = Usuario.query.all()
-        emails = [u.correo_identificacion for u in users if u.correo_identificacion]
-        return jsonify(emails), 200
+        data = [{"email": u.correo_identificacion, "nombre": u.nombre or "Estudiante"} for u in users if u.correo_identificacion]
+        return jsonify(data), 200
     except Exception as e:
         print(f"Error fetching all users: {e}")
         return jsonify([]), 500

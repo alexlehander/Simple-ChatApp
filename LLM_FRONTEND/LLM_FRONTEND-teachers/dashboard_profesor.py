@@ -625,26 +625,32 @@ def main(page: ft.Page):
         def render_student_lists():
             my_students_col.controls.clear()
             global_students_col.controls.clear()
-            # --- 1. Filtrar y Ordenar MI CLASE ---
-            mis_emails_raw = state["students"]
-            mis_emails_filtrados = [e for e in mis_emails_raw if state["filter_my_students"] in e.lower()]
-            mis_emails_filtrados.sort(reverse=(state["sort_my_students"] == "desc"))
             
-            if not mis_emails_filtrados:
-                msg = "No se encontraron resultados" if state["filter_my_students"] else "No hay estudiantes inscritos"
+            # --- 1. Filtrar y Ordenar MI CLASE ---
+            mis_estudiantes = state.get("students", [])
+            busqueda_my = state["filter_my_students"]
+
+            mis_filtrados = [s for s in mis_estudiantes if busqueda_my in s["email"].lower() or busqueda_my in s.get("nombre", "").lower()]
+            mis_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_my_students"] == "desc"))
+
+            if not mis_filtrados:
+                msg = "No se encontraron resultados" if busqueda_my else "No hay estudiantes inscritos"
                 my_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
             else:
-                for email in mis_emails_filtrados:
+                for s in mis_filtrados:
                     my_students_col.controls.append(
                         ft.Container(
                             content=ft.Row([
-                                ft.Icon(ft.Icons.PERSON, color=COLORES["primario"], size=20),
-                                ft.Text(email, expand=True, size=14, color=COLORES["texto"]),
+                                ft.Icon(ft.Icons.PERSON, color=COLORES["primario"], size=30),
+                                ft.Column([
+                                    ft.Text(s.get("nombre", "Estudiante"), weight="bold", size=14, color=COLORES["texto"]),
+                                    ft.Text(s["email"], size=12, color=COLORES["subtitulo"])
+                                ], expand=True, spacing=2),
                                 ft.IconButton(
                                     ft.Icons.REMOVE_CIRCLE_OUTLINE, 
                                     icon_color=COLORES["error"], 
                                     tooltip="Quitar de mi clase",
-                                    on_click=lambda e, mail=email: delete_student(mail)
+                                    on_click=lambda e, mail=s["email"]: delete_student(mail)
                                 )
                             ]),
                             bgcolor=COLORES["fondo"], 
@@ -655,26 +661,31 @@ def main(page: ft.Page):
                     )
 
             # --- 2. Filtrar y Ordenar GLOBAL ---
-            set_mis_emails = set(mis_emails_raw)
-            disponibles_raw = [u for u in state["all_users_global"] if u not in set_mis_emails]
-            disponibles_filtrados = [e for e in disponibles_raw if state["filter_global_students"] in e.lower()]
-            disponibles_filtrados.sort(reverse=(state["sort_global_students"] == "desc"))
+            set_mis_emails = {s["email"] for s in mis_estudiantes}
+            disponibles_raw = [u for u in state.get("all_users_global", []) if u["email"] not in set_mis_emails]
+            busqueda_global = state["filter_global_students"]
+
+            disponibles_filtrados = [s for s in disponibles_raw if busqueda_global in s["email"].lower() or busqueda_global in s.get("nombre", "").lower()]
+            disponibles_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_global_students"] == "desc"))
 
             if not disponibles_filtrados:
-                msg = "No se encontraron estudiantes inscritos" if state["filter_global_students"] else "No hay estudiantes disponibles"
+                msg = "No se encontraron estudiantes" if busqueda_global else "No hay estudiantes disponibles"
                 global_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
             else:
-                for email in disponibles_filtrados:
+                for s in disponibles_filtrados:
                     global_students_col.controls.append(
                         ft.Container(
                             content=ft.Row([
-                                ft.Icon(ft.Icons.SCHOOL_OUTLINED, color=COLORES["primario"], size=20),
-                                ft.Text(email, expand=True, size=14, color=COLORES["texto"]),
+                                ft.Icon(ft.Icons.SCHOOL_OUTLINED, color=COLORES["primario"], size=30),
+                                ft.Column([
+                                    ft.Text(s.get("nombre", "Estudiante"), weight="bold", size=14, color=COLORES["texto"]),
+                                    ft.Text(s["email"], size=12, color=COLORES["subtitulo"])
+                                ], expand=True, spacing=2),
                                 ft.IconButton(
                                     ft.Icons.ADD_CIRCLE_OUTLINE, 
                                     icon_color=COLORES["exito"], 
                                     tooltip="Agregar a mi clase",
-                                    on_click=lambda e, mail=email: add_student_action(mail)
+                                    on_click=lambda e, mail=s["email"]: add_student_action(mail)
                                 )
                             ]),
                             bgcolor=COLORES["fondo"], 
@@ -683,7 +694,6 @@ def main(page: ft.Page):
                             border=ft.border.all(1, COLORES["borde"])
                         )
                     )
-                    
             page.update()
 
         # Layout de la pestaña dividida
@@ -1154,14 +1164,18 @@ def main(page: ft.Page):
             load_data_filtered()
             
         def update_dropdowns():
-            student_filter.options = [ft.dropdown.Option("Todos los estudiantes")] + [ft.dropdown.Option(e) for e in state["students"]]
+            student_filter.options = [ft.dropdown.Option(key="Todos los estudiantes", text="Todos los estudiantes")] + [
+                ft.dropdown.Option(key=s["email"], text=f"{s.get('nombre', 'Estudiante')} ({s['email']})") for s in state["students"]
+            ]
             exercise_filter.options = [ft.dropdown.Option("Todas las tareas")] + [
                 ft.dropdown.Option(key=e["filename"], text=e["title"]) for e in state["my_exercises"] if isinstance(e, dict)
             ]
             problem_filter.value = "Todos los ejercicios"
             problem_filter.disabled = True
             try:
-                profile_student_dropdown.options = [ft.dropdown.Option(e) for e in state["students"]]
+                profile_student_dropdown.options = [
+                    ft.dropdown.Option(key=s["email"], text=f"{s.get('nombre', 'Estudiante')} ({s['email']})") for s in state["students"]
+                ]
                 profile_student_dropdown.update()
             except Exception:
                 pass
@@ -1469,7 +1483,6 @@ def main(page: ft.Page):
         def render_dashboard_view(student_list):
             dashboard_grid.controls.clear()
             
-            # --- 1. RESPALDAR MEMORIA ---
             memoria_temporal = {}
             for email, datos in student_cards_state.items():
                 if 'latest_data' in datos:
@@ -1482,9 +1495,10 @@ def main(page: ft.Page):
                 page.update()
                 return
             
-            # --- CONSTRUIR TARJETAS ---
-            for stu in student_list:
-                datos_previos = memoria_temporal.get(stu)
+            for stu_obj in student_list:
+                stu_email = stu_obj["email"]
+                stu_name = stu_obj.get("nombre", "Estudiante")
+                datos_previos = memoria_temporal.get(stu_email)
                 
                 current_color = COLORES["borde"]
                 current_icon = ft.Icons.CIRCLE_OUTLINED
@@ -1518,8 +1532,8 @@ def main(page: ft.Page):
                 card_content = ft.Column([
                         ft.Row([
                             ft.Column([
-                                ft.Text(stu.split("@")[0], weight="bold", size=16, no_wrap=True, color=COLORES["texto"]),
-                                ft.Text(stu, size=10, color=COLORES["subtitulo"], no_wrap=True),
+                                ft.Text(stu_name, weight="bold", size=16, no_wrap=True, color=COLORES["texto"]),
+                                ft.Text(stu_email, size=10, color=COLORES["subtitulo"], no_wrap=True),
                             ], expand=True),
                             ft.Icon(current_icon, color=current_color, size=24),
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
@@ -1539,8 +1553,7 @@ def main(page: ft.Page):
                                 color=COLORES.get("texto_boton", COLORES["texto"]),
                                 bgcolor=COLORES["boton"]
                             ),
-                            # AQUÍ LLAMAMOS A TU NUEVO POP-UP HISTÓRICO
-                            on_click=lambda e, email=stu: show_student_detail(email)
+                            on_click=lambda e, email=stu_email: show_student_detail(email)
                         )
                     ])
 
@@ -1551,18 +1564,17 @@ def main(page: ft.Page):
                     border_radius=15,
                     shadow=ft.BoxShadow(blur_radius=10, color=COLORES["accento"]),
                     border=ft.border.all(2 if not datos_previos else 3, current_color), 
-                    data=stu 
+                    data=stu_email 
                 )
                 
-                student_cards_state[stu] = {
+                student_cards_state[stu_email] = {
                     'control': card,
                     'bar_ctrl': bar_ctrl,
                     'txt_ctrl': txt_ctrl
                 }
                 
-                # RESTAURAR MEMORIA
                 if datos_previos:
-                    student_cards_state[stu]['latest_data'] = datos_previos
+                    student_cards_state[stu_email]['latest_data'] = datos_previos
                     
                 dashboard_grid.controls.append(card)
                 
