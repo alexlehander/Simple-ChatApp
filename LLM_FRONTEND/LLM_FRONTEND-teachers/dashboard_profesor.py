@@ -1710,8 +1710,7 @@ def main(page: ft.Page):
                         width=float("inf")
                     )
                 ], tight=True, spacing=15),
-                width=600,
-                padding=ft.padding.only(right=15)
+                width=600
             ),
             scrollable=True
         )
