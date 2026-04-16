@@ -537,24 +537,26 @@ def main(page: ft.Page):
         search_my_students = ft.TextField(
             hint_text="Buscar estudiantes inscritos...",
             prefix_icon=ft.Icons.SEARCH,
-            height=35,
+            height=40,
             text_size=12,
             content_padding=10,
-            border_radius=15,
+            border_radius=10,
             bgcolor=COLORES["fondo"],
             color=COLORES["texto"],
+            expand=True,
             on_change=lambda e: update_filters("my", e.control.value)
         )
         
         search_global_students = ft.TextField(
             hint_text="Buscar estudiantes disponibles...",
             prefix_icon=ft.Icons.SEARCH,
-            height=35,
+            height=40,
             text_size=12,
             content_padding=10,
-            border_radius=15,
+            border_radius=10,
             bgcolor=COLORES["fondo"],
             color=COLORES["texto"],
+            expand=True,
             on_change=lambda e: update_filters("global", e.control.value)
         )
         
@@ -747,13 +749,27 @@ def main(page: ft.Page):
         search_my_tasks = ft.TextField(
             hint_text="Buscar tareas seleccionadas...",
             prefix_icon=ft.Icons.SEARCH,
-            height=35,
+            height=40,
             text_size=12,
             content_padding=10,
-            border_radius=15,
+            border_radius=10,
             bgcolor=COLORES["fondo"],
             color=COLORES["texto"],
+            expand=True,
             on_change=lambda e: update_task_filters("my", e.control.value)
+        )
+        
+        search_global_tasks = ft.TextField(
+            hint_text="Buscar tareas disponibles...",
+            prefix_icon=ft.Icons.SEARCH,
+            height=40,
+            text_size=12,
+            content_padding=10,
+            border_radius=10,
+            bgcolor=COLORES["fondo"],
+            color=COLORES["texto"],
+            expand=True,
+            on_change=lambda e: update_task_filters("global", e.control.value)
         )
         
         sort_btn_my_tasks = ft.IconButton(
@@ -762,19 +778,7 @@ def main(page: ft.Page):
             icon_color=COLORES["primario"],
             on_click=lambda e: toggle_task_sort("my")
         )
-
-        search_global_tasks = ft.TextField(
-            hint_text="Buscar tareas disponibles...",
-            prefix_icon=ft.Icons.SEARCH,
-            height=35,
-            text_size=12,
-            content_padding=10,
-            border_radius=15,
-            bgcolor=COLORES["fondo"],
-            color=COLORES["texto"],
-            on_change=lambda e: update_task_filters("global", e.control.value)
-        )
-
+        
         sort_btn_global_tasks = ft.IconButton(
             icon=ft.Icons.SORT_BY_ALPHA,
             tooltip="Ordenar A-Z / Z-A",
@@ -795,11 +799,11 @@ def main(page: ft.Page):
         )
         
         page.overlay.append(ex_detail_dlg)
-
+        
         def close_ex_detail_dlg():
             ex_detail_dlg.open = False
             page.update()
-
+            
         def show_exercise_detail(filename):
             ex_detail_dlg_title.value = "Cargando detalles..."
             ex_detail_dlg_content.controls = [
@@ -1621,7 +1625,7 @@ def main(page: ft.Page):
         )
         
         group_completed_dropdown = ft.Dropdown(
-            label="Agrupar por...",
+            label="Agrupar por",
             options=[
                 ft.dropdown.Option("fecha", "Día / Fecha"),
                 ft.dropdown.Option("practica", "Nombre de Práctica"),
@@ -1648,7 +1652,7 @@ def main(page: ft.Page):
         )
 
         group_pending_dropdown = ft.Dropdown(
-            label="Agrupar por...",
+            label="Agrupar por",
             options=[
                 ft.dropdown.Option("fecha", "Día / Fecha"),
                 ft.dropdown.Option("practica", "Nombre de Práctica"),
