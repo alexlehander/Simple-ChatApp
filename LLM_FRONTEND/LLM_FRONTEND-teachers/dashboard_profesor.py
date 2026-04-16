@@ -1676,10 +1676,29 @@ def main(page: ft.Page):
             bgcolor=COLORES["borde"],
             expand=1
         )
-        grade_score_field = ft.TextField(label="Calificación Asignada", text_align=ft.TextAlign.CENTER, expand=1)
-        grade_comment_field = ft.TextField(label="Comentario", multiline=True, text_align=ft.TextAlign.JUSTIFY, min_lines=3, max_lines=6)
-        grade_student_label = ft.Text("", weight="bold", size=20, text_align=ft.TextAlign.CENTER) 
-        grade_task_label = ft.Text("", size=12, text_align=ft.TextAlign.CENTER)
+        grade_score_field = ft.TextField(
+            label="Calificación Asignada",
+            text_align=ft.TextAlign.CENTER,
+            expand=1
+        )
+        grade_comment_field = ft.TextField(
+            label="Comentario",
+            multiline=True,
+            text_align=ft.TextAlign.JUSTIFY,
+            min_lines=3,
+            max_lines=6
+        )
+        grade_student_label = ft.Text(
+            "",
+            weight="bold",
+            size=20,
+            text_align=ft.TextAlign.CENTER
+        ) 
+        grade_task_label = ft.Text(
+            "",
+            size=14,
+            text_align=ft.TextAlign.CENTER
+        )
         grade_response_container = ft.Container(
             bgcolor=COLORES["fondo"], 
             padding=15, 
@@ -1696,9 +1715,7 @@ def main(page: ft.Page):
             content=ft.Container(
                 content=ft.Column([
                     ft.Container(content=grade_task_label, alignment=ft.alignment.center),
-                    ft.Container(content=ft.Text("Respuesta del Estudiante:", weight="bold"), alignment=ft.alignment.center),
                     grade_response_container,
-                    ft.Divider(height=10, color="transparent"),
                     ft.Row([
                         grade_llm_score_field,
                         grade_score_field
