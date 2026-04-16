@@ -712,7 +712,7 @@ def main(page: ft.Page):
                         bgcolor=COLORES["accento"], 
                         padding=10, 
                         border_radius=10,
-                        margin=ft.margin.only(right=5) # Margen entre columnas
+                        margin=ft.margin.only(right=5)
                     ),
                     # Columna derecha: estudiantes disponibles
                     ft.Container(
@@ -729,7 +729,7 @@ def main(page: ft.Page):
                         bgcolor=COLORES["accento"], 
                         padding=10, 
                         border_radius=10,
-                        margin=ft.margin.only(left=5) # Margen entre columnas
+                        margin=ft.margin.only(left=5)
                     )
                 ], expand=True)
             ], expand=True), 
@@ -1077,7 +1077,7 @@ def main(page: ft.Page):
                         bgcolor=COLORES["accento"], 
                         padding=10, 
                         border_radius=10,
-                        margin=ft.margin.only(right=5) # Margen entre columnas
+                        margin=ft.margin.only(right=5)
                     ),
                     # COLUMNA DERECHA: CATÁLOGO GLOBAL
                     ft.Container(
@@ -1094,7 +1094,7 @@ def main(page: ft.Page):
                         bgcolor=COLORES["accento"], 
                         padding=10, 
                         border_radius=10,
-                        margin=ft.margin.only(left=5) # Margen entre columnas
+                        margin=ft.margin.only(left=5)
                     )
                 ], expand=True)
             ], expand=True), 
@@ -1790,18 +1790,34 @@ def main(page: ft.Page):
                 score_to_show = item.get("teacher_score") if is_completed and item.get("teacher_score") is not None else item.get("llm_score", 0)
                 date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
                 
+                try:
+                    score_val = float(score_to_show)
+                except (ValueError, TypeError):
+                    score_val = 0.0
+                    
+                if score_val < 6.0:
+                    score_color = COLORES["error"]
+                elif score_val < 8.0:
+                    score_color = COLORES["advertencia"]
+                else:
+                    score_color = COLORES["exito"]
+                score_display = int(score_val) if score_val.is_integer() else score_val
+                
                 return ft.Container(
                     content=ft.Row([
                         ft.Column([
                             ft.Text(f"{item.get('nombre', 'Estudiante')}", weight="bold", size=14, color=COLORES["texto"]),
                             ft.Text(f"{item['correo']}", size=11, color=COLORES["subtitulo"]),
                             ft.Row([
-                                ft.Text(f"📚 {item['practica']} - P{item['problema_id']}", size=12, color=COLORES["primario"]),
-                                ft.Text(f"📅 {date_str}", size=12, color=COLORES["subtitulo"])
-                            ], spacing=10)
+                                ft.Icon(ft.Icons.MENU_BOOK, size=12, color=COLORES["primario"]), # Icono limpio de libro
+                                ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["primario"]),
+                                ft.Container(width=5),
+                                ft.Icon(ft.Icons.EVENT_NOTE, size=12, color=COLORES["subtitulo"]), # Icono de fecha sin números
+                                ft.Text(f"{date_str}", size=12, color=COLORES["subtitulo"])
+                            ], spacing=5)
                         ], expand=True),
                         ft.Column([
-                            ft.Text(f"{score_to_show}/10.0", color=COLORES["primario"], weight="bold", size=16),
+                            ft.Text(f"{score_display}/10", color=score_color, weight="bold", size=16),
                             ft.Text("Evaluación IA", size=10, italic=True) if not is_completed else ft.Text("Nota Final", size=10, italic=True)
                         ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.END),
                         ft.Column([
@@ -1809,7 +1825,8 @@ def main(page: ft.Page):
                             ft.IconButton(ft.Icons.DELETE_FOREVER, on_click=lambda e, i=item: open_delete_eval_dlg(i['id']), icon_color=COLORES["error"], tooltip="Eliminar Duplicado")
                         ], spacing=0)
                     ]),
-                    bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                    bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"]),
+                    margin=ft.margin.only(bottom=5)
                 )
 
             def get_group_key(item, group_type):
@@ -1821,19 +1838,23 @@ def main(page: ft.Page):
 
             def build_grouped_list(items, group_by, is_completed):
                 items.sort(key=lambda x: (get_group_key(x, group_by), x.get("fecha", "")), reverse=True)
-                controls = []
-                current_group = None
+                grupos = {}
                 for item in items:
-                    group_val = get_group_key(item, group_by)
-                    if group_val != current_group:
-                        controls.append(ft.Container(
-                            content=ft.Row([
-                                ft.Icon(ft.Icons.LABEL_IMPORTANT, size=16, color=COLORES["secundario"]),
-                                ft.Text(group_val, weight="bold", size=14, color=COLORES["secundario"])
-                            ]), padding=ft.padding.only(top=10, bottom=2)
-                        ))
-                        current_group = group_val
-                    controls.append(create_grade_card(item, is_completed))
+                    g_key = get_group_key(item, group_by)
+                    if g_key not in grupos:
+                        grupos[g_key] = []
+                    grupos[g_key].append(create_grade_card(item, is_completed))
+                controls = []
+                for g_key, card_list in grupos.items():
+                    tile = ft.ExpansionTile(
+                        title=ft.Text(f"{g_key}", weight="bold", color=COLORES["primario"]),
+                        subtitle=ft.Text(f"Evaluaciones: {len(card_list)}", size=12, color=COLORES["subtitulo"]),
+                        controls=card_list,
+                        collapsed_text_color=COLORES["primario"],
+                        text_color=COLORES["primario"],
+                        initially_expanded=False, # Aparecerán cerrados por defecto para ahorrar espacio
+                    )
+                    controls.append(tile)
                 return controls
 
             # --- Filtrar Búsquedas ---
@@ -1862,27 +1883,35 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Evaluaciones Completadas", size=16, color=COLORES["primario"]),
+                                ft.Text("Evaluaciones Completadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_completed_grades, group_completed_dropdown], spacing=10),
                             ft.Divider(height=5, color="transparent"),
                             col_completed_grades
                         ], expand=True),
-                        expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(right=5)
+                        expand=1,
+                        bgcolor=COLORES["accento"],
+                        padding=10,
+                        border_radius=10,
+                        margin=ft.margin.only(right=5)
                     ),
                     # COLUMNA DERECHA: Pendientes
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Pendientes de Revisión Docente", size=16, color=COLORES["primario"]),
+                                ft.Text("Pendientes de Revisión Docente", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_pending_grades, group_pending_dropdown], spacing=10),
                             ft.Divider(height=5, color="transparent"),
                             col_pending_grades
                         ], expand=True),
-                        expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=5)
+                        expand=1,
+                        bgcolor=COLORES["accento"],
+                        padding=10,
+                        border_radius=10,
+                        margin=ft.margin.only(left=5)
                     )
                 ], expand=True)
             ], expand=True), 
