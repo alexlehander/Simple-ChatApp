@@ -119,7 +119,7 @@ def main(page: ft.Page):
     dashboard_grid = ft.GridView(expand=True, runs_count=5, max_extent=250, child_aspect_ratio=1.0, spacing=10, run_spacing=10)
     session_status_text = ft.Text("Sesión Inactiva", color=COLORES["subtitulo"])
     detail_dlg_title = ft.Text(weight="bold", size=20)
-    detail_dlg_content = ft.ListView(spacing=10, padding=ft.padding.only(right=15))
+    detail_dlg_content = ft.ListView(spacing=15, padding=ft.padding.only(right=20))
         
     detail_dlg = ft.AlertDialog(
         title=detail_dlg_title,
@@ -1032,7 +1032,7 @@ def main(page: ft.Page):
                         ])
                     ], spacing=5),
                     bgcolor=COLORES["fondo"], 
-                    padding=ft.padding.only(left=10, top=5, right=5, bottom=5), 
+                    padding=ft.padding.only(left=10, top=5, right=20, bottom=5),
                     border_radius=5, 
                     border=ft.border.all(1, borde_color),
                     ink=True, 
@@ -1707,10 +1707,11 @@ def main(page: ft.Page):
                     ft.Row(
                         [grade_btn_cancel, grade_btn_approve, grade_btn_save], 
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        wrap=True
+                        width=float("inf")
                     )
                 ], tight=True, spacing=15),
-                width=600, 
+                width=600,
+                padding=ft.padding.only(right=15)
             ),
             scrollable=True
         )
@@ -1772,7 +1773,7 @@ def main(page: ft.Page):
                 page.update()
                 
         def open_grade_dialog(item, is_completed):
-            grade_student_label.value = f"Evaluar: {item.get('nombre', item['correo'])}"
+            grade_student_label.value = f"{item.get('nombre', item['correo'])}"
             date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
             grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
             grade_response_container.content = ft.Text(
@@ -1974,7 +1975,7 @@ def main(page: ft.Page):
             on_change=lambda e: load_student_profile(e.control.value)
         )
         
-        profile_content = ft.ListView(expand=True, spacing=15, padding=ft.padding.only(right=15))
+        profile_content = ft.ListView(expand=True, spacing=15, padding=ft.padding.only(right=20))
         
         def load_student_profile(email):
             if not email: return
