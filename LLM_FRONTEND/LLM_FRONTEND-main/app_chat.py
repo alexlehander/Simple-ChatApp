@@ -632,11 +632,12 @@ def main(page: ft.Page):
         
     def reiniciar_practica(e):
         try:
+            page._stop_timer_global = True 
             reset_progress(page)
-            page.launch_url("/", web_window_name="_self")
+            show_student_dashboard() 
         except Exception as ex:
             print(f"[WARN] Reinicio fallido: {ex}")
-            mostrar_pantalla_consentimiento()
+            show_student_dashboard()
             
     # =============== PANTALLA 3: INTERVENCIÓN (CHAT + PROBLEMAS) ===============
     def mostrar_pantalla_intervencion(titulo_sesion, PROBLEMAS):
@@ -1306,6 +1307,7 @@ def main(page: ft.Page):
         
         # Temporizador (Xmin)
         def iniciar_temporizador():
+            page._stop_timer_global = False
             start_epoch = load_k(page, STATE_KEYS["timer_start"], None)
             now = int(time.time())
             if start_epoch is None:
@@ -1336,7 +1338,7 @@ def main(page: ft.Page):
                     time.sleep(0.1)
                     if not page.is_alive: return
                 t = remaining
-                while t > 0 and not stop_timer:
+                while t > 0 and not stop_timer and not getattr(page, "_stop_timer_global", False):
                     if not page.is_alive: return
                     m, s = divmod(t, 60)
                     percent = t / TOTAL_SECONDS
