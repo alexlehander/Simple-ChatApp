@@ -1369,7 +1369,7 @@ def main(page: ft.Page):
                 # Fila Superior: Filtros
                 ft.Container(
                     content=ft.Column([
-                        ft.Text("Filtros de Monitoreo", size=16, color=COLORES["primario"]),
+                        ft.Text("Filtros de Monitoreo", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                         ft.Row([
                             student_filter, 
                             exercise_filter, 
@@ -1389,7 +1389,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Registro de Respuestas", size=16, color=COLORES["primario"]),
+                                ft.Text("Registro de Respuestas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.Icon(ft.Icons.QUESTION_ANSWER, size=20, color=COLORES["primario"])
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Divider(height=5, color="transparent"),
@@ -1405,7 +1405,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Historial de Chat", size=16, color=COLORES["primario"]),
+                                ft.Text("Historial de Chat", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.Icon(ft.Icons.CHAT, size=20, color=COLORES["primario"])
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Divider(height=5, color="transparent"),
