@@ -705,7 +705,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista de estudiantes inscritos", size=16, color=COLORES["primario"]),
+                                ft.Text("Lista de estudiantes inscritos", size=16, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_students, sort_btn_my], spacing=5),
@@ -722,7 +722,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista de estudiantes disponibles", size=16, color=COLORES["primario"]),
+                                ft.Text("Lista de estudiantes disponibles", size=16, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_students, sort_btn_global], spacing=5),
