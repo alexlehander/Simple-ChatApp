@@ -847,49 +847,76 @@ def get_all_registered_users():
         print(f"Error fetching all users: {e}")
         return jsonify([]), 500
         
+# --- HELPER PARA FILTRAR EVALUACIONES DEL PROFESOR ---
+def get_teacher_filtered_responses(prof_id, status_filter):
+    # 1. Obtener lista estricta de mis estudiantes
+    student_records = ListaClase.query.filter_by(profesor_id=prof_id).all()
+    my_students = [s.student_email for s in student_records]
+    
+    # 2. Obtener lista estricta de mis tareas (activas o inactivas)
+    exercise_records = ListaEjercicios.query.filter_by(profesor_id=prof_id).all()
+    my_exercises = [e.exercise_filename for e in exercise_records]
+    
+    # Si no tiene alumnos o tareas, no devolvemos nada
+    if not my_students or not my_exercises:
+        return []
+        
+    # 3. Consultar cruzando Respuestas con Usuarios para obtener el Nombre
+    query = db.session.query(RespuestaUsuario, Usuario.nombre).outerjoin(
+        Usuario, RespuestaUsuario.correo_identificacion == Usuario.correo_identificacion
+    ).filter(
+        RespuestaUsuario.correo_identificacion.in_(my_students),
+        RespuestaUsuario.practice_name.in_(my_exercises)
+    )
+    
+    if isinstance(status_filter, list):
+        query = query.filter(RespuestaUsuario.status.in_(status_filter))
+    else:
+        query = query.filter(RespuestaUsuario.status == status_filter)
+        
+    results = query.order_by(RespuestaUsuario.created_at.desc()).all()
+    
+    data = []
+    for r, nombre in results:
+        data.append({
+            "id": r.id,
+            "nombre": nombre or "Estudiante",
+            "correo": r.correo_identificacion,
+            "practica": r.practice_name,
+            "problema_id": r.problema_id,
+            "respuesta": r.respuesta,
+            "llm_score": r.llm_score,
+            "llm_comment": r.llm_comment,
+            "teacher_score": r.teacher_score,
+            "teacher_comment": r.teacher_comment,
+            "status": r.status,
+            "fecha": r.created_at.isoformat() if r.created_at else ""
+        })
+    return data
+
 @app.route("/api/teacher/grades/pending", methods=["GET"])
 @jwt_required()
 def get_pending_grades():
-    # Fetch answers that haven't been approved yet
     prof_id = get_jwt_identity()
-    # (Optional: Filter by professor's students/exercises logic here)
-    
-    pending = RespuestaUsuario.query.filter(
-        RespuestaUsuario.status == "pending"
-    ).order_by(RespuestaUsuario.created_at.desc()).all()
-    
-    data = [{
-        "id": r.id,
-        "correo": r.correo_identificacion,
-        "practica": r.practice_name,
-        "problema_id": r.problema_id,
-        "respuesta": r.respuesta,
-        "llm_score": r.llm_score,
-        "llm_comment": r.llm_comment
-    } for r in pending]
+    data = get_teacher_filtered_responses(prof_id, "pending")
     return jsonify(data), 200
 
 @app.route("/api/teacher/grades/completed", methods=["GET"])
 @jwt_required()
 def get_completed_grades():
-    # Obtiene las respuestas que ya fueron aprobadas o editadas por el maestro
-    completed = RespuestaUsuario.query.filter(
-        RespuestaUsuario.status.in_(["approved", "edited"])
-    ).order_by(RespuestaUsuario.created_at.desc()).limit(100).all()
-    
-    data = [{
-        "id": r.id,
-        "correo": r.correo_identificacion,
-        "practica": r.practice_name,
-        "problema_id": r.problema_id,
-        "respuesta": r.respuesta,
-        "llm_score": r.llm_score,
-        "llm_comment": r.llm_comment,
-        "teacher_score": r.teacher_score,
-        "teacher_comment": r.teacher_comment,
-        "status": r.status
-    } for r in completed]
+    prof_id = get_jwt_identity()
+    data = get_teacher_filtered_responses(prof_id, ["approved", "edited"])
     return jsonify(data), 200
+
+@app.route("/api/teacher/grades/<int:resp_id>", methods=["DELETE"])
+@jwt_required()
+def delete_grade(resp_id):
+    prof_id = get_jwt_identity()
+    resp = RespuestaUsuario.query.get(resp_id)
+    if resp:
+        db.session.delete(resp)
+        db.session.commit()
+    return jsonify({"msg": "Evaluación eliminada"}), 200
 
 @app.route("/api/teacher/grades/submit", methods=["POST"])
 @jwt_required()

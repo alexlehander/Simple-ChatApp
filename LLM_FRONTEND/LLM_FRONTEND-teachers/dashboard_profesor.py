@@ -1607,59 +1607,74 @@ def main(page: ft.Page):
         state["pending_grades"] = []
         state["completed_grades"] = []
         state["filter_pending_grades"] = ""
-        state["sort_pending_grades"] = "asc"
+        state["group_by_pending"] = "fecha"
         state["filter_completed_grades"] = ""
-        state["sort_completed_grades"] = "asc"
+        state["group_by_completed"] = "fecha"
         
         search_completed_grades = ft.TextField(
-            hint_text="Buscar evaluaciones completadas...",
+            hint_text="Buscar nombre, correo o tarea...",
             prefix_icon=ft.Icons.SEARCH,
-            height=35,
+            height=40,
             text_size=12,
             content_padding=10,
-            border_radius=15,
+            border_radius=10,
             bgcolor=COLORES["fondo"],
             color=COLORES["texto"],
+            expand=True,
             on_change=lambda e: update_grade_filters("completed", e.control.value)
         )
         
-        sort_btn_completed_grades = ft.IconButton(
-            icon=ft.Icons.SORT_BY_ALPHA,
-            tooltip="Ordenar A-Z / Z-A",
-            icon_color=COLORES["primario"],
-            on_click=lambda e: toggle_grade_sort("completed")
+        group_completed_dropdown = ft.Dropdown(
+            label="Agrupar por...",
+            options=[
+                ft.dropdown.Option("fecha", "Día / Fecha"),
+                ft.dropdown.Option("practica", "Nombre de Práctica"),
+                ft.dropdown.Option("problema", "Número de Problema"),
+                ft.dropdown.Option("estudiante", "Estudiante"),
+            ],
+            value="fecha",
+            width=180, height=45, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"],
+            on_change=lambda e: update_grade_grouping("completed", e.control.value)
         )
 
         search_pending_grades = ft.TextField(
-            hint_text="Buscar evaluaciones pendientes...",
+            hint_text="Buscar nombre, correo o tarea...",
             prefix_icon=ft.Icons.SEARCH,
-            height=35,
+            height=40,
             text_size=12,
             content_padding=10,
-            border_radius=15,
+            border_radius=10,
             bgcolor=COLORES["fondo"],
             color=COLORES["texto"],
+            expand=True,
             on_change=lambda e: update_grade_filters("pending", e.control.value)
         )
 
-        sort_btn_pending_grades = ft.IconButton(
-            icon=ft.Icons.SORT_BY_ALPHA,
-            tooltip="Ordenar A-Z / Z-A",
-            icon_color=COLORES["primario"],
-            on_click=lambda e: toggle_grade_sort("pending")
+        group_pending_dropdown = ft.Dropdown(
+            label="Agrupar por...",
+            options=[
+                ft.dropdown.Option("fecha", "Día / Fecha"),
+                ft.dropdown.Option("practica", "Nombre de Práctica"),
+                ft.dropdown.Option("problema", "Número de Problema"),
+                ft.dropdown.Option("estudiante", "Estudiante"),
+            ],
+            value="fecha",
+            width=180, height=45, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"],
+            on_change=lambda e: update_grade_grouping("pending", e.control.value)
         )
 
         col_completed_grades = ft.ListView(expand=True, spacing=10)
         col_pending_grades = ft.ListView(expand=True, spacing=10)
         
-        grade_score_field = ft.TextField(label="Calificación", width=100)
+        # --- DIÁLOGOS DE CALIFICACIÓN Y ELIMINACIÓN ---
+        grade_score_field = ft.TextField(label="Calificación (0.0 - 10.0)", width=150)
         grade_comment_field = ft.TextField(label="Comentario", multiline=True)
         grade_student_label = ft.Text("", weight="bold") 
         grade_task_label = ft.Text("", size=12)
         grade_response_container = ft.Container(bgcolor=COLORES["fondo"], padding=10)
         grade_btn_cancel = ft.ElevatedButton("Regresar", bgcolor=COLORES["advertencia"], color=COLORES["texto"], on_click=lambda e: close_grade_dlg())
-        grade_btn_approve = ft.ElevatedButton("Aprobar análisis de la IA", bgcolor=COLORES["boton"], color=COLORES["texto"])
-        grade_btn_save = ft.ElevatedButton("Calificar bajo mi criterio", bgcolor=COLORES["exito"], color=COLORES["texto"])
+        grade_btn_approve = ft.ElevatedButton("Aprobar análisis IA", bgcolor=COLORES["boton"], color=COLORES["texto"])
+        grade_btn_save = ft.ElevatedButton("Modificar Calificación", bgcolor=COLORES["exito"], color=COLORES["texto"])
         
         grade_dlg = ft.AlertDialog(
             title=grade_student_label,
@@ -1672,17 +1687,43 @@ def main(page: ft.Page):
                 grade_score_field,
                 grade_comment_field
             ], tight=True, width=500),
+            actions=[grade_btn_cancel, grade_btn_approve, grade_btn_save]
+        )
+        
+        delete_eval_dlg = ft.AlertDialog(
+            title=ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=COLORES["error"]), ft.Text("Confirmar Eliminación")]),
+            content=ft.Text("Estás a punto de eliminar definitivamente esta evaluación de la base de datos.\n\nEsto es útil si el estudiante reenvió la misma respuesta varias veces y quieres limpiar duplicados. ¿Deseas proceder?"),
             actions=[
-                grade_btn_cancel,
-                grade_btn_approve,
-                grade_btn_save,
+                ft.TextButton("Cancelar", on_click=lambda e: close_delete_eval_dlg()),
+                ft.ElevatedButton("Eliminar Permanentemente", color=ft.colors.WHITE, bgcolor=COLORES["error"], on_click=lambda e: confirm_delete_eval())
             ]
         )
-        page.overlay.append(grade_dlg)
+        
+        page.overlay.extend([grade_dlg, delete_eval_dlg])
 
         def close_grade_dlg():
             grade_dlg.open = False
             page.update()
+            
+        def open_delete_eval_dlg(eval_id):
+            state["delete_target_id"] = eval_id
+            delete_eval_dlg.open = True
+            page.update()
+            
+        def close_delete_eval_dlg():
+            delete_eval_dlg.open = False
+            page.update()
+            
+        def confirm_delete_eval():
+            eval_id = state.get("delete_target_id")
+            if eval_id:
+                res = auth_request("DELETE", f"/api/teacher/grades/{eval_id}")
+                if res and res.status_code == 200:
+                    flash("Evaluación eliminada correctamente de la base de datos.", ok=True)
+                    load_grades()
+                else:
+                    flash("Error al eliminar la evaluación.", ok=False)
+            close_delete_eval_dlg()
 
         def submit_grade(item_id, score, comment, action):
             grade_btn_approve.disabled = True
@@ -1690,10 +1731,7 @@ def main(page: ft.Page):
             page.update()
             
             res = auth_request("POST", "/api/teacher/grades/submit", json={
-                "id": item_id,
-                "score": score,
-                "comment": comment,
-                "action": action
+                "id": item_id, "score": score, "comment": comment, "action": action
             })
             
             grade_btn_approve.disabled = False
@@ -1709,8 +1747,8 @@ def main(page: ft.Page):
                 page.update()
 
         def open_grade_dialog(item, is_completed):
-            grade_student_label.value = f"Evaluar: {item['correo']}"
-            grade_task_label.value = f"Práctica: {item['practica']} | Ej: {item['problema_id']}"
+            grade_student_label.value = f"Evaluar: {item.get('nombre', item['correo'])}"
+            grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']}"
             grade_response_container.content = ft.Text(item['respuesta'])
             
             if is_completed:
@@ -1720,13 +1758,8 @@ def main(page: ft.Page):
                 grade_score_field.value = str(item['llm_score'])
                 grade_comment_field.value = item['llm_comment']
 
-            grade_btn_approve.on_click = lambda e: submit_grade(
-                item['id'], item['llm_score'], item['llm_comment'], "approve"
-            )
-            grade_btn_save.on_click = lambda e: submit_grade(
-                item['id'], grade_score_field.value, grade_comment_field.value, "edit"
-            )
-
+            grade_btn_approve.on_click = lambda e: submit_grade(item['id'], item['llm_score'], item['llm_comment'], "approve")
+            grade_btn_save.on_click = lambda e: submit_grade(item['id'], grade_score_field.value, grade_comment_field.value, "edit")
             grade_dlg.open = True
             page.update()
 
@@ -1735,12 +1768,9 @@ def main(page: ft.Page):
             else: state["filter_pending_grades"] = value.lower()
             render_grades()
 
-        def toggle_grade_sort(target):
-            key = f"sort_{target}_grades"
-            state[key] = "desc" if state[key] == "asc" else "asc"
-            btn = sort_btn_completed_grades if target == "completed" else sort_btn_pending_grades
-            btn.icon = ft.Icons.ARROW_DOWNWARD if state[key] == "asc" else ft.Icons.ARROW_UPWARD
-            btn.update()
+        def update_grade_grouping(target, value):
+            if target == "completed": state["group_by_completed"] = value
+            else: state["group_by_pending"] = value
             render_grades()
 
         def load_grades():
@@ -1759,54 +1789,65 @@ def main(page: ft.Page):
             nuevas_pendientes = []
             
             def create_grade_card(item, is_completed):
-                if is_completed:
-                    score_to_show = item.get("teacher_score", item.get("llm_score", 0))
-                    status_txt = "Evaluado"
-                    border_color = COLORES["exito"]
-                else:
-                    score_to_show = item.get("llm_score", 0)
-                    status_txt = "Pendiente"
-                    border_color = COLORES["advertencia"]
-                    
+                score_to_show = item.get("teacher_score") if is_completed and item.get("teacher_score") is not None else item.get("llm_score", 0)
+                date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
+                
                 return ft.Container(
                     content=ft.Row([
                         ft.Column([
-                            ft.Text(item['correo'], weight="bold", size=14, color=COLORES["texto"]),
-                            ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["subtitulo"])
+                            ft.Text(f"{item.get('nombre', 'Estudiante')}", weight="bold", size=14, color=COLORES["texto"]),
+                            ft.Text(f"{item['correo']}", size=11, color=COLORES["subtitulo"]),
+                            ft.Row([
+                                ft.Text(f"📚 {item['practica']} - P{item['problema_id']}", size=12, color=COLORES["primario"]),
+                                ft.Text(f"📅 {date_str}", size=12, color=COLORES["subtitulo"])
+                            ], spacing=10)
                         ], expand=True),
                         ft.Column([
-                            ft.Text(f"Nota: {score_to_show}", color=COLORES["primario"], weight="bold"),
-                            ft.Text(status_txt, size=10, italic=True)
+                            ft.Text(f"{score_to_show}/10.0", color=COLORES["primario"], weight="bold", size=16),
+                            ft.Text("Evaluación IA", size=10, italic=True) if not is_completed else ft.Text("Nota Final", size=10, italic=True)
                         ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.END),
-                        ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i, is_completed), icon_color=COLORES["primario"], tooltip="Editar Evaluación")
+                        ft.Column([
+                            ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i, is_completed), icon_color=COLORES["primario"], tooltip="Editar Evaluación"),
+                            ft.IconButton(ft.Icons.DELETE_FOREVER, on_click=lambda e, i=item: open_delete_eval_dlg(i['id']), icon_color=COLORES["error"], tooltip="Eliminar Duplicado")
+                        ], spacing=0)
                     ]),
-                    bgcolor=COLORES["fondo"], 
-                    padding=ft.padding.only(left=10, top=5, right=20, bottom=5),
-                    border_radius=5, 
-                    border=ft.border.all(1, border_color),
+                    bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])
                 )
 
-            # --- 1. Filtrar y Ordenar COMPLETADAS ---
-            filtered_comp = [g for g in state["completed_grades"] if state["filter_completed_grades"] in g.get("correo", "").lower() or state["filter_completed_grades"] in g.get("practica", "").lower()]
-            filtered_comp.sort(key=lambda x: x.get("correo", "").lower(), reverse=(state["sort_completed_grades"] == "desc"))
-            
-            if not filtered_comp:
-                nuevas_completadas.append(ft.Text("No hay evaluaciones completadas", color=COLORES["subtitulo"]))
-            else:
-                for g in filtered_comp:
-                    nuevas_completadas.append(create_grade_card(g, True))
+            def get_group_key(item, group_type):
+                if group_type == "fecha": return item.get("fecha", "")[:10]
+                elif group_type == "practica": return item.get("practica", "Sin práctica")
+                elif group_type == "problema": return f"Ejercicio #{item.get('problema_id', '?')}"
+                elif group_type == "estudiante": return item.get("nombre", item.get("correo"))
+                return "General"
 
-            # --- 2. Filtrar y Ordenar PENDIENTES ---
-            filtered_pend = [g for g in state["pending_grades"] if state["filter_pending_grades"] in g.get("correo", "").lower() or state["filter_pending_grades"] in g.get("practica", "").lower()]
-            filtered_pend.sort(key=lambda x: x.get("correo", "").lower(), reverse=(state["sort_pending_grades"] == "desc"))
+            def build_grouped_list(items, group_by, is_completed):
+                items.sort(key=lambda x: (get_group_key(x, group_by), x.get("fecha", "")), reverse=True)
+                controls = []
+                current_group = None
+                for item in items:
+                    group_val = get_group_key(item, group_by)
+                    if group_val != current_group:
+                        controls.append(ft.Container(
+                            content=ft.Row([
+                                ft.Icon(ft.Icons.LABEL_IMPORTANT, size=16, color=COLORES["secundario"]),
+                                ft.Text(group_val, weight="bold", size=14, color=COLORES["secundario"])
+                            ]), padding=ft.padding.only(top=10, bottom=2)
+                        ))
+                        current_group = group_val
+                    controls.append(create_grade_card(item, is_completed))
+                return controls
 
-            if not filtered_pend:
-                nuevas_pendientes.append(ft.Text("No hay evaluaciones pendientes", color=COLORES["subtitulo"]))
-            else:
-                for g in filtered_pend:
-                    nuevas_pendientes.append(create_grade_card(g, False))
+            # --- Filtrar Búsquedas ---
+            filtered_comp = [g for g in state["completed_grades"] if state["filter_completed_grades"] in g.get("correo", "").lower() or state["filter_completed_grades"] in g.get("practica", "").lower() or state["filter_completed_grades"] in g.get("nombre", "").lower()]
+            filtered_pend = [g for g in state["pending_grades"] if state["filter_pending_grades"] in g.get("correo", "").lower() or state["filter_pending_grades"] in g.get("practica", "").lower() or state["filter_pending_grades"] in g.get("nombre", "").lower()]
+
+            if not filtered_comp: nuevas_completadas.append(ft.Text("No hay evaluaciones completadas", color=COLORES["subtitulo"]))
+            else: nuevas_completadas.extend(build_grouped_list(filtered_comp, state["group_by_completed"], True))
+                
+            if not filtered_pend: nuevas_pendientes.append(ft.Text("No hay evaluaciones pendientes", color=COLORES["subtitulo"]))
+            else: nuevas_pendientes.extend(build_grouped_list(filtered_pend, state["group_by_pending"], False))
             
-            # Asignación atómica (Anti-Crasheos)
             col_completed_grades.controls = nuevas_completadas
             col_pending_grades.controls = nuevas_pendientes
             
@@ -1819,39 +1860,31 @@ def main(page: ft.Page):
         tab_grading = ft.Container(
             content=ft.Column([
                 ft.Row([
-                    # COLUMNA IZQUIERDA: Realizadas
+                    # COLUMNA IZQUIERDA: Completadas
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Evaluaciones completadas", size=16, color=COLORES["primario"]),
+                                ft.Text("Evaluaciones Completadas", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Row([search_completed_grades, sort_btn_completed_grades], spacing=5),
+                            ft.Row([search_completed_grades, group_completed_dropdown], spacing=10),
                             ft.Divider(height=5, color="transparent"),
                             col_completed_grades
                         ], expand=True),
-                        expand=1, 
-                        bgcolor=COLORES["accento"], 
-                        padding=10, 
-                        border_radius=10,
-                        margin=ft.margin.only(right=5)
+                        expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(right=5)
                     ),
                     # COLUMNA DERECHA: Pendientes
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Evaluaciones pendientes", size=16, color=COLORES["primario"]),
+                                ft.Text("Pendientes de Revisión Docente", size=16, color=COLORES["primario"]),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Row([search_pending_grades, sort_btn_pending_grades], spacing=5),
+                            ft.Row([search_pending_grades, group_pending_dropdown], spacing=10),
                             ft.Divider(height=5, color="transparent"),
                             col_pending_grades
                         ], expand=True),
-                        expand=1, 
-                        bgcolor=COLORES["accento"], 
-                        padding=10, 
-                        border_radius=10,
-                        margin=ft.margin.only(left=5)
+                        expand=1, bgcolor=COLORES["accento"], padding=10, border_radius=10, margin=ft.margin.only(left=5)
                     )
                 ], expand=True)
             ], expand=True), 
