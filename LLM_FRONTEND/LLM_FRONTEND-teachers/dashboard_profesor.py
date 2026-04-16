@@ -1775,10 +1775,13 @@ def main(page: ft.Page):
             grade_student_label.value = f"{item.get('nombre', item['correo'])}"
             date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
             grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
-            grade_response_container.content = ft.Text(
-                item['respuesta'], 
-                text_align=ft.TextAlign.JUSTIFY,
-                width=float("inf") 
+            grade_response_container.content = ft.TextField(
+                value=item['respuesta'], 
+                read_only=True,
+                multiline=True,
+                min_lines=3,
+                max_lines=6,
+                text_align=ft.TextAlign.JUSTIFY
             )
             llm_score_val = float(item.get('llm_score', 0))
             llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
