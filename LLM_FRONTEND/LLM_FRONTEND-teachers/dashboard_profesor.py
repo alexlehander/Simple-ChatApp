@@ -546,13 +546,6 @@ def main(page: ft.Page):
             on_change=lambda e: update_filters("my", e.control.value)
         )
         
-        sort_btn_my = ft.IconButton(
-            icon=ft.Icons.SORT_BY_ALPHA,
-            tooltip="Ordenar A-Z / Z-A",
-            icon_color=COLORES["primario"],
-            on_click=lambda e: toggle_sort("my")
-        )
-        
         search_global_students = ft.TextField(
             hint_text="Buscar estudiantes disponibles...",
             prefix_icon=ft.Icons.SEARCH,
@@ -564,7 +557,14 @@ def main(page: ft.Page):
             color=COLORES["texto"],
             on_change=lambda e: update_filters("global", e.control.value)
         )
-
+        
+        sort_btn_my = ft.IconButton(
+            icon=ft.Icons.SORT_BY_ALPHA,
+            tooltip="Ordenar A-Z / Z-A",
+            icon_color=COLORES["primario"],
+            on_click=lambda e: toggle_sort("my")
+        )
+        
         sort_btn_global = ft.IconButton(
             icon=ft.Icons.SORT_BY_ALPHA,
             tooltip="Ordenar A-Z / Z-A",
@@ -587,15 +587,13 @@ def main(page: ft.Page):
             btn.icon = ft.Icons.ARROW_DOWNWARD if state[key] == "asc" else ft.Icons.ARROW_UPWARD
             btn.update()
             render_student_lists()
-
+            
         def load_students():
             headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                # 1. Cargar MIS estudiantes (Clase actual)
                 res_my = requests.get(f"{BASE}/api/teacher/students", headers=headers)
                 if res_my.status_code == 200:
                     state["students"] = res_my.json()
-                # 2. Cargar TODOS los estudiantes (Global del sistema)
                 res_all = requests.get(f"{BASE}/api/teacher/all-users", headers=headers)
                 if res_all.status_code == 200:
                     state["all_users_global"] = res_all.json()
@@ -603,7 +601,7 @@ def main(page: ft.Page):
                 update_dropdowns()
             except Exception as e:
                 print(f"Error cargando estudiantes: {e}")
-
+                
         def add_student_action(email_to_add):
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [email_to_add]})
@@ -629,7 +627,6 @@ def main(page: ft.Page):
             # --- 1. Filtrar y Ordenar MI CLASE ---
             mis_estudiantes = state.get("students", [])
             busqueda_my = state["filter_my_students"]
-
             mis_filtrados = [s for s in mis_estudiantes if busqueda_my in s["email"].lower() or busqueda_my in s.get("nombre", "").lower()]
             mis_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_my_students"] == "desc"))
 
@@ -664,7 +661,6 @@ def main(page: ft.Page):
             set_mis_emails = {s["email"] for s in mis_estudiantes}
             disponibles_raw = [u for u in state.get("all_users_global", []) if u["email"] not in set_mis_emails]
             busqueda_global = state["filter_global_students"]
-
             disponibles_filtrados = [s for s in disponibles_raw if busqueda_global in s["email"].lower() or busqueda_global in s.get("nombre", "").lower()]
             disponibles_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_global_students"] == "desc"))
 
@@ -678,8 +674,8 @@ def main(page: ft.Page):
                             content=ft.Row([
                                 ft.Icon(ft.Icons.SCHOOL_OUTLINED, color=COLORES["primario"], size=30),
                                 ft.Column([
-                                    ft.Text(s.get("nombre", "Estudiante"), weight="bold", size=14, color=COLORES["texto"]),
-                                    ft.Text(s["email"], size=12, color=COLORES["subtitulo"])
+                                    ft.Text(s.get("nombre", "Estudiante"), weight="bold", size=16, color=COLORES["texto"]),
+                                    ft.Text(s["email"], size=14, color=COLORES["subtitulo"])
                                 ], expand=True, spacing=2),
                                 ft.IconButton(
                                     ft.Icons.ADD_CIRCLE_OUTLINE, 
@@ -705,7 +701,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista de estudiantes inscritos", size=16, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
+                                ft.Text("Lista de estudiantes inscritos", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_students, sort_btn_my], spacing=5),
@@ -722,7 +718,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Lista de estudiantes disponibles", size=16, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
+                                ft.Text("Lista de estudiantes disponibles", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_students, sort_btn_global], spacing=5),
@@ -1070,7 +1066,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Catálogo local de tareas seleccionadas", size=16, color=COLORES["primario"]),
+                                ft.Text("Catálogo local de tareas seleccionadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
@@ -1087,7 +1083,7 @@ def main(page: ft.Page):
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
-                                ft.Text("Catálogo global de tareas disponibles", size=16, color=COLORES["primario"]),
+                                ft.Text("Catálogo global de tareas disponibles", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_tasks, sort_btn_global_tasks], spacing=5),
