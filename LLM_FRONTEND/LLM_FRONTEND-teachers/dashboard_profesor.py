@@ -1677,7 +1677,7 @@ def main(page: ft.Page):
             expand=1
         )
         grade_score_field = ft.TextField(label="Calificación Asignada", text_align=ft.TextAlign.CENTER, expand=1)
-        grade_comment_field = ft.TextField(label="Comentario", multiline=True, text_align=ft.TextAlign.JUSTIFY, expand=True)
+        grade_comment_field = ft.TextField(label="Comentario", multiline=True, text_align=ft.TextAlign.JUSTIFY, min_lines=3, max_lines=6)
         grade_student_label = ft.Text("", weight="bold", size=20, text_align=ft.TextAlign.CENTER) 
         grade_task_label = ft.Text("", size=12, text_align=ft.TextAlign.CENTER)
         grade_response_container = ft.Container(
@@ -1706,12 +1706,13 @@ def main(page: ft.Page):
                     grade_comment_field,
                     ft.Row(
                         [grade_btn_cancel, grade_btn_approve, grade_btn_save], 
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        wrap=True
                     )
                 ], tight=True, spacing=15),
-                width=500, 
+                width=600, 
             ),
-            actions=[]
+            scrollable=True
         )
         
         delete_eval_dlg = ft.AlertDialog(
@@ -1773,7 +1774,7 @@ def main(page: ft.Page):
         def open_grade_dialog(item, is_completed):
             grade_student_label.value = f"Evaluar: {item.get('nombre', item['correo'])}"
             date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
-            grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 📅 {date_str}"
+            grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
             grade_response_container.content = ft.Text(
                 item['respuesta'], 
                 text_align=ft.TextAlign.JUSTIFY,
@@ -1850,10 +1851,10 @@ def main(page: ft.Page):
                             ft.Text(f"{item.get('nombre', 'Estudiante')}", weight="bold", size=14, color=COLORES["texto"]),
                             ft.Text(f"{item['correo']}", size=11, color=COLORES["subtitulo"]),
                             ft.Row([
-                                ft.Icon(ft.Icons.MENU_BOOK, size=12, color=COLORES["primario"]), # Icono limpio de libro
+                                ft.Icon(ft.Icons.MENU_BOOK, size=12, color=COLORES["primario"]),
                                 ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["primario"]),
                                 ft.Container(width=5),
-                                ft.Icon(ft.Icons.EVENT_NOTE, size=12, color=COLORES["subtitulo"]), # Icono de fecha sin números
+                                ft.Icon(ft.Icons.EVENT_NOTE, size=12, color=COLORES["subtitulo"]),
                                 ft.Text(f"{date_str}", size=12, color=COLORES["subtitulo"])
                             ], spacing=5)
                         ], expand=True),
