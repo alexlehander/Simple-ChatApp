@@ -1369,7 +1369,6 @@ def main(page: ft.Page):
                 # Fila Superior: Filtros
                 ft.Container(
                     content=ft.Column([
-                        ft.Text("Filtros de Monitoreo", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                         ft.Row([
                             student_filter, 
                             exercise_filter, 
