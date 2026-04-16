@@ -1669,17 +1669,27 @@ def main(page: ft.Page):
         col_pending_grades = ft.ListView(expand=True, spacing=10)
         
         # --- DIÁLOGOS DE CALIFICACIÓN Y ELIMINACIÓN ---
-        grade_llm_score_field = ft.TextField(label="Sugerida por la IA", read_only=True, text_align=ft.TextAlign.CENTER, expand=1)
+        grade_llm_score_field = ft.TextField(
+            label="Calificación Sugerida", 
+            read_only=True, 
+            text_align=ft.TextAlign.CENTER, 
+            bgcolor=COLORES["borde"],
+            expand=1
+        )
         grade_score_field = ft.TextField(label="Calificación Asignada", text_align=ft.TextAlign.CENTER, expand=1)
         grade_comment_field = ft.TextField(label="Comentario", multiline=True, text_align=ft.TextAlign.JUSTIFY, expand=True)
-        
         grade_student_label = ft.Text("", weight="bold", size=20, text_align=ft.TextAlign.CENTER) 
         grade_task_label = ft.Text("", size=12, text_align=ft.TextAlign.CENTER)
-        grade_response_container = ft.Container(bgcolor=COLORES["fondo"], padding=15, border_radius=8, expand=True)
-        
-        grade_btn_cancel = ft.ElevatedButton("Regresar", bgcolor=COLORES["advertencia"], color=COLORES["texto"], on_click=lambda e: close_grade_dlg())
-        grade_btn_approve = ft.ElevatedButton("Aprobar análisis IA", bgcolor=COLORES["boton"], color=COLORES["texto"])
-        grade_btn_save = ft.ElevatedButton("Modificar Calificación", bgcolor=COLORES["exito"], color=COLORES["texto"])
+        grade_response_container = ft.Container(
+            bgcolor=COLORES["fondo"], 
+            padding=15, 
+            border_radius=8, 
+            width=float("inf")
+        )
+        btn_style = ft.ButtonStyle(padding=ft.padding.symmetric(horizontal=20, vertical=15))
+        grade_btn_cancel = ft.ElevatedButton("Regresar", bgcolor=COLORES["advertencia"], color=COLORES["texto"], style=btn_style, on_click=lambda e: close_grade_dlg())
+        grade_btn_approve = ft.ElevatedButton("Aprobar Calificación Sugerida", bgcolor=COLORES["boton"], color=COLORES["texto"], style=btn_style)
+        grade_btn_save = ft.ElevatedButton("Modificar Calificación", bgcolor=COLORES["exito"], color=COLORES["texto"], style=btn_style)
         
         grade_dlg = ft.AlertDialog(
             title=ft.Container(content=grade_student_label, alignment=ft.alignment.center),
@@ -1693,12 +1703,15 @@ def main(page: ft.Page):
                         grade_llm_score_field,
                         grade_score_field
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, spacing=20),
-                    grade_comment_field
+                    grade_comment_field,
+                    ft.Row(
+                        [grade_btn_cancel, grade_btn_approve, grade_btn_save], 
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+                    )
                 ], tight=True, spacing=15),
-                width=500,
+                width=500, 
             ),
-            actions=[grade_btn_cancel, grade_btn_approve, grade_btn_save],
-            actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN
+            actions=[]
         )
         
         delete_eval_dlg = ft.AlertDialog(
@@ -1756,12 +1769,16 @@ def main(page: ft.Page):
             else:
                 flash("Error al guardar", ok=False)
                 page.update()
-
+                
         def open_grade_dialog(item, is_completed):
             grade_student_label.value = f"Evaluar: {item.get('nombre', item['correo'])}"
             date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
             grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 📅 {date_str}"
-            grade_response_container.content = ft.Text(item['respuesta'], text_align=ft.TextAlign.JUSTIFY)
+            grade_response_container.content = ft.Text(
+                item['respuesta'], 
+                text_align=ft.TextAlign.JUSTIFY,
+                width=float("inf") 
+            )
             llm_score_val = float(item.get('llm_score', 0))
             llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
             grade_llm_score_field.value = f"{llm_score_display}/10"
@@ -1772,14 +1789,19 @@ def main(page: ft.Page):
                 grade_score_field.value = str(teacher_score_display)
                 grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
             else:
-                grade_score_field.value = str(llm_score_display)
+                grade_score_field.value = "Pendiente"
                 grade_comment_field.value = item['llm_comment']
-
-            grade_btn_approve.on_click = lambda e: submit_grade(item['id'], item['llm_score'], item['llm_comment'], "approve")
-            grade_btn_save.on_click = lambda e: submit_grade(item['id'], grade_score_field.value, grade_comment_field.value, "edit")
+                
+            grade_btn_approve.on_click = lambda e: submit_grade(item['id'], item['llm_score'], grade_comment_field.value, "approve")
+            
+            def on_save_click(e):
+                score_to_send = item['llm_score'] if grade_score_field.value == "Pendiente" else grade_score_field.value
+                submit_grade(item['id'], score_to_send, grade_comment_field.value, "edit")
+                
+            grade_btn_save.on_click = on_save_click
             grade_dlg.open = True
             page.update()
-
+            
         def update_grade_filters(target, value):
             if target == "completed": state["filter_completed_grades"] = value.lower()
             else: state["filter_pending_grades"] = value.lower()
