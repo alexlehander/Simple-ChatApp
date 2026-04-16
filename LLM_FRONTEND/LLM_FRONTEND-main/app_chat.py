@@ -745,9 +745,9 @@ def main(page: ft.Page):
                 align = ft.alignment.center_right
                 bg_color = None
             elif is_teacher:
-                txt_color = "#FFFFFF"
+                txt_color = COLORES["fondo"]
                 align = ft.alignment.center_left
-                bg_color = "#7C3AED"
+                bg_color = COLORES["primario"]
             else:
                 txt_color = COLORES["texto"]
                 align = ft.alignment.center_left
@@ -755,7 +755,7 @@ def main(page: ft.Page):
 
             bubble_container = ft.Container(
                 content=ft.Column([
-                    ft.Text("Profesor dice:" if is_teacher else "", size=10, color="white", weight="bold") if is_teacher else ft.Container(),
+                    ft.Text("Profesor dice:" if is_teacher else "", size=10, color=COLORES["fondo"], weight="bold") if is_teacher else ft.Container(),
                     ft.Text(text, color=txt_color, size=16, selectable=True)
                 ]),
                 padding=ft.padding.symmetric(horizontal=10, vertical=10),
