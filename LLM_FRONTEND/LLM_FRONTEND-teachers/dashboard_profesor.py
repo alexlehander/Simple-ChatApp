@@ -1633,7 +1633,8 @@ def main(page: ft.Page):
                 ft.dropdown.Option("estudiante", "Estudiante"),
             ],
             value="fecha",
-            width=180, height=45, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"],
+            width=180, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"],
+            content_padding=10,
             on_change=lambda e: update_grade_grouping("completed", e.control.value)
         )
 
@@ -1659,7 +1660,8 @@ def main(page: ft.Page):
                 ft.dropdown.Option("estudiante", "Estudiante"),
             ],
             value="fecha",
-            width=180, height=45, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"],
+            width=180, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"],
+            content_padding=10,
             on_change=lambda e: update_grade_grouping("pending", e.control.value)
         )
 
