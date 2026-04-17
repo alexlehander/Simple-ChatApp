@@ -55,8 +55,8 @@ pc_client = Pinecone(api_key=PINECONE_API_KEY)
 pinecone_index = pc_client.Index(PINECONE_INDEX_NAME)
 HF_EMBED_URL = os.getenv("HF_EMBED_URL", "https://EmbeddingsAPI.hf.space/embed")
 SEMAPHORE_WINDOW_MINUTES = 5
-RED_FLAG_INTENTS = ["demand for direct answer", "negative expression"]
-YELLOW_FLAG_INTENTS = ["off-topic", "expression of incomprehension"]
+RED_FLAG_INTENTS = ["Demanda por Respuesta", "Comportamiento Negativo"]
+YELLOW_FLAG_INTENTS = ["Fuera del Tema", "Expresion de Incomprension"]
 RED_THRESHOLD = 2    # How many red flags in the window trigger RED state
 YELLOW_THRESHOLD = 2 # How many yellow flags trigger YELLOW state
 

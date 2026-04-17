@@ -1,0 +1,43 @@
+{
+  "title": "Práctica No. 5: Implementar un algoritmo voraz (Dijkstra)",
+  "description": "Comprender la implementación en un lenguaje de programación de alto nivel de los algoritmos voraces para obtener las rutas más cortas.",
+  "max_time": 7200,
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "1. Identifica y explica cuál es el tiempo de ejecución del algoritmo de Dijkstra."
+    },
+    {
+      "id": 2,
+      "enunciado": "2. Selecciona un lenguaje de alto nivel (Python, C#, Java, Ruby o C++) y define la estructura de datos (matriz o lista de adyacencias). Codifica un método que reciba un grafo aleatorio de entrada, con pesos asignados a sus aristas, un vértice origen del grafo y obtenga como resultado un árbol que sea congruente con el pseudocódigo del algoritmo voraz de Dijkstra visto en clase."
+    },
+    {
+      "id": 3,
+      "enunciado": "3. Considerando el pseudocódigo visto en clase, codifica la función 'Initialize-Single-Source(G, s)'."
+    },
+    {
+      "id": 4,
+      "enunciado": "4. Considerando el pseudocódigo visto en clase, codifica la función 'Relax(u, v, w)'."
+    },
+    {
+      "id": 5,
+      "enunciado": "5. Implementa la funcion correspondiente a la cola de prioridad mínima Q necesaria para este algoritmo: Insert(Q, u)."
+    },
+	{
+      "id": 6,
+      "enunciado": "6. Implementa la funcion correspondiente a la cola de prioridad mínima Q necesaria para este algoritmo: Extract-Min(Q)."
+    },
+	{
+      "id": 7,
+      "enunciado": "7. Implementa la funcion correspondiente a la cola de prioridad mínima Q necesaria para este algoritmo: Decrease-Key(Q, v, v.d)."
+    },
+    {
+      "id": 8,
+      "enunciado": "8. Integra las funciones anteriores y codifica el método principal 'Dijkstra(G, w, s)' para obtener la ruta más corta desde un origen a todos los nodos del grafo."
+    },
+    {
+      "id": 9,
+      "enunciado": "9. Escribe una interpretación cualitativa del funcionamiento de tu código. ¿Cómo garantizan la cola de prioridad y la relajación de aristas que se encuentre la ruta más corta?"
+    }
+  ]
+}
