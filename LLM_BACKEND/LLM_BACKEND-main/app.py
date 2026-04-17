@@ -1,10 +1,12 @@
 import gevent.monkey
 gevent.monkey.patch_all()
+import pandas as pd
 import os, random, string, requests, json, threading
 import datetime as dt
 import warnings
+from io import BytesIO
 from typing import List, Dict
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit
 from sqlalchemy import text, inspect
@@ -12,7 +14,7 @@ from flask_cors import CORS
 from pinecone import Pinecone
 from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt, decode_token
 from zoneinfo import ZoneInfo
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -175,6 +177,15 @@ class ReporteDesempeno(db.Model):
     perfil_estudiante = db.Column(db.String(50), nullable=True)
     persistencia = db.Column(db.String(50), nullable=True)
     diagnostico_general = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=hora_ensenada)
+
+class ReporteSesionVivo(db.Model):
+    __tablename__ = "railway_reporte_sesion_vivo"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    profesor_id = db.Column(db.Integer, db.ForeignKey("railway_profesor.id"), nullable=False)
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    report_data = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.DateTime, default=hora_ensenada)
 
 # ------------------------------------------------------------------------------------
@@ -1263,6 +1274,184 @@ def toggle_exercise_visibility():
     
     status_str = "Activo" if ejercicio.is_active else "Oculto"
     return jsonify({"msg": f"Ejercicio ahora está {status_str}", "is_active": ejercicio.is_active}), 200
+    
+# --- REPORTE DE SESIÓN EN VIVO ---
+
+@app.route("/api/teacher/live-session/generate", methods=["POST"])
+@jwt_required()
+def generate_live_session_report():
+    profesor_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    # Recibimos las fechas ISO desde el frontend
+    try:
+        start_time = dt.datetime.fromisoformat(data.get("start_time"))
+        end_time = dt.datetime.fromisoformat(data.get("end_time"))
+    except Exception as e:
+        return jsonify({"error": "Fechas inválidas"}), 400
+
+    # 1. Obtener a los alumnos de este profesor
+    mis_estudiantes = [s.student_email for s in ListaClase.query.filter_by(profesor_id=profesor_id).all()]
+    if not mis_estudiantes:
+        return jsonify({"error": "No tienes alumnos asignados."}), 400
+
+    # 2. Recolectar la actividad de la sesión (Semáforo)
+    interacciones = AnalisisInteraccion.query.filter(
+        AnalisisInteraccion.correo_identificacion.in_(mis_estudiantes),
+        AnalisisInteraccion.created_at >= start_time,
+        AnalisisInteraccion.created_at <= end_time
+    ).all()
+
+    if not interacciones:
+        return jsonify({"error": "No hubo actividad de estudiantes durante esta sesión."}), 400
+
+    # 3. Agrupar métricas por estudiante
+    stats = {}
+    for i in interacciones:
+        email = i.correo_identificacion
+        if email not in stats:
+            stats[email] = {"green": 0, "yellow": 0, "red": 0, "intents": []}
+        stats[email][i.color_asignado] += 1
+        stats[email]["intents"].append(i.intent)
+
+    # 4. LLM Prompt para Análisis Cualitativo
+    prompt = f"""
+    Eres un analista educativo. Se realizó una sesión en vivo de una clase de laboratorio/practica universitaria.
+    Analiza las siguientes métricas del semáforo cognitivo (green=bien, yellow=confusión, red=frustración/demanda) e intenciones de los estudiantes:
+    {json.dumps(stats)}
+    
+    Genera un análisis cualitativo de un par de oraciones por estudiante, resumiendo su desempeño, fortalezas/debilidades y enfoque en la sesión.
+    Devuelve ÚNICAMENTE un JSON válido con esta estructura: {{"correo_del_estudiante": "Análisis cualitativo..."}}
+    """
+
+    try:
+        response_text = call_mistral([
+            {"role": "system", "content": "Responde estrictamente en formato JSON puro."},
+            {"role": "user", "content": prompt}
+        ], temperature=0.2)
+        
+        import re
+        try:
+            llm_analysis = json.loads(response_text)
+        except:
+            match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            llm_analysis = json.loads(match.group(0)) if match else {}
+            
+    except Exception as e:
+        print(f"Error LLM: {e}")
+        llm_analysis = {email: "Error al generar análisis cualitativo." for email in stats.keys()}
+
+    # 5. Combinar métricas crudas con el análisis del LLM
+    final_report = []
+    for email, st in stats.items():
+        final_report.append({
+            "Estudiante": email,
+            "Interacciones (Verde)": st["green"],
+            "Alertas (Amarillo)": st["yellow"],
+            "Riesgo (Rojo)": st["red"],
+            "Análisis Cualitativo IA": llm_analysis.get(email, "Sin análisis disponible")
+        })
+
+    # 6. Guardar en BD
+    nuevo_reporte = ReporteSesionVivo(
+        profesor_id=profesor_id,
+        start_time=start_time,
+        end_time=end_time,
+        report_data=final_report
+    )
+    db.session.add(nuevo_reporte)
+    db.session.commit()
+
+    return jsonify({"msg": "Reporte generado", "report_id": nuevo_reporte.id}), 200
+
+
+@app.route("/api/teacher/live-session/download", methods=["GET"])
+def download_live_session_report():
+    token = request.args.get("token")
+    report_id = request.args.get("report_id")
+    
+    try:
+        decoded = decode_token(token)
+        profesor_id = int(decoded["sub"])
+    except Exception:
+        return jsonify({"error": "Token inválido"}), 401
+
+    reporte = ReporteSesionVivo.query.filter_by(id=report_id, profesor_id=profesor_id).first()
+    if not reporte:
+        return jsonify({"error": "Reporte no encontrado"}), 404
+
+    df = pd.DataFrame(reporte.report_data)
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name="Análisis de Sesión")
+    
+    output.seek(0)
+    file_name = f"Reporte_Sesion_{reporte.start_time.strftime('%Y%m%d_%H%M')}.xlsx"
+    return send_file(output, download_name=file_name, as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# --- REPORTE CUANTITATIVO DE EVALUACIONES ---
+
+@app.route("/api/teacher/grades/download", methods=["GET"])
+def download_grades_report():
+    token = request.args.get("token")
+    try:
+        decoded = decode_token(token)
+        prof_id = int(decoded["sub"])
+    except Exception:
+        return jsonify({"error": "Token inválido"}), 401
+
+    practice_filter = request.args.get("practice")
+    student_filter = request.args.get("student")
+
+    # Reutilizamos tu helper existente para asegurar seguridad
+    respuestas_crudas = get_teacher_filtered_responses(prof_id, ["approved", "edited", "pending"])
+    
+    if not respuestas_crudas:
+        return jsonify({"error": "No hay datos para exportar"}), 404
+
+    # Construir data plana
+    data_plana = []
+    for r in respuestas_crudas:
+        if practice_filter and practice_filter != "Todas las tareas" and r["practica"] != practice_filter:
+            continue
+        if student_filter and student_filter != "Todos los estudiantes" and r["correo"] != student_filter:
+            continue
+            
+        final_score = r["teacher_score"] if r["teacher_score"] is not None else (r["llm_score"] or 0)
+        
+        data_plana.append({
+            "Nombre": r["nombre"],
+            "Correo": r["correo"],
+            "Práctica": r["practica"],
+            "Problema": f"Ejercicio {r['problema_id']}",
+            "Calificación": float(final_score)
+        })
+
+    if not data_plana:
+        return jsonify({"error": "Los filtros seleccionados no arrojaron resultados"}), 404
+
+    df = pd.DataFrame(data_plana)
+    
+    # Pivot Table: Alumnos como filas, Ejercicios como columnas
+    pivot_df = df.pivot_table(
+        index=["Nombre", "Correo", "Práctica"], 
+        columns="Problema", 
+        values="Calificación", 
+        aggfunc="first"
+    ).reset_index()
+    
+    # Rellenar vacíos con 0 y sumar el total
+    numeric_cols = [c for c in pivot_df.columns if "Ejercicio" in str(c)]
+    pivot_df[numeric_cols] = pivot_df[numeric_cols].fillna(0)
+    pivot_df["Suma Total"] = pivot_df[numeric_cols].sum(axis=1)
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        pivot_df.to_excel(writer, index=False, sheet_name="Calificaciones")
+    
+    output.seek(0)
+    return send_file(output, download_name="Reporte_Calificaciones.xlsx", as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------

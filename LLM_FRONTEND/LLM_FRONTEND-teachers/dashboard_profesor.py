@@ -1,8 +1,10 @@
 import flet as ft
 import requests, time, threading, os, json
 import socketio
+import datetime as dt
+from zoneinfo import ZoneInfo
 
-BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 
 def encontrar_raiz_proyecto(marcador="assets"):
     ruta_actual = os.path.dirname(os.path.abspath(__file__))
@@ -1437,32 +1439,41 @@ def main(page: ft.Page):
             on_click=lambda e: toggle_session(e)
         )
 
+        # Botón para descargar reporte (Oculto por defecto)
+        download_live_report_btn = ft.ElevatedButton(
+            "Descargar Reporte Excel", 
+            icon=ft.Icons.DOWNLOAD,
+            bgcolor=COLORES["primario"],
+            color=COLORES["fondo"],
+            height=40,
+            visible=False
+        )
+
         def toggle_session(e):
             nonlocal is_session_active
-            # Cambiar estado
             is_session_active = not is_session_active
             
             if is_session_active:
                 # ACTIVAR
+                state["live_session_start"] = dt.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None).isoformat()
+                download_live_report_btn.visible = False # Ocultar el botón anterior
+                
                 start_session_btn.text = "Detener Sesión"
                 start_session_btn.icon = ft.Icons.STOP
                 start_session_btn.bgcolor = COLORES["error"]
                 session_status_text.value = "🔴 EN VIVO: Recibiendo alertas..."
                 session_status_text.color = COLORES["error"]
                 
-                # Conectar SocketIO
                 try:
                     if not sio.connected:
-                        sio.connect(BASE) # Usa la URL base (Railway o Localhost)
+                        sio.connect(BASE) 
                 except Exception as err:
-                        print(f"Socket Error: {err}")
                         flash(f"Error conectando: {err}", ok=False)
-                        # Revertir si falla
                         is_session_active = False
                         toggle_session(None) 
                         return
             else:
-                # DESACTIVAR
+                # DESACTIVAR (El profesor terminó la clase)
                 start_session_btn.text = "Iniciar Sesión en Vivo"
                 start_session_btn.icon = ft.Icons.PLAY_ARROW
                 start_session_btn.bgcolor = COLORES["exito"]
@@ -1470,6 +1481,33 @@ def main(page: ft.Page):
                 session_status_text.color = COLORES["subtitulo"]
                 if sio.connected:
                     sio.disconnect()
+                
+                # GENERAR REPORTE AL DETENER
+                if "live_session_start" in state:
+                    session_end = dt.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None).isoformat()
+                    flash("Procesando análisis cualitativo con IA... Un momento.", ok=True, ms=4000)
+                    
+                    def generar_reporte():
+                        res = auth_request("POST", "/api/teacher/live-session/generate", json={
+                            "start_time": state["live_session_start"],
+                            "end_time": session_end
+                        }, timeout=60)
+                        
+                        if res and res.status_code == 200:
+                            report_id = res.json().get("report_id")
+                            # Habilitar el botón de descarga
+                            download_live_report_btn.visible = True
+                            download_live_report_btn.on_click = lambda e: page.launch_url(f"{BASE}/api/teacher/live-session/download?token={state['token']}&report_id={report_id}")
+                            flash("¡Análisis de sesión generado! Listo para descargar.", ok=True, ms=5000)
+                        else:
+                            try:
+                                flash(res.json().get("error", "Error generando reporte"), ok=False)
+                            except:
+                                flash("No hubo datos suficientes para generar reporte", ok=False)
+                        page.update()
+                        
+                    threading.Thread(target=generar_reporte, daemon=True).start()
+                    del state["live_session_start"]
                     
             page.update()
 
@@ -1587,6 +1625,7 @@ def main(page: ft.Page):
                         session_status_text # Variable global definida arriba
                     ]),
                     ft.Row([
+                        download_live_report_btn,
                         start_session_btn, 
                         ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], tooltip="Reiniciar Vista", on_click=lambda e: load_full_dashboard())
                     ])
@@ -1938,9 +1977,29 @@ def main(page: ft.Page):
                 col_pending_grades.update()
             except Exception:
                 pass
+                
+        def download_grades_excel(e):
+            # Obtener el filtro de búsqueda general si lo hay (puedes adaptarlo si decides poner dropdowns aquí)
+            url = f"{BASE}/api/teacher/grades/download?token={state['token']}"
+            page.launch_url(url)
 
+        btn_download_excel = ft.ElevatedButton(
+            "Descargar Reporte Excel",
+            icon=ft.Icons.TABLE_VIEW,
+            bgcolor=COLORES["primario"],
+            color=COLORES["fondo"],
+            on_click=download_grades_excel
+        )
+        
         tab_grading = ft.Container(
             content=ft.Column([
+                ft.Row([
+                     ft.Text("Administración de Calificaciones", size=20, weight="bold", color=COLORES["primario"], expand=True),
+                     btn_download_excel
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                
+                ft.Divider(color=COLORES["borde"]),
+                
                 ft.Row([
                     # COLUMNA IZQUIERDA: Completadas
                     ft.Container(
