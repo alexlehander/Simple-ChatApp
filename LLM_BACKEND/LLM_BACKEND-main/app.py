@@ -190,7 +190,7 @@ DEFAULT_SYSTEM_PROMPT = (
     "NO RESPONDAS NI RESUELVAS tus propias preguntas o pistas."
     "DEBES RESPONDER a las preguntas del usuario con frases breves y precisas, evitando redundancia y lenguaje excesivamente formal. "
     "DEBES PRESERVAR la integridad pedagógica de la conversación sin revelar información sensible del problema o del software educativo. "
-    "NO USES FORMATO LATEX (signos de dólar). En su lugar, USA SÍMBOLOS UNICODE estándar y texto plano para matemáticas/programación. "
+    "NO USES FORMATO LATEX (signos de dólar). En su lugar, usa símbolos UNICODE estándar y texto plano para escribir. "
 )
 
 QC_SYSTEM_PROMPT = (
@@ -373,17 +373,17 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
         sys_prompt = (
             "Eres un experto en Learning Analytics. Clasifica la interacción del estudiante.\n"
             "CATEGORÍAS:\n"
-            "1. Call for Assistance (Productive)\n"
-            "2. Conceptual Query (Productive)\n"
-            "3. Confirmation of Reasoning (Productive)\n"
-            "4. Request for Example (Productive)\n"
-            "5. Calculation or Operation (Productive)\n"
-            "6. Demand for Direct Answer (Unproductive - RED FLAG)\n"
-            "7. Expression of Incomprehension (Unproductive - YELLOW FLAG)\n"
-            "8. Off-Topic (Unproductive - YELLOW FLAG)\n"
-            "9. Negative Expression (Unproductive - RED FLAG)\n"
-            "10. Other (Neutral)\n\n"
-            "Devuelve SOLO un JSON: {\"intent\": \"...\", \"dimension\": \"Productive/Unproductive\"}"
+            "1. Peticion de Ayuda (Productivo)\n"
+            "2. Busqueda Conceptual (Productivo)\n"
+            "3. Confirmacion de Razonamiento (Productivo)\n"
+            "4. Solicitud de Ejemplo (Productivo)\n"
+            "5. Calculo u Operacion (Productivo)\n"
+            "6. Expresion de Incomprension (Improductivo - YELLOW FLAG)\n"
+            "7. Fuera del Tema (Improductivo - YELLOW FLAG)\n"
+            "8. Demanda por Respuesta (Improductivo - RED FLAG)\n"
+            "9. Comportamiento Negativo (Improductivo - RED FLAG)\n"
+            "10. Otro (Neutro)\n\n"
+            "Devuelve SOLO un JSON: {\"intent\": \"...\", \"dimension\": \"Productivo/Improductivo/Neutro\"}"
         )
         
         try:
@@ -399,32 +399,32 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
                 data = json.loads(response_text)
             except:
                 match = re.search(r'\{.*\}', response_text, re.DOTALL)
-                data = json.loads(match.group(0)) if match else {"intent": "Other", "dimension": "Neutral"}
+                data = json.loads(match.group(0)) if match else {"intent": "Otro", "dimension": "Neutro"}
 
-            intent = data.get("intent", "Other")
+            intent = data.get("intent", "Otro")
             
             # --- TRAFFIC LIGHT HEURISTICS ---
             color = "green" # Default
             
             # RED: Direct Answer or Aggression
-            if intent in ["Demand for Direct Answer", "Negative Expression"]:
+            if intent in ["Demanda por Respuesta", "Comportamiento Negativo"]:
                 color = "red"
                 
             # YELLOW: Confusion or Off-Topic (>2 recent occurrences)
-            elif intent in ["Expression of Incomprehension", "Off-Topic"]:
+            elif intent in ["Expresion de Incomprension", "Fuera del Tema"]:
                 since = hora_ensenada() - dt.timedelta(minutes=5)
                 # Now this query works because we are inside app.app_context()
                 recent_issues = AnalisisInteraccion.query.filter(
                     AnalisisInteraccion.correo_identificacion == correo,
-                    AnalisisInteraccion.intent.in_(["Expression of Incomprehension", "Off-Topic"]),
+                    AnalisisInteraccion.intent.in_(["Expresion de Incomprension", "Fuera del Tema"]),
                     AnalisisInteraccion.created_at >= since
                 ).count()
                 
                 if recent_issues >= 2: 
                     color = "yellow"
             
-            intent_raw = data.get("intent", "Other")
-            dimension_safe = str(data.get("dimension", "Neutral"))[:50]
+            intent_raw = data.get("intent", "Otro")
+            dimension_safe = str(data.get("dimension", "Neutro"))[:50]
             
             # Save to DB
             analysis = AnalisisInteraccion(
