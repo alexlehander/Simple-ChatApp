@@ -1,0 +1,47 @@
+{
+  "title": "Práctica No. 5: Lógica y Diseño de Capa de Presentación (CRUD de Pacientes)",
+  "description": "Análisis y diseño lógico de componentes de presentación para la gestión de pacientes. Se abordan validaciones, manejo de enumeradores, flujos de interacción de usuario (UX), manejo de estado, asincronía y escalabilidad en operaciones CRUD.",
+  "max_time": 5400,
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "1. Validaciones de Entrada: Explica la diferencia lógica principal entre las validaciones necesarias al crear un paciente nuevo frente a las validaciones al actualizar un paciente existente. Menciona al menos un campo que debería bloquearse o ser de 'solo lectura' durante una actualización y justifica por qué."
+    },
+    {
+      "id": 2,
+      "enunciado": "2. Uso de Enumeraciones: En el desarrollo de la interfaz, se requiere mostrar opciones como el 'Grupo Sanguíneo' o 'Estado'. ¿Cuál es la ventaja arquitectónica de utilizar un Helper para extraer estas listas directamente de las Enumeraciones (Enum) del sistema, en lugar de escribir las opciones manualmente (hardcodear) en el código HTML de la vista?"
+    },
+    {
+      "id": 3,
+      "enunciado": "3. Flujo de Lectura (Listado y Detalles): Describe paso a paso el flujo lógico que debe seguir el componente 'Detalles del Paciente'. ¿Qué parámetro dinámico debe recibir la ruta (URL) de la página para saber qué información cargar, y qué debería mostrar el sistema si ese identificador no existe en la base de datos?"
+    },
+    {
+      "id": 4,
+      "enunciado": "4. Interfaz de Eliminación Segura: Las mejores prácticas de experiencia de usuario (UX) dictan que un registro no debe borrarse inmediatamente al hacer clic en el botón 'Eliminar' del listado. Diseña y describe el flujo de interacción paso a paso que debe ocurrir para prevenir borrados accidentales de pacientes."
+    },
+    {
+      "id": 5,
+      "enunciado": "5. Reutilización de Código (DRY): Al crear las vistas de 'Nuevo Paciente' y 'Editar Paciente', ambas comparten la gran mayoría de los campos del formulario. ¿Qué estrategia o patrón de diseño de componentes (como los usados en Razor/Blazor) implementarías para no tener que duplicar el código del formulario en ambas pantallas?"
+    },
+    {
+      "id": 6,
+      "enunciado": "6. Llamadas Asíncronas: En el listado de pacientes, la obtención de datos desde el backend se realiza de manera asíncrona. ¿Qué pasaría exactamente con la experiencia del usuario (la interfaz gráfica) si esta operación se hiciera de manera síncrona y la base de datos tardara 10 segundos en responder?"
+    },
+    {
+      "id": 7,
+      "enunciado": "7. Manejo de Excepciones en la Interfaz: Imagina que al intentar guardar un paciente editado, ocurre un error crítico en el servidor (por ejemplo, pérdida de conexión a la base de datos). Diseña cómo debería reaccionar la capa de presentación para informar al usuario sin exponer detalles técnicos (como un StackTrace) ni 'romper' la aplicación."
+    },
+    {
+      "id": 8,
+      "enunciado": "8. Sincronización de Datos (Data Binding): En los formularios de creación y edición, los campos de texto están enlazados al modelo del paciente. Explica conceptualmente qué significa el 'enlace de datos bidireccional' (Two-way data binding) y por qué es más seguro y eficiente que leer manualmente los valores del DOM al presionar 'Guardar'."
+    },
+    {
+      "id": 9,
+      "enunciado": "9. Navegación Post-Acción: Después de que el usuario hace clic en 'Guardar' y el paciente se crea exitosamente en la base de datos, la aplicación debe decidir qué hacer a continuación. Menciona dos enfoques comunes de redirección para este momento y discute cuál ofrece mejor retroalimentación al usuario."
+    },
+    {
+      "id": 10,
+      "enunciado": "10. Escalabilidad de la Interfaz: El componente actual de 'Listado de Pacientes' probablemente muestra todos los registros de golpe. Si la clínica llega a tener 50,000 pacientes, intentar cargar todos colapsaría el navegador. Propón y explica al menos dos estrategias gráficas y lógicas para manejar eficientemente listas masivas en la capa de presentación."
+    }
+  ]
+}
