@@ -1,0 +1,99 @@
+{
+  "title": "Examen 1: Redes de Computadoras",
+  "description": "Primer examen teórico y práctico sobre fundamentos de redes, Modelo OSI, unidades de datos de protocolo (PDUs) y procesos de encapsulación.",
+  "max_time": 7200,
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "1. ¿Cuál es el propósito principal del modelo OSI?\nA) Definir direcciones IP\nB) Estandarizar la comunicación entre sistemas\nC) Reemplazar TCP/IP\nD) Aumentar la velocidad de transmisión"
+    },
+    {
+      "id": 2,
+      "enunciado": "2. ¿Cuál de las siguientes capas es responsable de la transmisión de bits?\nA) Enlace\nB) Red\nC) Física\nD) Transporte"
+    },
+    {
+      "id": 3,
+      "enunciado": "3. ¿Qué capa agrega direcciones MAC?\nA) Enlace de datos\nB) Transporte\nC) Red\nD) Sesión"
+    },
+    {
+      "id": 4,
+      "enunciado": "4. La salida de la capa de red se denomina:\nA) Trama\nB) Segmento\nC) Bit\nD) Paquete"
+    },
+    {
+      "id": 5,
+      "enunciado": "5. ¿Qué capa garantiza la entrega confiable de datos?\nA) Red\nB) Transporte\nC) Sesión\nD) Física"
+    },
+    {
+      "id": 6,
+      "enunciado": "6. ¿Cuál de los siguientes protocolos pertenece a la capa de aplicación?\nA) HTTP\nB) IP\nC) TCP\nD) ARP"
+    },
+    {
+      "id": 7,
+      "enunciado": "7. ¿Qué elemento se agrega en la capa de transporte?\nA) Dirección MAC\nB) Bits\nC) Dirección IP\nD) Puerto origen/destino"
+    },
+    {
+      "id": 8,
+      "enunciado": "8. ¿Cuál es la función principal de la capa de presentación?\nA) Enrutamiento\nB) Control de flujo\nC) Traducción de datos\nD) Dirección lógica"
+    },
+    {
+      "id": 9,
+      "enunciado": "9. El proceso de agregar información en cada capa se llama:\nA) Encapsulación\nB) Segmentación\nC) Multiplexación\nD) Sincronización"
+    },
+    {
+      "id": 10,
+      "enunciado": "10. ¿Cuál capa determina la mejor ruta para los datos?\nA) Transporte\nB) Red\nC) Enlace\nD) Sesión"
+    },
+    {
+      "id": 11,
+      "enunciado": "11. ¿Cuál de las siguientes opciones describe mejor un servicio orientado a conexión?\nA) No garantiza entrega\nB) Es más rápido pero inseguro\nC) Establece conexión previa\nD) Solo usa UDP"
+    },
+    {
+      "id": 12,
+      "enunciado": "12. ¿Qué capa maneja sesiones entre aplicaciones?\nA) Presentación\nB) Red\nC) Transporte\nD) Sesión"
+    },
+    {
+      "id": 13,
+      "enunciado": "13. ¿Qué agrega la capa de red además de direcciones IP?\nA) Puertos\nB) TTL\nC) MAC\nD) Bits"
+    },
+    {
+      "id": 14,
+      "enunciado": "14. ¿Cuál es la salida de la capa de transporte con TCP?\nA) Segmento\nB) Trama\nC) Paquete\nD) Bit"
+    },
+    {
+      "id": 15,
+      "enunciado": "15. ¿Cuál de los siguientes NO es un estándar de red?\nA) IEEE\nB) ISO\nC) CPU\nD) IETF"
+    },
+    {
+      "id": 16,
+      "enunciado": "16. ¿Cuál organización desarrolló el modelo OSI?\nA) ISO\nB) IEEE\nC) ITU\nD) W3C"
+    },
+    {
+      "id": 17,
+      "enunciado": "17. ¿Qué capa interactúa directamente con el usuario?\nA) Aplicación\nB) Presentación\nC) Sesión\nD) Transporte"
+    },
+    {
+      "id": 18,
+      "enunciado": "18. ¿Qué capa transforma datos mediante cifrado o compresión?\nA) Aplicación\nB) Presentación\nC) Red\nD) Enlace"
+    },
+    {
+      "id": 19,
+      "enunciado": "19. ¿Cuál es la salida de la capa de enlace?\nA) Paquete\nB) Segmento\nC) Trama\nD) Bit"
+    },
+    {
+      "id": 20,
+      "enunciado": "20. ¿Cuál es la salida final en la capa física?\nA) Paquete\nB) Segmento\nC) Trama\nD) Bits"
+    },
+    {
+      "id": 21,
+      "enunciado": "EJERCICIO PRÁCTICO 1 - Escenario: Un usuario envía el mensaje 'Hola' desde una aplicación web (HTTP) desde la IP 192.168.1.10 hacia 192.168.2.20. \nDatos adicionales: Puerto origen: 5000, Puerto destino: 80, MAC origen: AA:AA:AA:AA:AA:AA, MAC destino: BB:BB:BB:BB:BB:BB.\nInstrucciones: Construye cómo viaja el mensaje capa por capa. Para cada una de las 5 capas (Aplicación, Transporte, Red, Enlace de Datos, Física), escribe el contenido resultante en esa capa y el nombre técnico de su PDU (salida)."
+    },
+    {
+      "id": 22,
+      "enunciado": "EJERCICIO PRÁCTICO 2 - Identificación de encapsulación: Dado el siguiente fragmento de datos en la red: [MAC][IP][PUERTO][DATOS]. \nResponde: \n1. ¿En qué capa se encuentra este formato? \n2. ¿Qué tipo de unidad (PDU) es? \n3. ¿Qué capa fue la última en agregar información?"
+    },
+    {
+      "id": 23,
+      "enunciado": "EJERCICIO PRÁCTICO 3 - Error de encapsulación: Se tiene el siguiente flujo incorrecto en el proceso de transmisión: Datos -> Paquete -> Segmento -> Trama -> Bits.\nResponde:\n1. ¿Qué está mal en el orden?\n2. Escribe el orden correcto.\n3. Explica brevemente por qué el orden correcto debe ser así."
+    }
+  ]
+}
