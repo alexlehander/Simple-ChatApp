@@ -655,7 +655,7 @@ def main(page: ft.Page):
             
         def delete_student(e, email):
             e.control.disabled = True
-            page.update(
+            page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.delete(f"{BASE}/api/teacher/students", headers=headers, json={"email": email})
             e.control.disabled = False
