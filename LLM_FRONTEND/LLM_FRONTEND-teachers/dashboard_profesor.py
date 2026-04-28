@@ -326,11 +326,8 @@ def main(page: ft.Page):
             save_snack.bgcolor = COLORES["exito"] if ok else COLORES["error"]
             save_snack.duration = ms
             save_snack.open = True
-            try:
-                page.update()
-            except Exception:
-                pass
-                
+            page.update()
+            
     def check_session():
         last_act = state.get("last_activity", 0)
         now = time.time()
@@ -631,8 +628,8 @@ def main(page: ft.Page):
             
         def render_student_lists():
             with ui_lock:
-                my_students_col.controls.clear()
-                global_students_col.controls.clear()
+                nuevos_mis_estudiantes = []
+                nuevos_globales = []
                 
                 # --- 1. Filtrar y Ordenar MI CLASE ---
                 mis_estudiantes = state.get("students", [])
@@ -642,10 +639,10 @@ def main(page: ft.Page):
     
                 if not mis_filtrados:
                     msg = "No se encontraron resultados" if busqueda_my else "No hay estudiantes inscritos"
-                    my_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
+                    nuevos_mis_estudiantes.append(ft.Text(msg, color=COLORES["subtitulo"]))
                 else:
                     for s in mis_filtrados:
-                        my_students_col.controls.append(
+                        nuevos_mis_estudiantes.append(
                             ft.Container(
                                 content=ft.Row([
                                     ft.Icon(ft.Icons.PERSON, color=COLORES["primario"], size=30),
@@ -676,10 +673,10 @@ def main(page: ft.Page):
     
                 if not disponibles_filtrados:
                     msg = "No se encontraron estudiantes" if busqueda_global else "No hay estudiantes disponibles"
-                    global_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
+                    nuevos_globales.append(ft.Text(msg, color=COLORES["subtitulo"]))
                 else:
                     for s in disponibles_filtrados:
-                        global_students_col.controls.append(
+                        nuevos_globales.append(
                             ft.Container(
                                 content=ft.Row([
                                     ft.Icon(ft.Icons.SCHOOL_OUTLINED, color=COLORES["primario"], size=30),
@@ -700,6 +697,8 @@ def main(page: ft.Page):
                                 border=ft.border.all(1, COLORES["borde"])
                             )
                         )
+                my_students_col.controls = nuevos_mis_estudiantes
+                global_students_col.controls = nuevos_globales
                 page.update()
                 
         # Layout de la pestaña dividida
@@ -941,9 +940,9 @@ def main(page: ft.Page):
                 
         def render_exercises():
             with ui_lock:
-                col_available.controls.clear()
-                col_mine.controls.clear()
                 safe_my_exercises = []
+                nuevas_mias = []
+                nuevas_disponibles = []
                 
                 for item in state["my_exercises"]:
                     if isinstance(item, str):
@@ -1053,21 +1052,24 @@ def main(page: ft.Page):
                 filtered_mine.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_my_tasks"] == "desc"))
                 
                 if not filtered_mine:
-                    col_mine.controls.append(ft.Text("No hay tareas seleccionadas", color=COLORES["subtitulo"]))
+                    nuevas_mias.append(ft.Text("No hay tareas seleccionadas", color=COLORES["subtitulo"]))
                 else:
                     for ex in filtered_mine:
-                        col_mine.controls.append(create_exercise_card(ex, True))
+                        nuevas_mias.append(create_exercise_card(ex, True))
 
                 # --- 2. Filtrar y Ordenar GLOBALES ---
                 filtered_global = [e for e in safe_available_exercises if state["filter_global_tasks"] in e.get("title", "").lower()]
                 filtered_global.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_global_tasks"] == "desc"))
 
                 if not filtered_global:
-                    col_available.controls.append(ft.Text("No hay tareas disponibles", color=COLORES["subtitulo"]))
+                    nuevas_disponibles.append(ft.Text("No hay tareas disponibles", color=COLORES["subtitulo"]))
                 else:
                     for ex in filtered_global:
-                        col_available.controls.append(create_exercise_card(ex, False))
+                        nuevas_disponibles.append(create_exercise_card(ex, False))
                     
+                # ASIGNACIÓN ATÓMICA FINAL
+                col_mine.controls = nuevas_mias
+                col_available.controls = nuevas_disponibles
                 page.update()
                 
         # 5. Layout (Arquitectura clonada de Mis Estudiantes)
