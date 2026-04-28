@@ -311,27 +311,6 @@ def main(page: ft.Page):
         else:
             show_login()
             
-    def refresh_students(e):
-            e.control.disabled = True
-            page.update()
-            load_students()
-            e.control.disabled = False
-            page.update()
-            
-    def refresh_exercises(e):
-            e.control.disabled = True
-            page.update()
-            load_exercises()
-            e.control.disabled = False
-            page.update()
-            
-    def refresh_grades(e):
-            e.control.disabled = True
-            page.update()
-            load_grades()
-            e.control.disabled = False
-            page.update()
-            
     def flash(msg: str, ok: bool = False, ms: int = 1000):
         with ui_lock:
             save_snack.content = ft.Container(
@@ -641,6 +620,13 @@ def main(page: ft.Page):
             except Exception as e:
                 print(f"Error cargando estudiantes: {e}")
                 
+        def refresh_students(e):
+            e.control.disabled = True
+            page.update()
+            load_students()
+            e.control.disabled = False
+            page.update()
+            
         def add_student_action(e, email_to_add):
             e.control.disabled = True
             page.update()
@@ -943,7 +929,14 @@ def main(page: ft.Page):
                 update_dropdowns()
             except Exception as e:
                 print(f"Error cargando ejercicios: {e}")
-
+                
+        def refresh_exercises(e):
+            e.control.disabled = True
+            page.update()
+            load_exercises()
+            e.control.disabled = False
+            page.update()
+            
         def add_exercise(e, filename):
             e.control.disabled = True
             page.update()
@@ -1935,7 +1928,14 @@ def main(page: ft.Page):
                 state["completed_grades"] = res_comp.json()
             
             render_grades()
-
+            
+        def refresh_grades(e):
+            e.control.disabled = True
+            page.update()
+            load_grades()
+            e.control.disabled = False
+            page.update()
+            
         def render_grades():
             with ui_lock:
                 nuevas_completadas = []
