@@ -312,21 +312,25 @@ def main(page: ft.Page):
             show_login()
             
     def flash(msg: str, ok: bool = False, ms: int = 1000):
-        save_snack.content = ft.Container(
-            content=ft.Text(
-                msg,
-                color=COLORES["accento"],
-                size=18, 
-                weight="bold",
-                text_align=ft.TextAlign.CENTER,
-            ),
-            alignment=ft.alignment.center
-        )
-        save_snack.bgcolor = COLORES["exito"] if ok else COLORES["error"]
-        save_snack.duration = ms
-        save_snack.open = True
-        page.update()
-        
+        with ui_lock:
+            save_snack.content = ft.Container(
+                content=ft.Text(
+                    msg,
+                    color=COLORES["accento"],
+                    size=18, 
+                    weight="bold",
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                alignment=ft.alignment.center
+            )
+            save_snack.bgcolor = COLORES["exito"] if ok else COLORES["error"]
+            save_snack.duration = ms
+            save_snack.open = True
+            try:
+                page.update()
+            except Exception:
+                pass
+                
     def check_session():
         last_act = state.get("last_activity", 0)
         now = time.time()
