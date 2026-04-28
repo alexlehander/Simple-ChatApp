@@ -632,7 +632,6 @@ def main(page: ft.Page):
             page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [email_to_add]})
-            e.control.disabled = False
             if res.status_code == 200:
                 flash(f"Estudiante {email_to_add} agregado", ok=True)
             else:
@@ -644,7 +643,6 @@ def main(page: ft.Page):
             page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.delete(f"{BASE}/api/teacher/students", headers=headers, json={"email": email})
-            e.control.disabled = False
             if res.status_code == 200:
                 flash(f"Estudiante {email} eliminado", ok=True)
             else:
@@ -942,7 +940,6 @@ def main(page: ft.Page):
             page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.post(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
-            e.control.disabled = False
             if res.status_code == 200:
                 flash(f"{filename} agregada a tu lista", ok=True)
             else:
@@ -954,7 +951,6 @@ def main(page: ft.Page):
             page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.delete(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
-            e.control.disabled = False
             if res.status_code == 200:
                 flash(f"{filename} eliminada de tu lista", ok=True)
             else:
@@ -966,7 +962,6 @@ def main(page: ft.Page):
             page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.put(f"{BASE}/api/teacher/my-exercises/toggle", headers=headers, json={"filename": filename})
-            e.control.disabled = False
             if res.status_code == 200:
                 data = res.json()
                 is_active = data.get("is_active", False)
@@ -1227,7 +1222,6 @@ def main(page: ft.Page):
                     ]
                 except Exception:
                     pass
-                    
                 page.update()
             
         # --- SECCIÓN MENSAJERÍA ---
@@ -1272,14 +1266,14 @@ def main(page: ft.Page):
                 "message": msg_text_field.value
             })
             
-            e.control.disabled = False
-            
             if res and res.status_code == 200:
                 dialog_msg.open = False
                 flash("Mensaje enviado correctamente", ok=True)
                 load_data_filtered() 
             else:
                 flash("Error al enviar mensaje", ok=False)
+                
+            e.control.disabled = False
             page.update()
             
         dialog_msg = ft.AlertDialog(
