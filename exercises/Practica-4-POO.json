@@ -1,0 +1,47 @@
+{
+  "title": "Práctica No. 4: Composición, Agregación y Clases Contenedor (POO)",
+  "description": "Análisis y diseño arquitectónico para la implementación de un sistema bancario en C++. Se exploran conceptos de composición, agregación, uso de std::vector y buenas prácticas de encapsulamiento y gestión de memoria.",
+  "max_time": 7200,
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "1. Relaciones entre Objetos: En el diagrama del sistema bancario, ¿cuál es la diferencia conceptual e implementacional entre la 'agregación' y la 'composición'? Da un ejemplo de cada una usando las clases Banco, CuentaHabiente y CuentaDeCheques de esta práctica."
+    },
+    {
+      "id": 2,
+      "enunciado": "2. Uso de Contenedores: El diagrama indica que un Banco puede tener múltiples CuentaHabientes y Cuentas. ¿Por qué es más conveniente, robusto y seguro utilizar la clase contenedor `std::vector` de C++ en lugar de un arreglo estático tradicional (ej. `Cuenta cuentas[100]`) para manejar estas colecciones?"
+    },
+    {
+      "id": 3,
+      "enunciado": "3. Dependencia Circular: Un CuentaHabiente tiene un contenedor de Cuentas, pero una CuentaDeCheques también necesita conocer a su propietario (CuentaHabiente). ¿Qué problema de compilación en C++ genera esta dependencia cíclica entre los dos archivos de cabecera (.h) y cómo se soluciona a nivel de código (ej. Forward Declaration)?"
+    },
+    {
+      "id": 4,
+      "enunciado": "4. Encapsulamiento Fuerte: Para la clase CuentaHabiente, necesitas una forma de vincularle una nueva cuenta. Explica por qué devolver una referencia pública al `std::vector` de cuentas rompe el encapsulamiento y diseña conceptualmente la firma de un método seguro para hacer esta operación."
+    },
+    {
+      "id": 5,
+      "enunciado": "5. Validaciones de Negocio: Describe paso a paso la lógica defensiva que debe tener el método `Transferir()` de la clase CuentaDeCheques. ¿Qué condiciones y validaciones lógicas deben cumplirse obligatoriamente antes de alterar los saldos de ambas cuentas involucradas?"
+    },
+    {
+      "id": 6,
+      "enunciado": "6. Constructores y Propiedad: Si una CuentaDeCheques *siempre* debe pertenecer a un CuentaHabiente desde el momento exacto en que se crea, ¿cómo debería estructurarse su constructor? Al pasar al propietario como parámetro, ¿debería recibirse por valor, por referencia o por puntero? Justifica tu respuesta."
+    },
+    {
+      "id": 7,
+      "enunciado": "7. Gestión de Memoria y Ciclo de Vida: Supongamos que la clase Banco administra las cuentas y los clientes instanciándolos con memoria dinámica (`new` en C++). Si el objeto Banco es destruido, ¿qué debe suceder exactamente en su destructor (`~Banco()`) con las colecciones de CuentaDeCheques y CuentaHabientes para evitar fugas de memoria (memory leaks)?"
+    },
+    {
+      "id": 8,
+      "enunciado": "8. Eficiencia de Búsqueda: El Banco necesita el método `ObtenerCuenta()`. Si tienes un `std::vector` con cientos de miles de cuentas, iterar una por una (búsqueda lineal) es muy ineficiente. Aunque la práctica sugiere vectores, ¿qué otra estructura de la biblioteca estándar de C++ (STL) sería algorítmicamente mucho más rápida para buscar una cuenta directamente por su 'número de cuenta'?"
+    },
+    {
+      "id": 9,
+      "enunciado": "9. Principio de Responsabilidad Única (SRP): El documento menciona integrar las clases `Menu` y `Opcion` proporcionadas en clase. Para mantener una buena arquitectura, ¿por qué es una mala práctica que los métodos de negocio como `Retirar()` o `Depositar()` contengan instrucciones de interfaz de usuario como `std::cin` o `std::cout` dentro de la clase CuentaDeCheques?"
+    },
+    {
+      "id": 10,
+      "enunciado": "10. Escalabilidad del Modelo: Actualmente el sistema solo maneja `CuentaDeCheques`. Si en el futuro el banco requiere agregar `CuentaDeAhorro` y `CuentaDeCredito`, ¿qué concepto fundamental de la Programación Orientada a Objetos aplicarías a la arquitectura actual para que el Banco pueda administrar todas las cuentas en un solo `std::vector` sin importar su tipo específico?"
+    }
+  ]
+}
