@@ -311,6 +311,27 @@ def main(page: ft.Page):
         else:
             show_login()
             
+    def refresh_students(e):
+            e.control.disabled = True
+            page.update()
+            load_students()
+            e.control.disabled = False
+            page.update()
+            
+    def refresh_exercises(e):
+            e.control.disabled = True
+            page.update()
+            load_exercises()
+            e.control.disabled = False
+            page.update()
+            
+    def refresh_grades(e):
+            e.control.disabled = True
+            page.update()
+            load_grades()
+            e.control.disabled = False
+            page.update()
+            
     def flash(msg: str, ok: bool = False, ms: int = 1000):
         with ui_lock:
             save_snack.content = ft.Container(
@@ -604,7 +625,6 @@ def main(page: ft.Page):
             state[key] = "desc" if state[key] == "asc" else "asc"
             btn = sort_btn_my if target == "my" else sort_btn_global
             btn.icon = ft.Icons.ARROW_DOWNWARD if state[key] == "asc" else ft.Icons.ARROW_UPWARD
-            btn.update()
             render_students()
             
         def load_students():
@@ -728,7 +748,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Lista de estudiantes inscritos", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=refresh_students)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_students, sort_btn_my], spacing=5),
                             ft.Divider(height=5, color="transparent"),
@@ -745,7 +765,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Lista de estudiantes disponibles", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=lambda e: load_students())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=refresh_students)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_students, sort_btn_global], spacing=5),
                             ft.Divider(height=5, color="transparent"),
@@ -908,7 +928,6 @@ def main(page: ft.Page):
             state[key] = "desc" if state[key] == "asc" else "asc"
             btn = sort_btn_my_tasks if target == "my" else sort_btn_global_tasks
             btn.icon = ft.Icons.ARROW_DOWNWARD if state[key] == "asc" else ft.Icons.ARROW_UPWARD
-            btn.update()
             render_exercises()
         
         def load_exercises():
@@ -1108,7 +1127,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Catálogo local de tareas seleccionadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=refresh_exercises)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
                             ft.Divider(height=5, color="transparent"),
@@ -1125,7 +1144,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Catálogo global de tareas disponibles", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_exercises())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=refresh_exercises)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_tasks, sort_btn_global_tasks], spacing=5),
                             ft.Divider(height=5, color="transparent"),
@@ -1197,27 +1216,26 @@ def main(page: ft.Page):
                 else:
                     problem_filter.disabled = True
             
-            problem_filter.update()
             load_data_filtered()
             
         def update_dropdowns():
-            student_filter.options = [ft.dropdown.Option(key="Todos los estudiantes", text="Todos los estudiantes")] + [
-                ft.dropdown.Option(key=s["email"], text=f"{s.get('nombre', 'Estudiante')} ({s['email']})") for s in state["students"]
-            ]
-            exercise_filter.options = [ft.dropdown.Option("Todas las tareas")] + [
-                ft.dropdown.Option(key=e["filename"], text=e["title"]) for e in state["my_exercises"] if isinstance(e, dict)
-            ]
-            problem_filter.value = "Todos los ejercicios"
-            problem_filter.disabled = True
-            try:
-                profile_student_dropdown.options = [
+            with ui_lock:
+                student_filter.options = [ft.dropdown.Option(key="Todos los estudiantes", text="Todos los estudiantes")] + [
                     ft.dropdown.Option(key=s["email"], text=f"{s.get('nombre', 'Estudiante')} ({s['email']})") for s in state["students"]
                 ]
-                profile_student_dropdown.update()
-            except Exception:
-                pass
-                
-            page.update()
+                exercise_filter.options = [ft.dropdown.Option("Todas las tareas")] + [
+                    ft.dropdown.Option(key=e["filename"], text=e["title"]) for e in state["my_exercises"] if isinstance(e, dict)
+                ]
+                problem_filter.value = "Todos los ejercicios"
+                problem_filter.disabled = True
+                try:
+                    profile_student_dropdown.options = [
+                        ft.dropdown.Option(key=s["email"], text=f"{s.get('nombre', 'Estudiante')} ({s['email']})") for s in state["students"]
+                    ]
+                except Exception:
+                    pass
+                    
+                page.update()
             
         # --- SECCIÓN MENSAJERÍA ---
         msg_info_text = ft.Text("", italic=True, color=COLORES["subtitulo"])
@@ -1338,69 +1356,65 @@ def main(page: ft.Page):
                 render_data(res.json())
                 
         def render_data(data):
-            nuevas_respuestas = []
-            nuevos_chats = []
-            raw_answers = data.get("respuestas", [])
-            raw_chats = data.get("chats", [])
-            target_prob = problem_filter.value
-            
-            # --- FILTRO CLIENT-SIDE DE PROBLEMA ---
-            if target_prob and target_prob.isdigit():
-                pid = int(target_prob)
-                raw_answers = [r for r in raw_answers if r['problema_id'] == pid]
-                raw_chats = [c for c in raw_chats if c['problema_id'] == pid]
-            
-            for r in reversed(raw_answers):
-                nuevas_respuestas.append(ft.Container(content=ft.Column([
-                    ft.Text(f"{r['correo']} - P{r['problema_id']}", size=12, color=COLORES["primario"], weight="bold"),
-                    ft.Text(r['respuesta'], selectable=True, color=COLORES["texto"], size=13),
-                    ft.Text(f"📅 {r['fecha'][:16].replace('T', ' ')}", size=10, color=COLORES["subtitulo"])
-                ]), bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])))
+            with ui_lock:
+                nuevas_respuestas = []
+                nuevos_chats = []
+                raw_answers = data.get("respuestas", [])
+                raw_chats = data.get("chats", [])
+                target_prob = problem_filter.value
                 
-            for c in reversed(raw_chats):
-                role = c.get('role', 'user')
-                is_bot = role == 'assistant'
-                is_teacher = role == 'teacher'
+                # --- FILTRO CLIENT-SIDE DE PROBLEMA ---
+                if target_prob and target_prob.isdigit():
+                    pid = int(target_prob)
+                    raw_answers = [r for r in raw_answers if r['problema_id'] == pid]
+                    raw_chats = [c for c in raw_chats if c['problema_id'] == pid]
                 
-                align = ft.CrossAxisAlignment.START if (is_bot or is_teacher) else ft.CrossAxisAlignment.END
-                
-                if is_teacher: 
-                    bg = COLORES["primario"]
-                    txt_color = COLORES["fondo"]
-                    label = f"PROFESOR ({c['correo']})"
-                elif is_bot: 
-                    bg = COLORES["borde"]
-                    txt_color = COLORES["texto"]
-                    label = "TUTOR IA"
-                else: 
-                    bg = COLORES["secundario"]
-                    txt_color = COLORES["fondo"]
-                    label = f"{c['correo']}"
+                for r in reversed(raw_answers):
+                    nuevas_respuestas.append(ft.Container(content=ft.Column([
+                        ft.Text(f"{r['correo']} - P{r['problema_id']}", size=12, color=COLORES["primario"], weight="bold"),
+                        ft.Text(r['respuesta'], selectable=True, color=COLORES["texto"], size=13),
+                        ft.Text(f"📅 {r['fecha'][:16].replace('T', ' ')}", size=10, color=COLORES["subtitulo"])
+                    ]), bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"])))
+                    
+                for c in reversed(raw_chats):
+                    role = c.get('role', 'user')
+                    is_bot = role == 'assistant'
+                    is_teacher = role == 'teacher'
+                    
+                    align = ft.CrossAxisAlignment.START if (is_bot or is_teacher) else ft.CrossAxisAlignment.END
+                    
+                    if is_teacher: 
+                        bg = COLORES["primario"]
+                        txt_color = COLORES["fondo"]
+                        label = f"PROFESOR ({c['correo']})"
+                    elif is_bot: 
+                        bg = COLORES["borde"]
+                        txt_color = COLORES["texto"]
+                        label = "TUTOR IA"
+                    else: 
+                        bg = COLORES["secundario"]
+                        txt_color = COLORES["fondo"]
+                        label = f"{c['correo']}"
 
-                nuevos_chats.append(ft.Column([
-                    ft.Text(f"{label} - P{c['problema_id']}", size=10, color=COLORES["subtitulo"]),
-                    ft.Container(
-                        content=ft.Text(c['content'], color=txt_color, size=13), 
-                        bgcolor=bg, 
-                        padding=10, 
-                        border_radius=10,
-                        width=None,
-                    )
-                ], horizontal_alignment=align))
-            
-            if not nuevas_respuestas:
-                nuevas_respuestas.append(ft.Text("No hay respuestas registradas con estos filtros", italic=True, color=COLORES["subtitulo"]))
-            if not nuevos_chats:
-                nuevos_chats.append(ft.Text("No hay historial de chat con estos filtros", italic=True, color=COLORES["subtitulo"]))
+                    nuevos_chats.append(ft.Column([
+                        ft.Text(f"{label} - P{c['problema_id']}", size=10, color=COLORES["subtitulo"]),
+                        ft.Container(
+                            content=ft.Text(c['content'], color=txt_color, size=13), 
+                            bgcolor=bg, 
+                            padding=10, 
+                            border_radius=10,
+                            width=None,
+                        )
+                    ], horizontal_alignment=align))
                 
-            answers_col.controls = nuevas_respuestas
-            chats_col.controls = nuevos_chats
-            
-            try:
-                answers_col.update()
-                chats_col.update()
-            except Exception:
-                pass
+                if not nuevas_respuestas:
+                    nuevas_respuestas.append(ft.Text("No hay respuestas registradas con estos filtros", italic=True, color=COLORES["subtitulo"]))
+                if not nuevos_chats:
+                    nuevos_chats.append(ft.Text("No hay historial de chat con estos filtros", italic=True, color=COLORES["subtitulo"]))
+                    
+                answers_col.controls = nuevas_respuestas
+                chats_col.controls = nuevos_chats
+                page.update()
             
         # =========================================
         # NAVEGACIÓN Y CARGA INICIAL
@@ -2045,7 +2059,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Evaluaciones Completadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=refresh_grades)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_completed_grades, group_completed_dropdown], spacing=10),
                             ft.Divider(height=5, color="transparent"),
@@ -2062,7 +2076,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Evaluaciones Pendientes", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=lambda e: load_grades())
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=refresh_grades)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_pending_grades, group_pending_dropdown], spacing=10),
                             ft.Divider(height=5, color="transparent"),
