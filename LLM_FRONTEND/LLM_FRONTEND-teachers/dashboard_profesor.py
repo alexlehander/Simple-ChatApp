@@ -407,6 +407,10 @@ def main(page: ft.Page):
             if not email_field.value or not pass_field.value:
                 flash("Por favor, ingresa correo y contraseña para iniciar sesión", ok=False)
                 return
+                
+            e.control.disabled = True
+            page.update()
+            
             try:
                 res = requests.post(f"{BASE}/api/teacher/login", json={"email": email_field.value, "password": pass_field.value}, timeout=10)
                 if res.status_code == 200:
@@ -427,12 +431,18 @@ def main(page: ft.Page):
             except Exception as ex:
                 print(f"Login error: {ex}")
                 flash("Error de conexión o servidor", ok=False)
+            finally:
+                e.control.disabled = False
+                page.update()
 
         def register_action(e):
             if not email_field.value or not pass_field.value:
                 flash("Por favor, ingresa correo y contraseña para registrar nueva cuenta docente", ok=False)
                 return
                 
+            e.control.disabled = True
+            page.update()
+            
             try:
                 res = requests.post(f"{BASE}/api/teacher/register", json={
                     "email": email_field.value,
@@ -450,7 +460,10 @@ def main(page: ft.Page):
             except Exception as ex:
                 print(f"Register error: {ex}")
                 flash("Error de conexión o servidor", ok=False)
-
+            finally:
+                e.control.disabled = False
+                page.update()
+                
         # --- 2. Tarjeta CON TAMAÑO RESTRINGIDO ---
         card = ft.Container(
             content=ft.Column([
@@ -584,7 +597,7 @@ def main(page: ft.Page):
         def update_filters(target, value):
             if target == "my": state["filter_my_students"] = value.lower()
             else: state["filter_global_students"] = value.lower()
-            render_student_lists()
+            render_students()
         
         def toggle_sort(target):
             key = f"sort_{target}_students"
@@ -592,7 +605,7 @@ def main(page: ft.Page):
             btn = sort_btn_my if target == "my" else sort_btn_global
             btn.icon = ft.Icons.ARROW_DOWNWARD if state[key] == "asc" else ft.Icons.ARROW_UPWARD
             btn.update()
-            render_student_lists()
+            render_students()
             
         def load_students():
             headers = {"Authorization": f"Bearer {state['token']}"}
@@ -603,46 +616,51 @@ def main(page: ft.Page):
                 res_all = requests.get(f"{BASE}/api/teacher/all-users", headers=headers)
                 if res_all.status_code == 200:
                     state["all_users_global"] = res_all.json()
-                render_student_lists()
+                render_students()
                 update_dropdowns()
             except Exception as e:
                 print(f"Error cargando estudiantes: {e}")
                 
-        def add_student_action(email_to_add):
+        def add_student_action(e, email_to_add):
+            e.control.disabled = True
+            page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [email_to_add]})
+            e.control.disabled = False
             if res.status_code == 200:
                 flash(f"Estudiante {email_to_add} agregado", ok=True)
             else:
                 flash("Error al agregar estudiante", ok=False)
             load_students()
             
-        def delete_student(email):
+        def delete_student(e, email):
+            e.control.disabled = True
+            page.update(
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.delete(f"{BASE}/api/teacher/students", headers=headers, json={"email": email})
+            e.control.disabled = False
             if res.status_code == 200:
                 flash(f"Estudiante {email} eliminado", ok=True)
             else:
                 flash("Error al eliminar estudiante", ok=False)
             load_students()
             
-        def render_student_lists():
+        def render_students():
             with ui_lock:
-                nuevos_mis_estudiantes = []
+                nuevos_locales = []
                 nuevos_globales = []
                 
-                # --- 1. Filtrar y Ordenar MI CLASE ---
+                # --- 2. Filtrar y Ordenar LOCAL ---
                 mis_estudiantes = state.get("students", [])
                 busqueda_my = state["filter_my_students"]
                 mis_filtrados = [s for s in mis_estudiantes if busqueda_my in s["email"].lower() or busqueda_my in s.get("nombre", "").lower()]
                 mis_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_my_students"] == "desc"))
-    
                 if not mis_filtrados:
                     msg = "No se encontraron resultados" if busqueda_my else "No hay estudiantes inscritos"
-                    nuevos_mis_estudiantes.append(ft.Text(msg, color=COLORES["subtitulo"]))
+                    nuevos_locales.append(ft.Text(msg, color=COLORES["subtitulo"]))
                 else:
                     for s in mis_filtrados:
-                        nuevos_mis_estudiantes.append(
+                        nuevos_locales.append(
                             ft.Container(
                                 content=ft.Row([
                                     ft.Icon(ft.Icons.PERSON, color=COLORES["primario"], size=30),
@@ -654,7 +672,7 @@ def main(page: ft.Page):
                                         ft.Icons.REMOVE_CIRCLE_OUTLINE, 
                                         icon_color=COLORES["error"], 
                                         tooltip="Quitar de mi clase",
-                                        on_click=lambda e, mail=s["email"]: delete_student(mail)
+                                        on_click=lambda e, mail=s["email"]: delete_student(e, mail)
                                     )
                                 ]),
                                 bgcolor=COLORES["fondo"], 
@@ -663,14 +681,13 @@ def main(page: ft.Page):
                                 border=ft.border.all(1, COLORES["borde"])
                             )
                         )
-    
+                        
                 # --- 2. Filtrar y Ordenar GLOBAL ---
                 set_mis_emails = {s["email"] for s in mis_estudiantes}
                 disponibles_raw = [u for u in state.get("all_users_global", []) if u["email"] not in set_mis_emails]
                 busqueda_global = state["filter_global_students"]
                 disponibles_filtrados = [s for s in disponibles_raw if busqueda_global in s["email"].lower() or busqueda_global in s.get("nombre", "").lower()]
                 disponibles_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_global_students"] == "desc"))
-    
                 if not disponibles_filtrados:
                     msg = "No se encontraron estudiantes" if busqueda_global else "No hay estudiantes disponibles"
                     nuevos_globales.append(ft.Text(msg, color=COLORES["subtitulo"]))
@@ -688,7 +705,7 @@ def main(page: ft.Page):
                                         ft.Icons.ADD_CIRCLE_OUTLINE, 
                                         icon_color=COLORES["exito"], 
                                         tooltip="Agregar a mi clase",
-                                        on_click=lambda e, mail=s["email"]: add_student_action(mail)
+                                        on_click=lambda e, mail=s["email"]: add_student_action(e, mail)
                                     )
                                 ]),
                                 bgcolor=COLORES["fondo"], 
@@ -697,7 +714,7 @@ def main(page: ft.Page):
                                 border=ft.border.all(1, COLORES["borde"])
                             )
                         )
-                my_students_col.controls = nuevos_mis_estudiantes
+                my_students_col.controls = nuevos_locales
                 global_students_col.controls = nuevos_globales
                 page.update()
                 
@@ -908,27 +925,36 @@ def main(page: ft.Page):
             except Exception as e:
                 print(f"Error cargando ejercicios: {e}")
 
-        def add_exercise(filename):
+        def add_exercise(e, filename):
+            e.control.disabled = True
+            page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.post(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
+            e.control.disabled = False
             if res.status_code == 200:
                 flash(f"{filename} agregada a tu lista", ok=True)
             else:
                 flash("Error al agregar tarea", ok=False)
             load_exercises()
 
-        def remove_exercise(filename):
+        def remove_exercise(e, filename):
+            e.control.disabled = True
+            page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.delete(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
+            e.control.disabled = False
             if res.status_code == 200:
                 flash(f"{filename} eliminada de tu lista", ok=True)
             else:
                 flash("Error al eliminar tarea", ok=False)
             load_exercises()
             
-        def toggle_exercise_status(filename):
+        def toggle_exercise_status(e, filename):
+            e.control.disabled = True
+            page.update()
             headers = {"Authorization": f"Bearer {state['token']}"}
             res = requests.put(f"{BASE}/api/teacher/my-exercises/toggle", headers=headers, json={"filename": filename})
+            e.control.disabled = False
             if res.status_code == 200:
                 data = res.json()
                 is_active = data.get("is_active", False)
@@ -986,7 +1012,7 @@ def main(page: ft.Page):
                             icon_color=btn_color,
                             tooltip=btn_tooltip,
                             icon_size=20,
-                            on_click=lambda e, f=ex_data["filename"]: toggle_exercise_status(f)
+                            on_click=lambda e, f=ex_data["filename"]: toggle_exercise_status(e, f)
                         )
                         top_row_controls.append(toggle_btn)
                         
@@ -1007,7 +1033,7 @@ def main(page: ft.Page):
                             icon_color=COLORES["error"],
                             tooltip="Quitar de mi lista",
                             icon_size=20,
-                            on_click=lambda e, f=ex_data["filename"]: remove_exercise(f)
+                            on_click=lambda e, f=ex_data["filename"]: remove_exercise(e, f)
                         )
                         top_row_controls.append(del_btn)
                     else:
@@ -1016,7 +1042,7 @@ def main(page: ft.Page):
                             icon_color=COLORES["exito"],
                             tooltip="Agregar a mis tareas", 
                             icon_size=20,
-                            on_click=lambda e, f=ex_data["filename"]: add_exercise(f)
+                            on_click=lambda e, f=ex_data["filename"]: add_exercise(e, f)
                         )
                         top_row_controls.append(add_btn)
                         
@@ -1221,10 +1247,12 @@ def main(page: ft.Page):
                 flash("El mensaje no puede estar vacío", ok=False)
                 return
             if not msg_problem_dropdown.value:
-                 flash("Selecciona un número de problema", ok=False)
-                 return
-                 
-            reset_inactivity_timer() 
+                flash("Selecciona un número de problema", ok=False)
+                return
+                
+            reset_inactivity_timer()
+            e.control.disabled = True
+            page.update()
             
             res = auth_request("POST", "/api/teacher/send-message", json={
                 "student_email": student_filter.value,
@@ -1232,6 +1260,8 @@ def main(page: ft.Page):
                 "problema_id": int(msg_problem_dropdown.value),
                 "message": msg_text_field.value
             })
+            
+            e.control.disabled = False
             
             if res and res.status_code == 200:
                 dialog_msg.open = False
@@ -1527,104 +1557,103 @@ def main(page: ft.Page):
             render_dashboard_view(state["students"])
         
         def render_dashboard_view(student_list):
-            dashboard_grid.controls.clear()
-            
-            memoria_temporal = {}
-            for email, datos in student_cards_state.items():
-                if 'latest_data' in datos:
-                    memoria_temporal[email] = datos['latest_data']
-
-            student_cards_state.clear()
-
-            if not student_list:
-                dashboard_grid.controls.append(ft.Text("No hay estudiantes registrados", size=16))
-                page.update()
-                return
-            
-            for stu_obj in student_list:
-                stu_email = stu_obj["email"]
-                stu_name = stu_obj.get("nombre", "Estudiante")
-                datos_previos = memoria_temporal.get(stu_email)
+            with ui_lock:
+                nuevas_tarjetas = []
+                memoria_temporal = {}
                 
-                current_color = COLORES["borde"]
-                current_icon = ft.Icons.CIRCLE_OUTLINED
+                for email, datos in student_cards_state.items():
+                    if 'latest_data' in datos:
+                        memoria_temporal[email] = datos['latest_data']
+                student_cards_state.clear()
                 
-                if datos_previos:
-                    status_color = datos_previos.get('status', 'green')
-                    current_color = {
-                        "green": COLORES["exito"], 
-                        "yellow": COLORES["advertencia"], 
-                        "red": COLORES["error"]
-                    }.get(status_color, COLORES["borde"])
-                    
-                    current_icon = {
-                        "green": ft.Icons.CHECK_CIRCLE,
-                        "yellow": ft.Icons.WARNING,
-                        "red": ft.Icons.ERROR
-                    }.get(status_color, ft.Icons.CIRCLE)
-
-                progress_pct = datos_previos.get('progress_pct', 0.0) if datos_previos else 0.0
-                
-                if not datos_previos:
-                    txt_val = "Esperando actividad..."
-                elif datos_previos.get('type') == 'answer':
-                    txt_val = f"Entregó P{datos_previos.get('problem_id', '?')} ({(progress_pct*100):.0f}%)"
+                if not student_list:
+                    nuevas_tarjetas.append(ft.Text("No hay estudiantes registrados", size=16))
                 else:
-                    txt_val = f"Conversando ({(progress_pct*100):.0f}%)"
+                    for stu_obj in student_list:
+                        stu_email = stu_obj["email"]
+                        stu_name = stu_obj.get("nombre", "Estudiante")
+                        datos_previos = memoria_temporal.get(stu_email)
+                        
+                        current_color = COLORES["borde"]
+                        current_icon = ft.Icons.CIRCLE_OUTLINED
+                        
+                        if datos_previos:
+                            status_color = datos_previos.get('status', 'green')
+                            current_color = {
+                                "green": COLORES["exito"], 
+                                "yellow": COLORES["advertencia"], 
+                                "red": COLORES["error"]
+                            }.get(status_color, COLORES["borde"])
+                            
+                            current_icon = {
+                                "green": ft.Icons.CHECK_CIRCLE,
+                                "yellow": ft.Icons.WARNING,
+                                "red": ft.Icons.ERROR
+                            }.get(status_color, ft.Icons.CIRCLE)
 
-                bar_ctrl = ft.ProgressBar(value=progress_pct, color=COLORES["primario"], bgcolor=COLORES["borde"], height=6, border_radius=3)
-                txt_ctrl = ft.Text(txt_val, size=10, italic=True, color=COLORES["subtitulo"])
-                
-                card_content = ft.Column([
-                        ft.Row([
-                            ft.Column([
-                                ft.Text(stu_name, weight="bold", size=16, no_wrap=True, color=COLORES["texto"]),
-                                ft.Text(stu_email, size=10, color=COLORES["subtitulo"], no_wrap=True),
-                            ], expand=True),
-                            ft.Icon(current_icon, color=current_color, size=24),
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        progress_pct = datos_previos.get('progress_pct', 0.0) if datos_previos else 0.0
                         
-                        ft.Divider(height=10, color="transparent"),
-                        bar_ctrl,
-                        txt_ctrl,
-                        ft.Divider(height=5, color="transparent"),
+                        if not datos_previos:
+                            txt_val = "Esperando actividad..."
+                        elif datos_previos.get('type') == 'answer':
+                            txt_val = f"Entregó P{datos_previos.get('problem_id', '?')} ({(progress_pct*100):.0f}%)"
+                        else:
+                            txt_val = f"Conversando ({(progress_pct*100):.0f}%)"
+
+                        bar_ctrl = ft.ProgressBar(value=progress_pct, color=COLORES["primario"], bgcolor=COLORES["borde"], height=6, border_radius=3)
+                        txt_ctrl = ft.Text(txt_val, size=10, italic=True, color=COLORES["subtitulo"])
                         
-                        ft.ElevatedButton(
-                            "Ver Análisis", 
-                            icon=ft.Icons.VISIBILITY, 
-                            height=30, 
-                            style=ft.ButtonStyle(
-                                padding=5, 
-                                shape=ft.RoundedRectangleBorder(radius=5),
-                                color=COLORES.get("texto_boton", COLORES["texto"]),
-                                bgcolor=COLORES["boton"]
-                            ),
-                            on_click=lambda e, email=stu_email: show_student_detail(email)
+                        card_content = ft.Column([
+                                ft.Row([
+                                    ft.Column([
+                                        ft.Text(stu_name, weight="bold", size=16, no_wrap=True, color=COLORES["texto"]),
+                                        ft.Text(stu_email, size=10, color=COLORES["subtitulo"], no_wrap=True),
+                                    ], expand=True),
+                                    ft.Icon(current_icon, color=current_color, size=24),
+                                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                                
+                                ft.Divider(height=10, color="transparent"),
+                                bar_ctrl,
+                                txt_ctrl,
+                                ft.Divider(height=5, color="transparent"),
+                                
+                                ft.ElevatedButton(
+                                    "Ver Análisis", 
+                                    icon=ft.Icons.VISIBILITY, 
+                                    height=30, 
+                                    style=ft.ButtonStyle(
+                                        padding=5, 
+                                        shape=ft.RoundedRectangleBorder(radius=5),
+                                        color=COLORES.get("texto_boton", COLORES["texto"]),
+                                        bgcolor=COLORES["boton"]
+                                    ),
+                                    on_click=lambda e, email=stu_email: show_student_detail(email)
+                                )
+                            ])
+
+                        card = ft.Container(
+                            content=card_content,
+                            bgcolor=COLORES["fondo"],
+                            padding=15,
+                            border_radius=15,
+                            shadow=ft.BoxShadow(blur_radius=10, color=COLORES["accento"]),
+                            border=ft.border.all(2 if not datos_previos else 3, current_color), 
+                            data=stu_email 
                         )
-                    ])
-
-                card = ft.Container(
-                    content=card_content,
-                    bgcolor=COLORES["fondo"],
-                    padding=15,
-                    border_radius=15,
-                    shadow=ft.BoxShadow(blur_radius=10, color=COLORES["accento"]),
-                    border=ft.border.all(2 if not datos_previos else 3, current_color), 
-                    data=stu_email 
-                )
-                
-                student_cards_state[stu_email] = {
-                    'control': card,
-                    'bar_ctrl': bar_ctrl,
-                    'txt_ctrl': txt_ctrl
-                }
-                
-                if datos_previos:
-                    student_cards_state[stu_email]['latest_data'] = datos_previos
-                    
-                dashboard_grid.controls.append(card)
-                
-            page.update()
+                        
+                        student_cards_state[stu_email] = {
+                            'control': card,
+                            'bar_ctrl': bar_ctrl,
+                            'txt_ctrl': txt_ctrl
+                        }
+                        
+                        if datos_previos:
+                            student_cards_state[stu_email]['latest_data'] = datos_previos
+                        
+                        nuevas_tarjetas.append(card)
+                        
+                dashboard_grid.controls = nuevas_tarjetas
+                page.update()
         
         tab_dashboard = ft.Container(
             content=ft.Column([
@@ -2094,141 +2123,138 @@ def main(page: ft.Page):
             threading.Thread(target=fetch, daemon=True).start()
             
         def render_student_profile(data, email):
-            profile_content.controls.clear()
-            if not data:
-                profile_content.controls.append(ft.Text("El estudiante aún no cuenta con actividad registrada", italic=True, color=COLORES["subtitulo"]))
-                page.update()
-                return
-
-            for prac_name, prac_data in data.items():
-                problemas = prac_data.get("problemas", {})
-                
-                prob_controls = []
-                # --- UI DEL REPORTE DE INTELIGENCIA ARTIFICIAL ---
-                reporte = prac_data.get("reporte")
-                if reporte:
-                    reporte_ui = ft.Container(
-                        content=ft.Column([
-                            ft.Row([
-                                ft.Icon(ft.Icons.AUTO_AWESOME, color=COLORES["advertencia"]),
-                                ft.Text("Diagnóstico Cualitativo de la IA", weight="bold", size=16, color=COLORES["primario"]),
-                                ft.IconButton(ft.Icons.REFRESH, tooltip="Regenerar Reporte", icon_color=COLORES["subtitulo"], on_click=lambda e, pr=prac_name: generate_report_for_practice(email, pr))
-                            ]),
-                            ft.Row([
-                                ft.Container(
-                                    content=ft.Column([ft.Text("Perfil de Aprendizaje", size=11, color=COLORES["subtitulo"]), ft.Text(reporte["perfil_estudiante"], weight="bold", color=COLORES["texto"])]),
-                                    bgcolor=COLORES["fondo"], padding=10, border_radius=5, expand=1, border=ft.border.all(1, COLORES["borde"])
-                                ),
-                                ft.Container(
-                                    content=ft.Column([ft.Text("Nivel de Persistencia", size=11, color=COLORES["subtitulo"]), ft.Text(reporte["persistencia"], weight="bold", color=COLORES["texto"])]),
-                                    bgcolor=COLORES["fondo"], padding=10, border_radius=5, expand=1, border=ft.border.all(1, COLORES["borde"])
-                                )
-                            ]),
-                            ft.Text("Análisis Pedagógico:", weight="bold", size=12, color=COLORES["subtitulo"]),
-                            ft.Text(reporte["diagnostico_general"], size=13, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY)
-                        ], spacing=10),
-                        bgcolor=COLORES["accento"],
-                        border=ft.border.all(1, COLORES["advertencia"]),
-                        border_radius=8,
-                        padding=15,
-                        margin=ft.margin.only(bottom=15, right=15)
-                    )
+            with ui_lock:
+                nuevos_controles_perfil = []
+                if not data:
+                    nuevos_controles_perfil.append(ft.Text("El estudiante aún no cuenta con actividad registrada", italic=True, color=COLORES["subtitulo"]))
                 else:
-                    reporte_ui = ft.Container(
-                        content=ft.Row([
-                            ft.Icon(ft.Icons.INSIGHTS, color=COLORES["primario"]),
-                            ft.Text("Aún no se ha generado un reporte de desempeño para esta sesión.", expand=True, color=COLORES["subtitulo"], italic=True),
-                            ft.ElevatedButton("Generar Reporte con IA", icon=ft.Icons.AUTO_AWESOME, bgcolor=COLORES["boton"], color=COLORES["texto"], on_click=lambda e, pr=prac_name: generate_report_for_practice(email, pr))
-                        ]),
-                        bgcolor=COLORES["fondo"], padding=15, border_radius=8, border=ft.border.all(1, COLORES["borde"]), margin=ft.margin.only(bottom=15, right=15)
-                    )
-                # Insertar el reporte hasta arriba de la lista de ejercicios
-                prob_controls.append(reporte_ui)
-                for pid, pdata in sorted(problemas.items(), key=lambda x: int(x[0])):
-                    ans = pdata.get("respuesta")
-                    chats = pdata.get("chats", [])
-                    
-                    # UI de Calificación
-                    score_ui = ft.Container()
-                    if ans:
-                        final_score = ans.get("teacher_score") if ans.get("teacher_score") is not None else ans.get("llm_score", 0.0)
-                        status_str = "Evaluado por Profesor" if ans.get("teacher_score") is not None else ("Evaluado por IA" if ans.get("status") == "pending" else "Evaluado")
-                        border_color = COLORES["exito"] if ans.get("status") in ["approved", "edited"] else COLORES["advertencia"]
+                    for prac_name, prac_data in data.items():
+                        problemas = prac_data.get("problemas", {})
                         
-                        score_ui = ft.Container(
-                            content=ft.Column([
-                                ft.Text(f"Calificación: {final_score}/10", weight="bold", color=COLORES["primario"]),
-                                ft.Text(f"Estado: {status_str}", size=11, color=COLORES["subtitulo"]),
-                                ft.Text(f"Comentario: {ans.get('teacher_comment') or ans.get('llm_comment') or 'Sin comentarios'}", size=12, italic=True, color=COLORES["texto"])
-                            ], spacing=2),
-                            bgcolor=COLORES["accento"], padding=10, border_radius=5, border=ft.border.all(1, border_color)
-                        )
-                    else:
-                        score_ui = ft.Text("Pregunta no respondida aún.", italic=True, color=COLORES["advertencia"])
-
-                    # UI de Historial de Chat
-                    chat_ui_controls = []
-                    if chats:
-                        for c in chats:
-                            role = c.get("role", "user")
-                            bg = COLORES["secundario"] if role == "user" else (COLORES["primario"] if role == "teacher" else COLORES["borde"])
-                            tc = COLORES["fondo"] if role in ["user", "teacher"] else COLORES["texto"]
-                            align = ft.CrossAxisAlignment.END if role == "user" else ft.CrossAxisAlignment.START
-                            who = "Estudiante" if role == "user" else ("Profesor" if role=="teacher" else "Tutor IA")
-                            
-                            chat_ui_controls.append(
-                                ft.Column([
-                                    ft.Text(f"{who} - {c['fecha'][:16].replace('T', ' ')}", size=10, color=COLORES["subtitulo"]),
-                                    ft.Container(content=ft.Text(c["content"], color=tc, size=13), bgcolor=bg, padding=10, border_radius=8)
-                                ], horizontal_alignment=align, spacing=2)
+                        prob_controls = []
+                        # --- UI DEL REPORTE DE INTELIGENCIA ARTIFICIAL ---
+                        reporte = prac_data.get("reporte")
+                        if reporte:
+                            reporte_ui = ft.Container(
+                                content=ft.Column([
+                                    ft.Row([
+                                        ft.Icon(ft.Icons.AUTO_AWESOME, color=COLORES["advertencia"]),
+                                        ft.Text("Diagnóstico Cualitativo de la IA", weight="bold", size=16, color=COLORES["primario"]),
+                                        ft.IconButton(ft.Icons.REFRESH, tooltip="Regenerar Reporte", icon_color=COLORES["subtitulo"], on_click=lambda e, pr=prac_name: generate_report_for_practice(email, pr))
+                                    ]),
+                                    ft.Row([
+                                        ft.Container(
+                                            content=ft.Column([ft.Text("Perfil de Aprendizaje", size=11, color=COLORES["subtitulo"]), ft.Text(reporte["perfil_estudiante"], weight="bold", color=COLORES["texto"])]),
+                                            bgcolor=COLORES["fondo"], padding=10, border_radius=5, expand=1, border=ft.border.all(1, COLORES["borde"])
+                                        ),
+                                        ft.Container(
+                                            content=ft.Column([ft.Text("Nivel de Persistencia", size=11, color=COLORES["subtitulo"]), ft.Text(reporte["persistencia"], weight="bold", color=COLORES["texto"])]),
+                                            bgcolor=COLORES["fondo"], padding=10, border_radius=5, expand=1, border=ft.border.all(1, COLORES["borde"])
+                                        )
+                                    ]),
+                                    ft.Text("Análisis Pedagógico:", weight="bold", size=12, color=COLORES["subtitulo"]),
+                                    ft.Text(reporte["diagnostico_general"], size=13, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY)
+                                ], spacing=10),
+                                bgcolor=COLORES["accento"],
+                                border=ft.border.all(1, COLORES["advertencia"]),
+                                border_radius=8,
+                                padding=15,
+                                margin=ft.margin.only(bottom=15, right=15)
                             )
-                    
-                    chat_scroll = ft.Column(chat_ui_controls, spacing=10, scroll=ft.ScrollMode.AUTO)
-                    chat_container = ft.Container(
-                        content=chat_scroll,
-                        height=250, padding=10, bgcolor=COLORES["fondo"], 
-                        border=ft.border.all(1, COLORES["borde"]), border_radius=5,
-                    ) if chats else ft.Text("No hay interacciones de chat en este problema.", size=12, color=COLORES["subtitulo"])
-
-                    # Ensamblar la Tarjeta del Problema
-                    prob_card = ft.Container(
-                        content=ft.Column([
-                            ft.Text(f"Problema {pid}", weight="bold", size=16, color=COLORES["secundario"]),
-                            ft.Divider(height=2, color="transparent"),
-                            ft.Row([
-                                ft.Column([
-                                    ft.Text("Evaluación General:", weight="bold", size=12, color=COLORES["texto"]),
-                                    score_ui,
-                                    ft.Text("Respuesta Entregada:", weight="bold", size=12, color=COLORES["texto"]) if ans else ft.Container(),
-                                    ft.Text(ans["texto"], size=13, color=COLORES["texto"], selectable=True) if ans and ans.get("texto") else ft.Container(),
-                                ], expand=1),
+                        else:
+                            reporte_ui = ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(ft.Icons.INSIGHTS, color=COLORES["primario"]),
+                                    ft.Text("Aún no se ha generado un reporte de desempeño para esta sesión.", expand=True, color=COLORES["subtitulo"], italic=True),
+                                    ft.ElevatedButton("Generar Reporte con IA", icon=ft.Icons.AUTO_AWESOME, bgcolor=COLORES["boton"], color=COLORES["texto"], on_click=lambda e, pr=prac_name: generate_report_for_practice(email, pr))
+                                ]),
+                                bgcolor=COLORES["fondo"], padding=15, border_radius=8, border=ft.border.all(1, COLORES["borde"]), margin=ft.margin.only(bottom=15, right=15)
+                            )
+                        # Insertar el reporte hasta arriba de la lista de ejercicios
+                        prob_controls.append(reporte_ui)
+                        for pid, pdata in sorted(problemas.items(), key=lambda x: int(x[0])):
+                            ans = pdata.get("respuesta")
+                            chats = pdata.get("chats", [])
+                            
+                            # UI de Calificación
+                            score_ui = ft.Container()
+                            if ans:
+                                final_score = ans.get("teacher_score") if ans.get("teacher_score") is not None else ans.get("llm_score", 0.0)
+                                status_str = "Evaluado por Profesor" if ans.get("teacher_score") is not None else ("Evaluado por IA" if ans.get("status") == "pending" else "Evaluado")
+                                border_color = COLORES["exito"] if ans.get("status") in ["approved", "edited"] else COLORES["advertencia"]
                                 
-                                ft.Column([
-                                    ft.Text("Historial de Conversación:", weight="bold", size=12, color=COLORES["texto"]),
-                                    chat_container
-                                ], expand=1)
-                            ], vertical_alignment=ft.CrossAxisAlignment.START)
-                        ], spacing=5),
-                        padding=15, border=ft.border.all(1, COLORES["borde"]), border_radius=8, bgcolor=COLORES["fondo"],
-                        margin=ft.margin.only(bottom=10, right=15)
-                    )
-                    prob_controls.append(prob_card)
+                                score_ui = ft.Container(
+                                    content=ft.Column([
+                                        ft.Text(f"Calificación: {final_score}/10", weight="bold", color=COLORES["primario"]),
+                                        ft.Text(f"Estado: {status_str}", size=11, color=COLORES["subtitulo"]),
+                                        ft.Text(f"Comentario: {ans.get('teacher_comment') or ans.get('llm_comment') or 'Sin comentarios'}", size=12, italic=True, color=COLORES["texto"])
+                                    ], spacing=2),
+                                    bgcolor=COLORES["accento"], padding=10, border_radius=5, border=ft.border.all(1, border_color)
+                                )
+                            else:
+                                score_ui = ft.Text("Pregunta no respondida aún.", italic=True, color=COLORES["advertencia"])
 
-                # Acordeón de la Práctica
-                prac_tile = ft.ExpansionTile(
-                    title=ft.Text(f"Práctica: {prac_name}", weight="bold", color=COLORES["primario"]),
-                    subtitle=ft.Text(f"Ejercicios con actividad: {len(problemas)}", size=12, color=COLORES["subtitulo"]),
-                    controls=prob_controls,
-                    collapsed_text_color=COLORES["primario"],
-                    text_color=COLORES["primario"],
-                    initially_expanded=False,
-                )
-                profile_content.controls.append(prac_tile)
+                            # UI de Historial de Chat
+                            chat_ui_controls = []
+                            if chats:
+                                for c in chats:
+                                    role = c.get("role", "user")
+                                    bg = COLORES["secundario"] if role == "user" else (COLORES["primario"] if role == "teacher" else COLORES["borde"])
+                                    tc = COLORES["fondo"] if role in ["user", "teacher"] else COLORES["texto"]
+                                    align = ft.CrossAxisAlignment.END if role == "user" else ft.CrossAxisAlignment.START
+                                    who = "Estudiante" if role == "user" else ("Profesor" if role=="teacher" else "Tutor IA")
+                                    
+                                    chat_ui_controls.append(
+                                        ft.Column([
+                                            ft.Text(f"{who} - {c['fecha'][:16].replace('T', ' ')}", size=10, color=COLORES["subtitulo"]),
+                                            ft.Container(content=ft.Text(c["content"], color=tc, size=13), bgcolor=bg, padding=10, border_radius=8)
+                                        ], horizontal_alignment=align, spacing=2)
+                                    )
+                            
+                            chat_scroll = ft.Column(chat_ui_controls, spacing=10, scroll=ft.ScrollMode.AUTO)
+                            chat_container = ft.Container(
+                                content=chat_scroll,
+                                height=250, padding=10, bgcolor=COLORES["fondo"], 
+                                border=ft.border.all(1, COLORES["borde"]), border_radius=5,
+                            ) if chats else ft.Text("No hay interacciones de chat en este problema.", size=12, color=COLORES["subtitulo"])
 
-            try:
+                            # Ensamblar la Tarjeta del Problema
+                            prob_card = ft.Container(
+                                content=ft.Column([
+                                    ft.Text(f"Problema {pid}", weight="bold", size=16, color=COLORES["secundario"]),
+                                    ft.Divider(height=2, color="transparent"),
+                                    ft.Row([
+                                        ft.Column([
+                                            ft.Text("Evaluación General:", weight="bold", size=12, color=COLORES["texto"]),
+                                            score_ui,
+                                            ft.Text("Respuesta Entregada:", weight="bold", size=12, color=COLORES["texto"]) if ans else ft.Container(),
+                                            ft.Text(ans["texto"], size=13, color=COLORES["texto"], selectable=True) if ans and ans.get("texto") else ft.Container(),
+                                        ], expand=1),
+                                        
+                                        ft.Column([
+                                            ft.Text("Historial de Conversación:", weight="bold", size=12, color=COLORES["texto"]),
+                                            chat_container
+                                        ], expand=1)
+                                    ], vertical_alignment=ft.CrossAxisAlignment.START)
+                                ], spacing=5),
+                                padding=15, border=ft.border.all(1, COLORES["borde"]), border_radius=8, bgcolor=COLORES["fondo"],
+                                margin=ft.margin.only(bottom=10, right=15)
+                            )
+                            prob_controls.append(prob_card)
+
+                        # Acordeón de la Práctica
+                        prac_tile = ft.ExpansionTile(
+                            title=ft.Text(f"Práctica: {prac_name}", weight="bold", color=COLORES["primario"]),
+                            subtitle=ft.Text(f"Ejercicios con actividad: {len(problemas)}", size=12, color=COLORES["subtitulo"]),
+                            controls=prob_controls,
+                            collapsed_text_color=COLORES["primario"],
+                            text_color=COLORES["primario"],
+                            initially_expanded=False,
+                        )
+                        nuevos_controles_perfil.append(prac_tile)
+                        
+                profile_content.controls = nuevos_controles_perfil
                 profile_content.update()
-            except Exception:
-                pass
                 
         tab_profile = ft.Container(
             content=ft.Column([
