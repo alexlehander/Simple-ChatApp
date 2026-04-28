@@ -68,6 +68,7 @@ STATE_KEYS = {
 }
 
 def main(page: ft.Page):
+    ui_lock = threading.Lock()
     state = {
         "token": page.client_storage.get("teacher_token"),
         "last_activity": time.time(),
@@ -625,77 +626,78 @@ def main(page: ft.Page):
             load_students()
             
         def render_student_lists():
-            my_students_col.controls.clear()
-            global_students_col.controls.clear()
-            
-            # --- 1. Filtrar y Ordenar MI CLASE ---
-            mis_estudiantes = state.get("students", [])
-            busqueda_my = state["filter_my_students"]
-            mis_filtrados = [s for s in mis_estudiantes if busqueda_my in s["email"].lower() or busqueda_my in s.get("nombre", "").lower()]
-            mis_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_my_students"] == "desc"))
-
-            if not mis_filtrados:
-                msg = "No se encontraron resultados" if busqueda_my else "No hay estudiantes inscritos"
-                my_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
-            else:
-                for s in mis_filtrados:
-                    my_students_col.controls.append(
-                        ft.Container(
-                            content=ft.Row([
-                                ft.Icon(ft.Icons.PERSON, color=COLORES["primario"], size=30),
-                                ft.Column([
-                                    ft.Text(s.get("nombre", "Estudiante"), weight="bold", size=14, color=COLORES["texto"]),
-                                    ft.Text(s["email"], size=12, color=COLORES["subtitulo"])
-                                ], expand=True, spacing=2),
-                                ft.IconButton(
-                                    ft.Icons.REMOVE_CIRCLE_OUTLINE, 
-                                    icon_color=COLORES["error"], 
-                                    tooltip="Quitar de mi clase",
-                                    on_click=lambda e, mail=s["email"]: delete_student(mail)
-                                )
-                            ]),
-                            bgcolor=COLORES["fondo"], 
-                            padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
-                            border_radius=5, 
-                            border=ft.border.all(1, COLORES["borde"])
+            with ui_lock:
+                my_students_col.controls.clear()
+                global_students_col.controls.clear()
+                
+                # --- 1. Filtrar y Ordenar MI CLASE ---
+                mis_estudiantes = state.get("students", [])
+                busqueda_my = state["filter_my_students"]
+                mis_filtrados = [s for s in mis_estudiantes if busqueda_my in s["email"].lower() or busqueda_my in s.get("nombre", "").lower()]
+                mis_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_my_students"] == "desc"))
+    
+                if not mis_filtrados:
+                    msg = "No se encontraron resultados" if busqueda_my else "No hay estudiantes inscritos"
+                    my_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
+                else:
+                    for s in mis_filtrados:
+                        my_students_col.controls.append(
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(ft.Icons.PERSON, color=COLORES["primario"], size=30),
+                                    ft.Column([
+                                        ft.Text(s.get("nombre", "Estudiante"), weight="bold", size=16, color=COLORES["texto"]),
+                                        ft.Text(s["email"], size=14, color=COLORES["subtitulo"])
+                                    ], expand=True, spacing=2),
+                                    ft.IconButton(
+                                        ft.Icons.REMOVE_CIRCLE_OUTLINE, 
+                                        icon_color=COLORES["error"], 
+                                        tooltip="Quitar de mi clase",
+                                        on_click=lambda e, mail=s["email"]: delete_student(mail)
+                                    )
+                                ]),
+                                bgcolor=COLORES["fondo"], 
+                                padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
+                                border_radius=5, 
+                                border=ft.border.all(1, COLORES["borde"])
+                            )
                         )
-                    )
-
-            # --- 2. Filtrar y Ordenar GLOBAL ---
-            set_mis_emails = {s["email"] for s in mis_estudiantes}
-            disponibles_raw = [u for u in state.get("all_users_global", []) if u["email"] not in set_mis_emails]
-            busqueda_global = state["filter_global_students"]
-            disponibles_filtrados = [s for s in disponibles_raw if busqueda_global in s["email"].lower() or busqueda_global in s.get("nombre", "").lower()]
-            disponibles_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_global_students"] == "desc"))
-
-            if not disponibles_filtrados:
-                msg = "No se encontraron estudiantes" if busqueda_global else "No hay estudiantes disponibles"
-                global_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
-            else:
-                for s in disponibles_filtrados:
-                    global_students_col.controls.append(
-                        ft.Container(
-                            content=ft.Row([
-                                ft.Icon(ft.Icons.SCHOOL_OUTLINED, color=COLORES["primario"], size=30),
-                                ft.Column([
-                                    ft.Text(s.get("nombre", "Estudiante"), weight="bold", size=16, color=COLORES["texto"]),
-                                    ft.Text(s["email"], size=14, color=COLORES["subtitulo"])
-                                ], expand=True, spacing=2),
-                                ft.IconButton(
-                                    ft.Icons.ADD_CIRCLE_OUTLINE, 
-                                    icon_color=COLORES["exito"], 
-                                    tooltip="Agregar a mi clase",
-                                    on_click=lambda e, mail=s["email"]: add_student_action(mail)
-                                )
-                            ]),
-                            bgcolor=COLORES["fondo"], 
-                            padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
-                            border_radius=5, 
-                            border=ft.border.all(1, COLORES["borde"])
+    
+                # --- 2. Filtrar y Ordenar GLOBAL ---
+                set_mis_emails = {s["email"] for s in mis_estudiantes}
+                disponibles_raw = [u for u in state.get("all_users_global", []) if u["email"] not in set_mis_emails]
+                busqueda_global = state["filter_global_students"]
+                disponibles_filtrados = [s for s in disponibles_raw if busqueda_global in s["email"].lower() or busqueda_global in s.get("nombre", "").lower()]
+                disponibles_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_global_students"] == "desc"))
+    
+                if not disponibles_filtrados:
+                    msg = "No se encontraron estudiantes" if busqueda_global else "No hay estudiantes disponibles"
+                    global_students_col.controls.append(ft.Text(msg, color=COLORES["subtitulo"]))
+                else:
+                    for s in disponibles_filtrados:
+                        global_students_col.controls.append(
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Icon(ft.Icons.SCHOOL_OUTLINED, color=COLORES["primario"], size=30),
+                                    ft.Column([
+                                        ft.Text(s.get("nombre", "Estudiante"), weight="bold", size=16, color=COLORES["texto"]),
+                                        ft.Text(s["email"], size=14, color=COLORES["subtitulo"])
+                                    ], expand=True, spacing=2),
+                                    ft.IconButton(
+                                        ft.Icons.ADD_CIRCLE_OUTLINE, 
+                                        icon_color=COLORES["exito"], 
+                                        tooltip="Agregar a mi clase",
+                                        on_click=lambda e, mail=s["email"]: add_student_action(mail)
+                                    )
+                                ]),
+                                bgcolor=COLORES["fondo"], 
+                                padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
+                                border_radius=5, 
+                                border=ft.border.all(1, COLORES["borde"])
+                            )
                         )
-                    )
-            page.update()
-
+                page.update()
+                
         # Layout de la pestaña dividida
         tab_students = ft.Container(
             content=ft.Column([
@@ -934,135 +936,136 @@ def main(page: ft.Page):
                 flash("Error al cambiar estado", ok=False)
                 
         def render_exercises():
-            col_available.controls.clear()
-            col_mine.controls.clear()
-            safe_my_exercises = []
-            
-            for item in state["my_exercises"]:
-                if isinstance(item, str):
-                    safe_my_exercises.append({
-                        "filename": item, "title": item, 
-                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0, "is_active": False
-                    })
-                else:
-                    safe_my_exercises.append(item)
-                    
-            safe_all_exercises = []
-            
-            for item in state["all_exercises"]:
-                if isinstance(item, str):
-                    safe_all_exercises.append({
-                        "filename": item, "title": item, 
-                        "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0
-                    })
-                else:
-                    safe_all_exercises.append(item)
-
-            my_filenames = {e["filename"] for e in safe_my_exercises}
-            safe_available_exercises = [ex for ex in safe_all_exercises if ex["filename"] not in my_filenames]
-            
-            def create_exercise_card(ex_data, is_mine):
-                minutes = ex_data.get('max_time', 0) // 60
-                icono = ft.Icons.ASSIGNMENT if is_mine else ft.Icons.LIBRARY_BOOKS
-                color_icono = COLORES["primario"]
-                top_row_controls = [
-                    ft.Icon(icono, size=20, color=color_icono)
-                ]
+            with ui_lock:
+                col_available.controls.clear()
+                col_mine.controls.clear()
+                safe_my_exercises = []
                 
-                if is_mine:
-                    is_active = ex_data.get("is_active", False)
-                    btn_color = COLORES["exito"] if is_active else COLORES["error"]
-                    btn_icon = ft.Icons.VISIBILITY if is_active else ft.Icons.VISIBILITY_OFF
-                    btn_tooltip = "Visible para estudiantes (click para ocultar)" if is_active else "Oculto para estudiantes (click para visualizar)"
-                    
-                    toggle_btn = ft.IconButton(
-                        icon=btn_icon,
-                        icon_color=btn_color,
-                        tooltip=btn_tooltip,
-                        icon_size=20,
-                        on_click=lambda e, f=ex_data["filename"]: toggle_exercise_status(f)
-                    )
-                    top_row_controls.append(toggle_btn)
-                    
-                title_text = ft.Text(
-                    ex_data.get("title", "Sin Título"), 
-                    weight="bold", 
-                    size=16, 
-                    expand=True, 
-                    color=COLORES["texto"], 
-                    max_lines=2, 
-                    overflow=ft.TextOverflow.ELLIPSIS
-                )
-                top_row_controls.append(title_text)
-                
-                if is_mine:
-                    del_btn = ft.IconButton(
-                        icon=ft.Icons.DELETE,
-                        icon_color=COLORES["error"],
-                        tooltip="Quitar de mi lista",
-                        icon_size=20,
-                        on_click=lambda e, f=ex_data["filename"]: remove_exercise(f)
-                    )
-                    top_row_controls.append(del_btn)
-                else:
-                    add_btn = ft.IconButton(
-                        icon=ft.Icons.ADD_CIRCLE, 
-                        icon_color=COLORES["exito"],
-                        tooltip="Agregar a mis tareas", 
-                        icon_size=20,
-                        on_click=lambda e, f=ex_data["filename"]: add_exercise(f)
-                    )
-                    top_row_controls.append(add_btn)
-                    
-                borde_color = COLORES["borde"]
-                if is_mine:
-                    borde_color = COLORES["exito"] if ex_data.get("is_active") else COLORES["error"]
-                    
-                return ft.Container(
-                    content=ft.Column([
-                        ft.Row(top_row_controls, alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                for item in state["my_exercises"]:
+                    if isinstance(item, str):
+                        safe_my_exercises.append({
+                            "filename": item, "title": item, 
+                            "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0, "is_active": False
+                        })
+                    else:
+                        safe_my_exercises.append(item)
                         
-                        ft.Text(ex_data.get("description", ""), size=14, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
-                        ft.Container(height=5),
+                safe_all_exercises = []
+                
+                for item in state["all_exercises"]:
+                    if isinstance(item, str):
+                        safe_all_exercises.append({
+                            "filename": item, "title": item, 
+                            "description": "⚠️ Backend desactualizado.", "max_time": 0, "num_problems": 0
+                        })
+                    else:
+                        safe_all_exercises.append(item)
+
+                my_filenames = {e["filename"] for e in safe_my_exercises}
+                safe_available_exercises = [ex for ex in safe_all_exercises if ex["filename"] not in my_filenames]
+                
+                def create_exercise_card(ex_data, is_mine):
+                    minutes = ex_data.get('max_time', 0) // 60
+                    icono = ft.Icons.ASSIGNMENT if is_mine else ft.Icons.LIBRARY_BOOKS
+                    color_icono = COLORES["primario"]
+                    top_row_controls = [
+                        ft.Icon(icono, size=20, color=color_icono)
+                    ]
+                    
+                    if is_mine:
+                        is_active = ex_data.get("is_active", False)
+                        btn_color = COLORES["exito"] if is_active else COLORES["error"]
+                        btn_icon = ft.Icons.VISIBILITY if is_active else ft.Icons.VISIBILITY_OFF
+                        btn_tooltip = "Visible para estudiantes (click para ocultar)" if is_active else "Oculto para estudiantes (click para visualizar)"
                         
-                        ft.Row([
-                            ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
-                            ft.Text(f"{minutes} minutos", size=14, color=COLORES["subtitulo"]),
-                            ft.Container(width=10),
-                            ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
-                            ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
-                        ])
-                    ], spacing=5),
-                    bgcolor=COLORES["fondo"], 
-                    padding=ft.padding.only(left=10, top=5, right=20, bottom=5),
-                    border_radius=5, 
-                    border=ft.border.all(1, borde_color),
-                    ink=True, 
-                    on_click=lambda e, f=ex_data["filename"]: show_exercise_detail(f)
-                )
+                        toggle_btn = ft.IconButton(
+                            icon=btn_icon,
+                            icon_color=btn_color,
+                            tooltip=btn_tooltip,
+                            icon_size=20,
+                            on_click=lambda e, f=ex_data["filename"]: toggle_exercise_status(f)
+                        )
+                        top_row_controls.append(toggle_btn)
+                        
+                    title_text = ft.Text(
+                        ex_data.get("title", "Sin Título"), 
+                        weight="bold", 
+                        size=16, 
+                        expand=True, 
+                        color=COLORES["texto"], 
+                        max_lines=2, 
+                        overflow=ft.TextOverflow.ELLIPSIS
+                    )
+                    top_row_controls.append(title_text)
+                    
+                    if is_mine:
+                        del_btn = ft.IconButton(
+                            icon=ft.Icons.DELETE,
+                            icon_color=COLORES["error"],
+                            tooltip="Quitar de mi lista",
+                            icon_size=20,
+                            on_click=lambda e, f=ex_data["filename"]: remove_exercise(f)
+                        )
+                        top_row_controls.append(del_btn)
+                    else:
+                        add_btn = ft.IconButton(
+                            icon=ft.Icons.ADD_CIRCLE, 
+                            icon_color=COLORES["exito"],
+                            tooltip="Agregar a mis tareas", 
+                            icon_size=20,
+                            on_click=lambda e, f=ex_data["filename"]: add_exercise(f)
+                        )
+                        top_row_controls.append(add_btn)
+                        
+                    borde_color = COLORES["borde"]
+                    if is_mine:
+                        borde_color = COLORES["exito"] if ex_data.get("is_active") else COLORES["error"]
+                        
+                    return ft.Container(
+                        content=ft.Column([
+                            ft.Row(top_row_controls, alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                            
+                            ft.Text(ex_data.get("description", ""), size=14, italic=True, color=COLORES["subtitulo"], max_lines=2, overflow=ft.TextOverflow.ELLIPSIS),
+                            ft.Container(height=5),
+                            
+                            ft.Row([
+                                ft.Icon(ft.Icons.TIMER, size=14, color=COLORES["primario"]),
+                                ft.Text(f"{minutes} minutos", size=14, color=COLORES["subtitulo"]),
+                                ft.Container(width=10),
+                                ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["primario"]),
+                                ft.Text(f"{ex_data.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"])
+                            ])
+                        ], spacing=5),
+                        bgcolor=COLORES["fondo"], 
+                        padding=ft.padding.only(left=10, top=5, right=20, bottom=5),
+                        border_radius=5, 
+                        border=ft.border.all(1, borde_color),
+                        ink=True, 
+                        on_click=lambda e, f=ex_data["filename"]: show_exercise_detail(f)
+                    )
+                    
+                # --- 1. Filtrar y Ordenar MIS TAREAS ---
+                filtered_mine = [e for e in safe_my_exercises if state["filter_my_tasks"] in e.get("title", "").lower()]
+                filtered_mine.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_my_tasks"] == "desc"))
                 
-            # --- 1. Filtrar y Ordenar MIS TAREAS ---
-            filtered_mine = [e for e in safe_my_exercises if state["filter_my_tasks"] in e.get("title", "").lower()]
-            filtered_mine.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_my_tasks"] == "desc"))
-            
-            if not filtered_mine:
-                col_mine.controls.append(ft.Text("No hay tareas seleccionadas", color=COLORES["subtitulo"]))
-            else:
-                for ex in filtered_mine:
-                    col_mine.controls.append(create_exercise_card(ex, True))
+                if not filtered_mine:
+                    col_mine.controls.append(ft.Text("No hay tareas seleccionadas", color=COLORES["subtitulo"]))
+                else:
+                    for ex in filtered_mine:
+                        col_mine.controls.append(create_exercise_card(ex, True))
 
-            # --- 2. Filtrar y Ordenar GLOBALES ---
-            filtered_global = [e for e in safe_available_exercises if state["filter_global_tasks"] in e.get("title", "").lower()]
-            filtered_global.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_global_tasks"] == "desc"))
+                # --- 2. Filtrar y Ordenar GLOBALES ---
+                filtered_global = [e for e in safe_available_exercises if state["filter_global_tasks"] in e.get("title", "").lower()]
+                filtered_global.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_global_tasks"] == "desc"))
 
-            if not filtered_global:
-                col_available.controls.append(ft.Text("No hay tareas disponibles", color=COLORES["subtitulo"]))
-            else:
-                for ex in filtered_global:
-                    col_available.controls.append(create_exercise_card(ex, False))
+                if not filtered_global:
+                    col_available.controls.append(ft.Text("No hay tareas disponibles", color=COLORES["subtitulo"]))
+                else:
+                    for ex in filtered_global:
+                        col_available.controls.append(create_exercise_card(ex, False))
+                    
+                page.update()
                 
-            page.update()
-
         # 5. Layout (Arquitectura clonada de Mis Estudiantes)
         tab_exercises = ft.Container(
             content=ft.Column([
@@ -1885,98 +1888,99 @@ def main(page: ft.Page):
             render_grades()
 
         def render_grades():
-            nuevas_completadas = []
-            nuevas_pendientes = []
-            
-            def create_grade_card(item, is_completed):
-                score_to_show = item.get("teacher_score") if is_completed and item.get("teacher_score") is not None else item.get("llm_score", 0)
-                date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
+            with ui_lock:
+                nuevas_completadas = []
+                nuevas_pendientes = []
+                
+                def create_grade_card(item, is_completed):
+                    score_to_show = item.get("teacher_score") if is_completed and item.get("teacher_score") is not None else item.get("llm_score", 0)
+                    date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
+                    
+                    try:
+                        score_val = float(score_to_show)
+                    except (ValueError, TypeError):
+                        score_val = 0.0
+                        
+                    if score_val < 6.0:
+                        score_color = COLORES["error"]
+                    elif score_val < 8.0:
+                        score_color = COLORES["advertencia"]
+                    else:
+                        score_color = COLORES["exito"]
+                    score_display = int(score_val) if score_val.is_integer() else score_val
+                    
+                    return ft.Container(
+                        content=ft.Row([
+                            ft.Column([
+                                ft.Text(f"{item.get('nombre', 'Estudiante')}", weight="bold", size=14, color=COLORES["texto"]),
+                                ft.Text(f"{item['correo']}", size=11, color=COLORES["subtitulo"]),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.MENU_BOOK, size=12, color=COLORES["primario"]),
+                                    ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["primario"]),
+                                    ft.Container(width=5),
+                                    ft.Icon(ft.Icons.EVENT_NOTE, size=12, color=COLORES["subtitulo"]),
+                                    ft.Text(f"{date_str}", size=12, color=COLORES["subtitulo"])
+                                ], spacing=5)
+                            ], expand=True),
+                            ft.Column([
+                                ft.Text(f"{score_display}/10", color=score_color, weight="bold", size=16),
+                                ft.Text("Evaluación IA", size=10, italic=True) if not is_completed else ft.Text("Nota Final", size=10, italic=True)
+                            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.END),
+                            ft.Column([
+                                ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i, is_completed), icon_color=COLORES["primario"], tooltip="Editar Evaluación"),
+                                ft.IconButton(ft.Icons.DELETE_FOREVER, on_click=lambda e, i=item: open_delete_eval_dlg(i['id']), icon_color=COLORES["error"], tooltip="Eliminar Duplicado")
+                            ], spacing=0)
+                        ]),
+                        bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"]),
+                        margin=ft.margin.only(bottom=5)
+                    )
+
+                def get_group_key(item, group_type):
+                    if group_type == "fecha": return item.get("fecha", "")[:10]
+                    elif group_type == "practica": return item.get("practica", "Sin práctica")
+                    elif group_type == "problema": return f"Ejercicio #{item.get('problema_id', '?')}"
+                    elif group_type == "estudiante": return item.get("nombre", item.get("correo"))
+                    return "General"
+
+                def build_grouped_list(items, group_by, is_completed):
+                    items.sort(key=lambda x: (get_group_key(x, group_by), x.get("fecha", "")), reverse=True)
+                    grupos = {}
+                    for item in items:
+                        g_key = get_group_key(item, group_by)
+                        if g_key not in grupos:
+                            grupos[g_key] = []
+                        grupos[g_key].append(create_grade_card(item, is_completed))
+                    controls = []
+                    for g_key, card_list in grupos.items():
+                        tile = ft.ExpansionTile(
+                            title=ft.Text(f"{g_key}", weight="bold", color=COLORES["primario"]),
+                            subtitle=ft.Text(f"Evaluaciones: {len(card_list)}", size=12, color=COLORES["subtitulo"]),
+                            controls=card_list,
+                            collapsed_text_color=COLORES["primario"],
+                            text_color=COLORES["primario"],
+                            initially_expanded=False,
+                        )
+                        controls.append(tile)
+                    return controls
+
+                # --- Filtrar Búsquedas ---
+                filtered_comp = [g for g in state["completed_grades"] if state["filter_completed_grades"] in g.get("correo", "").lower() or state["filter_completed_grades"] in g.get("practica", "").lower() or state["filter_completed_grades"] in g.get("nombre", "").lower()]
+                filtered_pend = [g for g in state["pending_grades"] if state["filter_pending_grades"] in g.get("correo", "").lower() or state["filter_pending_grades"] in g.get("practica", "").lower() or state["filter_pending_grades"] in g.get("nombre", "").lower()]
+
+                if not filtered_comp: nuevas_completadas.append(ft.Text("No hay evaluaciones completadas", color=COLORES["subtitulo"]))
+                else: nuevas_completadas.extend(build_grouped_list(filtered_comp, state["group_by_completed"], True))
+                    
+                if not filtered_pend: nuevas_pendientes.append(ft.Text("No hay evaluaciones pendientes", color=COLORES["subtitulo"]))
+                else: nuevas_pendientes.extend(build_grouped_list(filtered_pend, state["group_by_pending"], False))
+                
+                col_completed_grades.controls = nuevas_completadas
+                col_pending_grades.controls = nuevas_pendientes
                 
                 try:
-                    score_val = float(score_to_show)
-                except (ValueError, TypeError):
-                    score_val = 0.0
-                    
-                if score_val < 6.0:
-                    score_color = COLORES["error"]
-                elif score_val < 8.0:
-                    score_color = COLORES["advertencia"]
-                else:
-                    score_color = COLORES["exito"]
-                score_display = int(score_val) if score_val.is_integer() else score_val
-                
-                return ft.Container(
-                    content=ft.Row([
-                        ft.Column([
-                            ft.Text(f"{item.get('nombre', 'Estudiante')}", weight="bold", size=14, color=COLORES["texto"]),
-                            ft.Text(f"{item['correo']}", size=11, color=COLORES["subtitulo"]),
-                            ft.Row([
-                                ft.Icon(ft.Icons.MENU_BOOK, size=12, color=COLORES["primario"]),
-                                ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["primario"]),
-                                ft.Container(width=5),
-                                ft.Icon(ft.Icons.EVENT_NOTE, size=12, color=COLORES["subtitulo"]),
-                                ft.Text(f"{date_str}", size=12, color=COLORES["subtitulo"])
-                            ], spacing=5)
-                        ], expand=True),
-                        ft.Column([
-                            ft.Text(f"{score_display}/10", color=score_color, weight="bold", size=16),
-                            ft.Text("Evaluación IA", size=10, italic=True) if not is_completed else ft.Text("Nota Final", size=10, italic=True)
-                        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.END),
-                        ft.Column([
-                            ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i, is_completed), icon_color=COLORES["primario"], tooltip="Editar Evaluación"),
-                            ft.IconButton(ft.Icons.DELETE_FOREVER, on_click=lambda e, i=item: open_delete_eval_dlg(i['id']), icon_color=COLORES["error"], tooltip="Eliminar Duplicado")
-                        ], spacing=0)
-                    ]),
-                    bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"]),
-                    margin=ft.margin.only(bottom=5)
-                )
-
-            def get_group_key(item, group_type):
-                if group_type == "fecha": return item.get("fecha", "")[:10]
-                elif group_type == "practica": return item.get("practica", "Sin práctica")
-                elif group_type == "problema": return f"Ejercicio #{item.get('problema_id', '?')}"
-                elif group_type == "estudiante": return item.get("nombre", item.get("correo"))
-                return "General"
-
-            def build_grouped_list(items, group_by, is_completed):
-                items.sort(key=lambda x: (get_group_key(x, group_by), x.get("fecha", "")), reverse=True)
-                grupos = {}
-                for item in items:
-                    g_key = get_group_key(item, group_by)
-                    if g_key not in grupos:
-                        grupos[g_key] = []
-                    grupos[g_key].append(create_grade_card(item, is_completed))
-                controls = []
-                for g_key, card_list in grupos.items():
-                    tile = ft.ExpansionTile(
-                        title=ft.Text(f"{g_key}", weight="bold", color=COLORES["primario"]),
-                        subtitle=ft.Text(f"Evaluaciones: {len(card_list)}", size=12, color=COLORES["subtitulo"]),
-                        controls=card_list,
-                        collapsed_text_color=COLORES["primario"],
-                        text_color=COLORES["primario"],
-                        initially_expanded=False,
-                    )
-                    controls.append(tile)
-                return controls
-
-            # --- Filtrar Búsquedas ---
-            filtered_comp = [g for g in state["completed_grades"] if state["filter_completed_grades"] in g.get("correo", "").lower() or state["filter_completed_grades"] in g.get("practica", "").lower() or state["filter_completed_grades"] in g.get("nombre", "").lower()]
-            filtered_pend = [g for g in state["pending_grades"] if state["filter_pending_grades"] in g.get("correo", "").lower() or state["filter_pending_grades"] in g.get("practica", "").lower() or state["filter_pending_grades"] in g.get("nombre", "").lower()]
-
-            if not filtered_comp: nuevas_completadas.append(ft.Text("No hay evaluaciones completadas", color=COLORES["subtitulo"]))
-            else: nuevas_completadas.extend(build_grouped_list(filtered_comp, state["group_by_completed"], True))
-                
-            if not filtered_pend: nuevas_pendientes.append(ft.Text("No hay evaluaciones pendientes", color=COLORES["subtitulo"]))
-            else: nuevas_pendientes.extend(build_grouped_list(filtered_pend, state["group_by_pending"], False))
-            
-            col_completed_grades.controls = nuevas_completadas
-            col_pending_grades.controls = nuevas_pendientes
-            
-            try:
-                col_completed_grades.update()
-                col_pending_grades.update()
-            except Exception:
-                pass
+                    col_completed_grades.update()
+                    col_pending_grades.update()
+                except Exception:
+                    pass
                 
         def download_grades_excel(e):
             # Obtener el filtro de búsqueda general si lo hay (puedes adaptarlo si decides poner dropdowns aquí)
