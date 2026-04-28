@@ -1661,7 +1661,7 @@ def main(page: ft.Page):
                 ft.Row([
                     ft.Column([
                         ft.Text("Dashboard en Tiempo Real", size=24, weight="bold", color=COLORES["primario"]),
-                        session_status_text # Variable global definida arriba
+                        session_status_text
                     ]),
                     ft.Row([
                         download_live_report_btn,
@@ -2030,28 +2030,22 @@ def main(page: ft.Page):
             url = f"{BASE}/api/teacher/grades/download?token={state['token']}"
             page.launch_url(url)
 
-        btn_download_excel = ft.ElevatedButton(
-            "Descargar Reporte Excel",
+        btn_download_excel = ft.IconButton(
             icon=ft.Icons.TABLE_VIEW,
-            bgcolor=COLORES["primario"],
-            color=COLORES["fondo"],
+            icon_color=COLORES["primario"],
+            icon_size=20,
+            tooltip="Descargar Reporte Excel",
             on_click=download_grades_excel
         )
         
         tab_grading = ft.Container(
             content=ft.Column([
                 ft.Row([
-                     ft.Text("Administración de Calificaciones", size=20, weight="bold", color=COLORES["primario"], expand=True),
-                     btn_download_excel
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                
-                ft.Divider(color=COLORES["borde"]),
-                
-                ft.Row([
                     # COLUMNA IZQUIERDA: Completadas
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
+                                btn_download_excel,
                                 ft.Text("Evaluaciones Completadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=refresh_grades)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
