@@ -1782,10 +1782,6 @@ def main(page: ft.Page):
             border_radius=8, 
             width=float("inf")
         )
-        btn_style = ft.ButtonStyle(padding=ft.padding.symmetric(horizontal=20, vertical=15))
-        grade_btn_cancel = ft.ElevatedButton("Regresar", bgcolor=COLORES["advertencia"], color=COLORES["texto"], style=btn_style, on_click=lambda e: close_grade_dlg())
-        grade_btn_approve = ft.ElevatedButton("Aprobar Calificación Sugerida", bgcolor=COLORES["boton"], color=COLORES["texto"], style=btn_style)
-        grade_btn_save = ft.ElevatedButton("Modificar Calificación", bgcolor=COLORES["exito"], color=COLORES["texto"], style=btn_style)
         
         grade_dlg = ft.AlertDialog(
             title=ft.Container(content=grade_student_label, alignment=ft.alignment.center),
@@ -1864,17 +1860,16 @@ def main(page: ft.Page):
                 
         def open_grade_dialog(initial_item, is_completed):
             with ui_lock:
-                # --- 0. INICIALIZAR MEMORIA DE REVISIONES ---
                 if "revised_evals" not in state:
                     state["revised_evals"] = set()
-
+                    
                 def get_group_key_local(item, group_type):
                     if group_type == "fecha": return item.get("fecha", "")[:10]
                     elif group_type == "practica": return item.get("practica", "Sin práctica")
                     elif group_type == "problema": return f"Ejercicio #{item.get('problema_id', '?')}"
                     elif group_type == "estudiante": return item.get("nombre", item.get("correo"))
                     return "General"
-
+                    
                 group_by = state.get("group_by_completed") if is_completed else state.get("group_by_pending")
                 target_group = get_group_key_local(initial_item, group_by)
                 
