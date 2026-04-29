@@ -1864,22 +1864,40 @@ def main(page: ft.Page):
                 
         def open_grade_dialog(initial_item, is_completed):
             with ui_lock:
-                # 1. Obtener la lista filtrada correcta (Se extrae de la UI actual)
-                nav_list = state["nav_comp"] if is_completed else state["nav_pend"]
+                # --- 0. INICIALIZAR MEMORIA DE REVISIONES ---
+                if "revised_evals" not in state:
+                    state["revised_evals"] = set()
+
+                # --- 1. BLOQUEAR LA NAVEGACIÓN SOLO AL GRUPO SELECCIONADO ---
+                def get_group_key_local(item, group_type):
+                    if group_type == "fecha": return item.get("fecha", "")[:10]
+                    elif group_type == "practica": return item.get("practica", "Sin práctica")
+                    elif group_type == "problema": return f"Ejercicio #{item.get('problema_id', '?')}"
+                    elif group_type == "estudiante": return item.get("nombre", item.get("correo"))
+                    return "General"
+
+                group_by = state.get("group_by_completed") if is_completed else state.get("group_by_pending")
+                target_group = get_group_key_local(initial_item, group_by)
                 
-                # 2. Encontrar en qué índice de la lista empezamos
+                full_list = state["nav_comp"] if is_completed else state["nav_pend"]
+                
+                # ¡Magia aquí! La lista de navegación AHORA solo contiene los elementos de la pestaña desplegable
+                nav_list = [x for x in full_list if get_group_key_local(x, group_by) == target_group]
+                
                 try:
                     current_idx = next(i for i, x in enumerate(nav_list) if x["id"] == initial_item["id"])
                 except StopIteration:
                     current_idx = 0
                     
-                # 3. Definir botones de navegación
+                # --- 2. BOTONES SIMPLIFICADOS ---
                 btn_prev = ft.ElevatedButton("< Ant", color=COLORES["texto"], bgcolor=COLORES["borde"])
                 btn_next = ft.ElevatedButton("Sig >", color=COLORES["texto"], bgcolor=COLORES["borde"])
+                btn_close = ft.ElevatedButton("Cerrar", color=COLORES["error"], bgcolor=COLORES["fondo"])
+                btn_save_next = ft.ElevatedButton("Guardar y Siguiente", bgcolor=COLORES["exito"], color=COLORES["fondo"])
 
                 def close_modal(e=None):
                     grade_dlg.open = False
-                    load_grades() # <-- Refrescar UI de la tabla SOLO al cerrar el modal
+                    load_grades() # Recarga la UI SOLO al cerrar el modal
                     page.update()
 
                 def load_card_at_index(idx):
@@ -1887,7 +1905,7 @@ def main(page: ft.Page):
                     state["current_eval_idx"] = idx
                     state["current_eval_item"] = item
                     
-                    # --- BUSCAR DESCRIPCIÓN Y ENUNCIADO ---
+                    # --- 3. EXTRACCIÓN ROBUSTA DE ENUNCIADOS ---
                     desc = "Descripción no disponible."
                     enunciado = "Enunciado no disponible."
                     
@@ -1895,19 +1913,35 @@ def main(page: ft.Page):
                         if ex.get("title") == item.get("practica") or ex.get("filename") == item.get("practica"):
                             desc = ex.get("description", desc)
                             for p in ex.get("problemas", []):
-                                if str(p.get("id")) == str(item.get("problema_id")):
+                                # Limpieza estricta para evitar fallos por tipos de datos (ej. 4 vs "4" vs "4.0")
+                                p_id = str(p.get("id")).strip().split('.')[0]
+                                item_id = str(item.get("problema_id")).strip().split('.')[0]
+                                if p_id == item_id:
                                     enunciado = p.get("enunciado", enunciado)
                                     break
                             break
 
-                    # Actualizar títulos
                     grade_student_label.value = f"{item.get('nombre', item['correo'])}"
                     date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
                     grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
                     
-                    # --- ACTUALIZAR CONTENEDOR CENTRAL ---
-                    # Cambiamos el TextField por una Columna que contiene la descripción, enunciado y respuesta
+                    # --- 4. BANNER VISUAL DE "REVISADO" ---
+                    is_revised = item["id"] in state["revised_evals"]
+                    
+                    revised_banner = ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.CHECK_CIRCLE, color=COLORES["exito"]),
+                            ft.Text("EVALUACIÓN REVISADA", weight="bold", color=COLORES["exito"], size=14)
+                        ], alignment=ft.MainAxisAlignment.CENTER),
+                        bgcolor="#E8F5E9", # Fondo verde muy tenue
+                        padding=5,
+                        border_radius=5,
+                        visible=is_revised,
+                        margin=ft.margin.only(bottom=10)
+                    )
+
                     grade_response_container.content = ft.Column([
+                        revised_banner,
                         ft.Text("Descripción de la Práctica:", weight="bold", size=12, color=COLORES["primario"]),
                         ft.Text(desc, size=12, italic=True, color=COLORES["subtitulo"]),
                         ft.Divider(height=1, color=COLORES["borde"]),
@@ -1916,13 +1950,12 @@ def main(page: ft.Page):
                         ft.Divider(height=1, color=COLORES["borde"]),
                         ft.Text("Respuesta del Estudiante:", weight="bold", size=12, color=COLORES["primario"]),
                         ft.TextField(
-                            value=item['respuesta'],
-                            read_only=True, multiline=True, min_lines=3, max_lines=6,
+                            value=item['respuesta'], read_only=True, multiline=True, min_lines=3, max_lines=6,
                             text_align=ft.TextAlign.JUSTIFY, border=ft.InputBorder.NONE, content_padding=0
                         )
                     ], spacing=5)
 
-                    # Actualizar las notas
+                    # Notas y comentarios
                     llm_score_val = float(item.get('llm_score', 0))
                     llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
                     grade_llm_score_field.value = f"{llm_score_display}/10"
@@ -1936,12 +1969,14 @@ def main(page: ft.Page):
                         grade_score_field.value = "Pendiente"
                         grade_comment_field.value = item['llm_comment']
                         
-                    # Configurar habilitación de botones (Apagar "Ant" si es el primero, "Sig" si es el último)
                     btn_prev.disabled = (idx == 0)
                     btn_next.disabled = (idx == len(nav_list) - 1)
+                    
+                    # Si ya está revisado, cambiamos sutilmente el texto del botón para dar contexto
+                    btn_save_next.text = "Actualizar y Siguiente" if is_revised else "Guardar y Siguiente"
+                    
                     page.update()
 
-                # Funciones de salto
                 def go_prev(e):
                     if state["current_eval_idx"] > 0:
                         load_card_at_index(state["current_eval_idx"] - 1)
@@ -1952,43 +1987,43 @@ def main(page: ft.Page):
                         
                 btn_prev.on_click = go_prev
                 btn_next.on_click = go_next
+                btn_close.on_click = close_modal
 
-                # --- LÓGICA: GUARDAR + AUTO-AVANCE ---
-                def handle_submit(action_type):
+                # --- 5. GUARDAR, MARCAR Y AVANZAR ---
+                def handle_submit(e):
+                    btn_save_next.disabled = True
+                    page.update()
+                    
                     item = state["current_eval_item"]
+                    score_to_send = item['llm_score'] if grade_score_field.value == "Pendiente" else grade_score_field.value
                     
-                    if action_type == "approve":
-                        score = item['llm_score']
-                    else:
-                        score = item['llm_score'] if grade_score_field.value == "Pendiente" else grade_score_field.value
-                        
-                    # 1. Enviar la calificación
-                    submit_grade(item['id'], score, grade_comment_field.value, action_type)
+                    submit_grade(item['id'], score_to_send, grade_comment_field.value, "edit")
                     
-                    # 2. Deslizar automáticamente
+                    # Marcar este ID como revisado
+                    state["revised_evals"].add(item["id"])
+                    
+                    btn_save_next.disabled = False
+                    
                     if state["current_eval_idx"] < len(nav_list) - 1:
                         go_next(None)
                     else:
-                        flash("¡Filtro completado! Has evaluado todas las tareas de esta lista.", ok=True, ms=4000)
-                        close_modal()
-
-                # Re-asignar eventos a los botones ya existentes en la UI
-                grade_btn_approve.on_click = lambda e: handle_submit("approve")
-                grade_btn_save.on_click = lambda e: handle_submit("edit")
-                grade_btn_cancel.on_click = close_modal
+                        # Forzamos que se muestre el banner verde si estaban en el último
+                        load_card_at_index(state["current_eval_idx"])
+                        flash("¡Has completado todos los ejercicios de esta agrupación!", ok=True, ms=4000)
+                        
+                btn_save_next.on_click = handle_submit
                 
-                # Reconstruir la barra inferior del diálogo para empujar "Sig/Ant" a la izquierda
+                # Asignar los botones al diálogo (Eliminamos todos los redundantes)
                 grade_dlg.actions = [
                     ft.Container(
                         content=ft.Row([
                             ft.Row([btn_prev, btn_next], spacing=10),
-                            ft.Row([grade_btn_cancel, grade_btn_approve, grade_btn_save], spacing=10)
+                            ft.Row([btn_close, btn_save_next], spacing=10)
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        width=600 # Asegura que se estire a todo el ancho del diálogo
+                        width=600 
                     )
                 ]
 
-                # Arrancar el modal
                 load_card_at_index(current_idx)
                 grade_dlg.open = True
                 page.update()
