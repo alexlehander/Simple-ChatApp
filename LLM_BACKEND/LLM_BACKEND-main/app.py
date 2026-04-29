@@ -1452,6 +1452,7 @@ def download_grades_report():
     
     output.seek(0)
     return send_file(output, download_name="Reporte_Calificaciones.xlsx", as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------

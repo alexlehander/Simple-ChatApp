@@ -1,0 +1,31 @@
+{
+  "title": "Práctica: Comunicación en Red y Conmutación de Paquetes",
+  "description": "Análisis y configuración de una topología de red con múltiples computadoras, switches y un router. Se abordan conceptos de tráfico local (unicast/broadcast), cruce entre redes, tablas de enrutamiento, configuración de Gateway y el comportamiento de la resolución de direcciones (ARP).",
+  "max_time": 3600,
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "1. Comunicación Local (Misma Red): En la Parte 5, hiciste una prueba de ping desde PC0 (192.168.1.1) a PC1 (192.168.1.2). ¿Qué sucede a nivel de conmutación en el Switch 1 cuando los equipos están en la misma red? ¿Interviene el router en este flujo de datos específico? Justifica tu respuesta."
+    },
+    {
+      "id": 2,
+      "enunciado": "2. Comunicación Remota (Redes Diferentes): Al hacer ping desde PC0 (Red 1: 192.168.1.0/24) hacia PC3 (Red 2: 192.168.2.0/24), ¿qué cambia en el viaje del paquete en comparación con la prueba local? Explica qué hace el Switch 1 cuando se da cuenta de que la IP de destino no pertenece a su propia subred."
+    },
+    {
+      "id": 3,
+      "enunciado": "3. El Rol del Gateway: Durante la Parte 2, tuviste que configurar manualmente las IPs 192.168.1.254 y 192.168.2.254 como 'Default Gateway' en las computadoras. Explica conceptualmente por qué es estrictamente necesario configurar este parámetro en los equipos finales para lograr comunicación entre la Red 1 y la Red 2."
+    },
+    {
+      "id": 4,
+      "enunciado": "4. Función del Router: Basado en los comandos aplicados en la Parte 3 (encender y asignar IPs a las interfaces g0/0 y g0/1), ¿qué función principal está cumpliendo el router al recibir un paquete de PC0 dirigido a PC3? Describe brevemente cómo decide por qué cable (interfaz) debe reenviar el paquete."
+    },
+    {
+      "id": 5,
+      "enunciado": "5. Pérdida del Primer Paquete: Al intentar comunicarte por primera vez de una red a otra (por ejemplo, el primer ping de PC0 a PC3), es muy común que el primer paquete falle ('Request timed out') pero los siguientes tres sean exitosos. ¿A qué protocolo de capa de enlace se debe este comportamiento y qué información estaba buscando la red en ese primer intento?"
+    },
+    {
+      "id": 6,
+      "enunciado": "6. Múltiples Comunicaciones Simultáneas: En la última prueba realizaste pings de forma paralela (PC0->PC3, PC1->PC4 y PC2->PC5). Sabiendo que los equipos están conectados mediante switches con cables Copper Straight-Through en modo full-duplex, ¿cómo maneja la red este tráfico simultáneo en términos de colisiones en comparación a si estuvieran conectados a un Hub antiguo?"
+    }
+  ]
+}
