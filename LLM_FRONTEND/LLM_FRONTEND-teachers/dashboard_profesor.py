@@ -1858,49 +1858,140 @@ def main(page: ft.Page):
             
             if res and res.status_code == 200:
                 flash("Evaluación guardada", ok=True)
-                grade_dlg.open = False
-                page.update()
-                load_grades()
             else:
                 flash("Error al guardar", ok=False)
-                page.update()
-                
-        def open_grade_dialog(item, is_completed):
-            grade_student_label.value = f"{item.get('nombre', item['correo'])}"
-            date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
-            grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
-            grade_response_container.content = ft.TextField(
-                value=item['respuesta'],
-                read_only=True,
-                multiline=True,
-                min_lines=3,
-                max_lines=6,
-                text_align=ft.TextAlign.JUSTIFY,
-                border=ft.InputBorder.NONE,
-                content_padding=0
-            )
-            llm_score_val = float(item.get('llm_score', 0))
-            llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
-            grade_llm_score_field.value = f"{llm_score_display}/10"
-            
-            if is_completed:
-                teacher_score_val = float(item.get('teacher_score', item['llm_score']))
-                teacher_score_display = int(teacher_score_val) if teacher_score_val.is_integer() else teacher_score_val
-                grade_score_field.value = str(teacher_score_display)
-                grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
-            else:
-                grade_score_field.value = "Pendiente"
-                grade_comment_field.value = item['llm_comment']
-                
-            grade_btn_approve.on_click = lambda e: submit_grade(item['id'], item['llm_score'], grade_comment_field.value, "approve")
-            
-            def on_save_click(e):
-                score_to_send = item['llm_score'] if grade_score_field.value == "Pendiente" else grade_score_field.value
-                submit_grade(item['id'], score_to_send, grade_comment_field.value, "edit")
-                
-            grade_btn_save.on_click = on_save_click
-            grade_dlg.open = True
             page.update()
+                
+        def open_grade_dialog(initial_item, is_completed):
+            with ui_lock:
+                # 1. Obtener la lista filtrada correcta (Se extrae de la UI actual)
+                nav_list = state["nav_comp"] if is_completed else state["nav_pend"]
+                
+                # 2. Encontrar en qué índice de la lista empezamos
+                try:
+                    current_idx = next(i for i, x in enumerate(nav_list) if x["id"] == initial_item["id"])
+                except StopIteration:
+                    current_idx = 0
+                    
+                # 3. Definir botones de navegación
+                btn_prev = ft.ElevatedButton("< Ant", color=COLORES["texto"], bgcolor=COLORES["borde"])
+                btn_next = ft.ElevatedButton("Sig >", color=COLORES["texto"], bgcolor=COLORES["borde"])
+
+                def close_modal(e=None):
+                    grade_dlg.open = False
+                    load_grades() # <-- Refrescar UI de la tabla SOLO al cerrar el modal
+                    page.update()
+
+                def load_card_at_index(idx):
+                    item = nav_list[idx]
+                    state["current_eval_idx"] = idx
+                    state["current_eval_item"] = item
+                    
+                    # --- BUSCAR DESCRIPCIÓN Y ENUNCIADO ---
+                    desc = "Descripción no disponible."
+                    enunciado = "Enunciado no disponible."
+                    
+                    for ex in state.get("all_exercises", []):
+                        if ex.get("title") == item.get("practica") or ex.get("filename") == item.get("practica"):
+                            desc = ex.get("description", desc)
+                            for p in ex.get("problemas", []):
+                                if str(p.get("id")) == str(item.get("problema_id")):
+                                    enunciado = p.get("enunciado", enunciado)
+                                    break
+                            break
+
+                    # Actualizar títulos
+                    grade_student_label.value = f"{item.get('nombre', item['correo'])}"
+                    date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
+                    grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
+                    
+                    # --- ACTUALIZAR CONTENEDOR CENTRAL ---
+                    # Cambiamos el TextField por una Columna que contiene la descripción, enunciado y respuesta
+                    grade_response_container.content = ft.Column([
+                        ft.Text("Descripción de la Práctica:", weight="bold", size=12, color=COLORES["primario"]),
+                        ft.Text(desc, size=12, italic=True, color=COLORES["subtitulo"]),
+                        ft.Divider(height=1, color=COLORES["borde"]),
+                        ft.Text(f"Enunciado (Problema {item['problema_id']}):", weight="bold", size=12, color=COLORES["primario"]),
+                        ft.Text(enunciado, size=12, color=COLORES["texto"]),
+                        ft.Divider(height=1, color=COLORES["borde"]),
+                        ft.Text("Respuesta del Estudiante:", weight="bold", size=12, color=COLORES["primario"]),
+                        ft.TextField(
+                            value=item['respuesta'],
+                            read_only=True, multiline=True, min_lines=3, max_lines=6,
+                            text_align=ft.TextAlign.JUSTIFY, border=ft.InputBorder.NONE, content_padding=0
+                        )
+                    ], spacing=5)
+
+                    # Actualizar las notas
+                    llm_score_val = float(item.get('llm_score', 0))
+                    llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
+                    grade_llm_score_field.value = f"{llm_score_display}/10"
+                    
+                    if is_completed:
+                        teacher_score_val = float(item.get('teacher_score', item['llm_score']))
+                        teacher_score_display = int(teacher_score_val) if teacher_score_val.is_integer() else teacher_score_val
+                        grade_score_field.value = str(teacher_score_display)
+                        grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
+                    else:
+                        grade_score_field.value = "Pendiente"
+                        grade_comment_field.value = item['llm_comment']
+                        
+                    # Configurar habilitación de botones (Apagar "Ant" si es el primero, "Sig" si es el último)
+                    btn_prev.disabled = (idx == 0)
+                    btn_next.disabled = (idx == len(nav_list) - 1)
+                    page.update()
+
+                # Funciones de salto
+                def go_prev(e):
+                    if state["current_eval_idx"] > 0:
+                        load_card_at_index(state["current_eval_idx"] - 1)
+                        
+                def go_next(e):
+                    if state["current_eval_idx"] < len(nav_list) - 1:
+                        load_card_at_index(state["current_eval_idx"] + 1)
+                        
+                btn_prev.on_click = go_prev
+                btn_next.on_click = go_next
+
+                # --- LÓGICA: GUARDAR + AUTO-AVANCE ---
+                def handle_submit(action_type):
+                    item = state["current_eval_item"]
+                    
+                    if action_type == "approve":
+                        score = item['llm_score']
+                    else:
+                        score = item['llm_score'] if grade_score_field.value == "Pendiente" else grade_score_field.value
+                        
+                    # 1. Enviar la calificación
+                    submit_grade(item['id'], score, grade_comment_field.value, action_type)
+                    
+                    # 2. Deslizar automáticamente
+                    if state["current_eval_idx"] < len(nav_list) - 1:
+                        go_next(None)
+                    else:
+                        flash("¡Filtro completado! Has evaluado todas las tareas de esta lista.", ok=True, ms=4000)
+                        close_modal()
+
+                # Re-asignar eventos a los botones ya existentes en la UI
+                grade_btn_approve.on_click = lambda e: handle_submit("approve")
+                grade_btn_save.on_click = lambda e: handle_submit("edit")
+                grade_btn_cancel.on_click = close_modal
+                
+                # Reconstruir la barra inferior del diálogo para empujar "Sig/Ant" a la izquierda
+                grade_dlg.actions = [
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Row([btn_prev, btn_next], spacing=10),
+                            ft.Row([grade_btn_cancel, grade_btn_approve, grade_btn_save], spacing=10)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        width=600 # Asegura que se estire a todo el ancho del diálogo
+                    )
+                ]
+
+                # Arrancar el modal
+                load_card_at_index(current_idx)
+                grade_dlg.open = True
+                page.update()
             
         def update_grade_filters(target, value):
             if target == "completed": state["filter_completed_grades"] = value.lower()
@@ -2009,7 +2100,11 @@ def main(page: ft.Page):
                 # --- Filtrar Búsquedas ---
                 filtered_comp = [g for g in state["completed_grades"] if state["filter_completed_grades"] in g.get("correo", "").lower() or state["filter_completed_grades"] in g.get("practica", "").lower() or state["filter_completed_grades"] in g.get("nombre", "").lower()]
                 filtered_pend = [g for g in state["pending_grades"] if state["filter_pending_grades"] in g.get("correo", "").lower() or state["filter_pending_grades"] in g.get("practica", "").lower() or state["filter_pending_grades"] in g.get("nombre", "").lower()]
-
+                filtered_comp.sort(key=lambda x: (get_group_key(x, state["group_by_completed"]), x.get("fecha", "")), reverse=True)
+                filtered_pend.sort(key=lambda x: (get_group_key(x, state["group_by_pending"]), x.get("fecha", "")), reverse=True)
+                state["nav_comp"] = filtered_comp
+                state["nav_pend"] = filtered_pend
+                
                 if not filtered_comp: nuevas_completadas.append(ft.Text("No hay evaluaciones completadas", color=COLORES["subtitulo"]))
                 else: nuevas_completadas.extend(build_grouped_list(filtered_comp, state["group_by_completed"], True))
                     
