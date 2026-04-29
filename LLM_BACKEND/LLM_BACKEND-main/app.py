@@ -361,7 +361,8 @@ def get_exercise_metadata(filename):
                 "title": data.get("title", filename),
                 "description": data.get("description", "Sin descripción disponible."),
                 "max_time": data.get("max_time", 0),
-                "num_problems": len(data.get("problemas", []))
+                "num_problems": len(data.get("problemas", [])),
+                "problemas": data.get("problemas", [])
             }
     except Exception as e:
         print(f"Error leyendo metadata de {filename}: {e}")
