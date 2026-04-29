@@ -1935,14 +1935,15 @@ def main(page: ft.Page):
                         teacher_score_display = int(teacher_score_val) if teacher_score_val.is_integer() else teacher_score_val
                         grade_score_field.value = str(teacher_score_display)
                         grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
-                        
-                        grade_score_field.bgcolor = COLORES["exito"]
-                        grade_score_field.color = COLORES["fondo"]
+                        grade_score_field.bgcolor = COLORES["fondo"]
+                        grade_score_field.color = COLORES["exito"] 
+                        grade_score_field.text_style = ft.TextStyle(weight="bold", size=18)
                     else:
                         grade_score_field.value = "Pendiente"
                         grade_comment_field.value = item['llm_comment']
                         grade_score_field.bgcolor = COLORES["fondo"]
                         grade_score_field.color = COLORES["texto"]
+                        grade_score_field.text_style = ft.TextStyle(weight="normal", size=18)
                         
                     btn_prev.disabled = (idx == 0)
                     btn_next.disabled = (idx == len(nav_list) - 1)
