@@ -1868,7 +1868,6 @@ def main(page: ft.Page):
                 if "revised_evals" not in state:
                     state["revised_evals"] = set()
 
-                # --- 1. BLOQUEAR LA NAVEGACIÓN SOLO AL GRUPO SELECCIONADO ---
                 def get_group_key_local(item, group_type):
                     if group_type == "fecha": return item.get("fecha", "")[:10]
                     elif group_type == "practica": return item.get("practica", "Sin práctica")
@@ -1880,8 +1879,6 @@ def main(page: ft.Page):
                 target_group = get_group_key_local(initial_item, group_by)
                 
                 full_list = state["nav_comp"] if is_completed else state["nav_pend"]
-                
-                # ¡Magia aquí! La lista de navegación AHORA solo contiene los elementos de la pestaña desplegable
                 nav_list = [x for x in full_list if get_group_key_local(x, group_by) == target_group]
                 
                 try:
@@ -1889,31 +1886,30 @@ def main(page: ft.Page):
                 except StopIteration:
                     current_idx = 0
                     
-                # --- 2. BOTONES SIMPLIFICADOS ---
-                btn_prev = ft.ElevatedButton("< Ant", color=COLORES["texto"], bgcolor=COLORES["borde"])
-                btn_next = ft.ElevatedButton("Sig >", color=COLORES["texto"], bgcolor=COLORES["borde"])
-                btn_close = ft.ElevatedButton("Cerrar", color=COLORES["error"], bgcolor=COLORES["fondo"])
-                btn_save_next = ft.ElevatedButton("Guardar y Siguiente", bgcolor=COLORES["exito"], color=COLORES["fondo"])
+                # --- 1. LOS ÚNICOS 4 BOTONES PERMITIDOS ---
+                btn_prev = ft.ElevatedButton("< Anterior", color=COLORES["texto"], bgcolor=COLORES["borde"])
+                btn_next = ft.ElevatedButton("Siguiente >", color=COLORES["texto"], bgcolor=COLORES["borde"])
+                btn_approve = ft.ElevatedButton("Aprobar", bgcolor=COLORES["boton"], color=COLORES["fondo"])
+                btn_modify = ft.ElevatedButton("Modificar", bgcolor=COLORES["exito"], color=COLORES["fondo"])
 
-                def close_modal(e=None):
-                    grade_dlg.open = False
-                    load_grades() # Recarga la UI SOLO al cerrar el modal
+                # Como quitamos el botón de "Cerrar", nos aseguramos de que recargue la UI si el profesor da clic afuera del modal
+                def handle_dismiss(e):
+                    load_grades()
                     page.update()
+                grade_dlg.on_dismiss = handle_dismiss
 
                 def load_card_at_index(idx):
                     item = nav_list[idx]
                     state["current_eval_idx"] = idx
                     state["current_eval_item"] = item
                     
-                    # --- 3. EXTRACCIÓN ROBUSTA DE ENUNCIADOS ---
+                    # Extraer enunciados
                     desc = "Descripción no disponible."
                     enunciado = "Enunciado no disponible."
-                    
                     for ex in state.get("all_exercises", []):
                         if ex.get("title") == item.get("practica") or ex.get("filename") == item.get("practica"):
                             desc = ex.get("description", desc)
                             for p in ex.get("problemas", []):
-                                # Limpieza estricta para evitar fallos por tipos de datos (ej. 4 vs "4" vs "4.0")
                                 p_id = str(p.get("id")).strip().split('.')[0]
                                 item_id = str(item.get("problema_id")).strip().split('.')[0]
                                 if p_id == item_id:
@@ -1925,15 +1921,15 @@ def main(page: ft.Page):
                     date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
                     grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
                     
-                    # --- 4. BANNER VISUAL DE "REVISADO" ---
-                    is_revised = item["id"] in state["revised_evals"]
+                    # --- ESTADO DE REVISIÓN Y COLOR VERDE ---
+                    is_revised = item["id"] in state["revised_evals"] or is_completed
                     
                     revised_banner = ft.Container(
                         content=ft.Row([
                             ft.Icon(ft.Icons.CHECK_CIRCLE, color=COLORES["exito"]),
                             ft.Text("EVALUACIÓN REVISADA", weight="bold", color=COLORES["exito"], size=14)
                         ], alignment=ft.MainAxisAlignment.CENTER),
-                        bgcolor="#E8F5E9", # Fondo verde muy tenue
+                        bgcolor="#E8F5E9" if load_k(page, "theme") == "light" else "#1A2E20", 
                         padding=5,
                         border_radius=5,
                         visible=is_revised,
@@ -1955,26 +1951,31 @@ def main(page: ft.Page):
                         )
                     ], spacing=5)
 
-                    # Notas y comentarios
+                    # Valores base (IA)
                     llm_score_val = float(item.get('llm_score', 0))
                     llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
                     grade_llm_score_field.value = f"{llm_score_display}/10"
                     
-                    if is_completed:
+                    # Lógica de colores del TextField de Calificación
+                    if is_revised:
                         teacher_score_val = float(item.get('teacher_score', item['llm_score']))
                         teacher_score_display = int(teacher_score_val) if teacher_score_val.is_integer() else teacher_score_val
                         grade_score_field.value = str(teacher_score_display)
                         grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
+                        
+                        # Cambiar el fondo a verde
+                        grade_score_field.bgcolor = COLORES["exito"]
+                        grade_score_field.color = COLORES["fondo"] # Letra blanca/oscura para contraste
                     else:
                         grade_score_field.value = "Pendiente"
                         grade_comment_field.value = item['llm_comment']
                         
+                        # Fondo normal
+                        grade_score_field.bgcolor = COLORES["fondo"]
+                        grade_score_field.color = COLORES["texto"]
+                        
                     btn_prev.disabled = (idx == 0)
                     btn_next.disabled = (idx == len(nav_list) - 1)
-                    
-                    # Si ya está revisado, cambiamos sutilmente el texto del botón para dar contexto
-                    btn_save_next.text = "Actualizar y Siguiente" if is_revised else "Guardar y Siguiente"
-                    
                     page.update()
 
                 def go_prev(e):
@@ -1984,41 +1985,59 @@ def main(page: ft.Page):
                 def go_next(e):
                     if state["current_eval_idx"] < len(nav_list) - 1:
                         load_card_at_index(state["current_eval_idx"] + 1)
+
+                # --- LÓGICA DE APROBAR ---
+                def handle_approve(e):
+                    item = state["current_eval_item"]
+                    score = float(item.get('llm_score', 0))
+                    
+                    # Enviar calificación de la IA directo al servidor
+                    submit_grade(item['id'], score, grade_comment_field.value, "approve")
+                    
+                    # Actualizar estado interno y recargar (esto pintará el campo de verde automáticamente)
+                    state["revised_evals"].add(item["id"])
+                    item['teacher_score'] = score
+                    item['teacher_comment'] = grade_comment_field.value
+                    load_card_at_index(state["current_eval_idx"])
+                    flash("Calificación de IA aprobada", ok=True)
+
+                # --- LÓGICA DE MODIFICAR (CON BLOQUEO DE ERROR) ---
+                def handle_modify(e):
+                    item = state["current_eval_item"]
+                    val = grade_score_field.value
+                    
+                    # Validar que no esté vacío ni sea el placeholder
+                    if not val or val.strip().lower() == "pendiente":
+                        flash("¡Alto! Debes ingresar un número en 'Calificación Asignada' antes de modificar.", ok=False, ms=3000)
+                        return
                         
+                    try:
+                        score = float(val)
+                    except ValueError:
+                        flash("El formato de la calificación es incorrecto. Ingresa solo números.", ok=False, ms=3000)
+                        return
+
+                    # Enviar modificación al servidor
+                    submit_grade(item['id'], score, grade_comment_field.value, "edit")
+                    
+                    # Actualizar estado interno y recargar (pintará el campo de verde)
+                    state["revised_evals"].add(item["id"])
+                    item['teacher_score'] = score
+                    item['teacher_comment'] = grade_comment_field.value
+                    load_card_at_index(state["current_eval_idx"])
+                    flash("Calificación modificada exitosamente", ok=True)
+
                 btn_prev.on_click = go_prev
                 btn_next.on_click = go_next
-                btn_close.on_click = close_modal
-
-                # --- 5. GUARDAR, MARCAR Y AVANZAR ---
-                def handle_submit(e):
-                    btn_save_next.disabled = True
-                    page.update()
-                    
-                    item = state["current_eval_item"]
-                    score_to_send = item['llm_score'] if grade_score_field.value == "Pendiente" else grade_score_field.value
-                    
-                    submit_grade(item['id'], score_to_send, grade_comment_field.value, "edit")
-                    
-                    # Marcar este ID como revisado
-                    state["revised_evals"].add(item["id"])
-                    
-                    btn_save_next.disabled = False
-                    
-                    if state["current_eval_idx"] < len(nav_list) - 1:
-                        go_next(None)
-                    else:
-                        # Forzamos que se muestre el banner verde si estaban en el último
-                        load_card_at_index(state["current_eval_idx"])
-                        flash("¡Has completado todos los ejercicios de esta agrupación!", ok=True, ms=4000)
-                        
-                btn_save_next.on_click = handle_submit
+                btn_approve.on_click = handle_approve
+                btn_modify.on_click = handle_modify
                 
-                # Asignar los botones al diálogo (Eliminamos todos los redundantes)
+                # Asignar los únicos 4 botones al diálogo
                 grade_dlg.actions = [
                     ft.Container(
                         content=ft.Row([
                             ft.Row([btn_prev, btn_next], spacing=10),
-                            ft.Row([btn_close, btn_save_next], spacing=10)
+                            ft.Row([btn_approve, btn_modify], spacing=10)
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         width=600 
                     )
