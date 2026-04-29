@@ -1794,11 +1794,6 @@ def main(page: ft.Page):
                         grade_score_field
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, spacing=20),
                     grade_comment_field,
-                    ft.Row(
-                        [grade_btn_cancel, grade_btn_approve, grade_btn_save], 
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        width=float("inf")
-                    )
                 ], tight=True, spacing=15),
                 width=600
             ),
@@ -1841,22 +1836,13 @@ def main(page: ft.Page):
             close_delete_eval_dlg()
 
         def submit_grade(item_id, score, comment, action):
-            grade_btn_approve.disabled = True
-            grade_btn_save.disabled = True
-            page.update()
-            
             res = auth_request("POST", "/api/teacher/grades/submit", json={
                 "id": item_id, "score": score, "comment": comment, "action": action
             })
-            
-            grade_btn_approve.disabled = False
-            grade_btn_save.disabled = False
-            
             if res and res.status_code == 200:
-                flash("Evaluación guardada", ok=True)
+                pass 
             else:
-                flash("Error al guardar", ok=False)
-            page.update()
+                flash("Error al guardar en el servidor", ok=False)
                 
         def open_grade_dialog(initial_item, is_completed):
             with ui_lock:
@@ -1881,13 +1867,11 @@ def main(page: ft.Page):
                 except StopIteration:
                     current_idx = 0
                     
-                # --- 1. LOS ÚNICOS 4 BOTONES PERMITIDOS ---
                 btn_prev = ft.ElevatedButton("< Anterior", color=COLORES["texto"], bgcolor=COLORES["borde"])
                 btn_next = ft.ElevatedButton("Siguiente >", color=COLORES["texto"], bgcolor=COLORES["borde"])
                 btn_approve = ft.ElevatedButton("Aprobar", bgcolor=COLORES["boton"], color=COLORES["fondo"])
                 btn_modify = ft.ElevatedButton("Modificar", bgcolor=COLORES["exito"], color=COLORES["fondo"])
 
-                # Como quitamos el botón de "Cerrar", nos aseguramos de que recargue la UI si el profesor da clic afuera del modal
                 def handle_dismiss(e):
                     load_grades()
                     page.update()
@@ -1897,8 +1881,6 @@ def main(page: ft.Page):
                     item = nav_list[idx]
                     state["current_eval_idx"] = idx
                     state["current_eval_item"] = item
-                    
-                    # Extraer enunciados
                     desc = "Descripción no disponible."
                     enunciado = "Enunciado no disponible."
                     for ex in state.get("all_exercises", []):
@@ -1915,8 +1897,6 @@ def main(page: ft.Page):
                     grade_student_label.value = f"{item.get('nombre', item['correo'])}"
                     date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
                     grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
-                    
-                    # --- ESTADO DE REVISIÓN Y COLOR VERDE ---
                     is_revised = item["id"] in state["revised_evals"] or is_completed
                     
                     revised_banner = ft.Container(
@@ -1946,26 +1926,21 @@ def main(page: ft.Page):
                         )
                     ], spacing=5)
 
-                    # Valores base (IA)
                     llm_score_val = float(item.get('llm_score', 0))
                     llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
                     grade_llm_score_field.value = f"{llm_score_display}/10"
                     
-                    # Lógica de colores del TextField de Calificación
                     if is_revised:
                         teacher_score_val = float(item.get('teacher_score', item['llm_score']))
                         teacher_score_display = int(teacher_score_val) if teacher_score_val.is_integer() else teacher_score_val
                         grade_score_field.value = str(teacher_score_display)
                         grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
                         
-                        # Cambiar el fondo a verde
                         grade_score_field.bgcolor = COLORES["exito"]
-                        grade_score_field.color = COLORES["fondo"] # Letra blanca/oscura para contraste
+                        grade_score_field.color = COLORES["fondo"]
                     else:
                         grade_score_field.value = "Pendiente"
                         grade_comment_field.value = item['llm_comment']
-                        
-                        # Fondo normal
                         grade_score_field.bgcolor = COLORES["fondo"]
                         grade_score_field.color = COLORES["texto"]
                         
@@ -1980,54 +1955,41 @@ def main(page: ft.Page):
                 def go_next(e):
                     if state["current_eval_idx"] < len(nav_list) - 1:
                         load_card_at_index(state["current_eval_idx"] + 1)
-
-                # --- LÓGICA DE APROBAR ---
+                        
                 def handle_approve(e):
                     item = state["current_eval_item"]
                     score = float(item.get('llm_score', 0))
-                    
-                    # Enviar calificación de la IA directo al servidor
                     submit_grade(item['id'], score, grade_comment_field.value, "approve")
-                    
-                    # Actualizar estado interno y recargar (esto pintará el campo de verde automáticamente)
                     state["revised_evals"].add(item["id"])
                     item['teacher_score'] = score
                     item['teacher_comment'] = grade_comment_field.value
                     load_card_at_index(state["current_eval_idx"])
                     flash("Calificación de IA aprobada", ok=True)
-
-                # --- LÓGICA DE MODIFICAR (CON BLOQUEO DE ERROR) ---
+                    
                 def handle_modify(e):
                     item = state["current_eval_item"]
                     val = grade_score_field.value
                     
-                    # Validar que no esté vacío ni sea el placeholder
                     if not val or val.strip().lower() == "pendiente":
                         flash("¡Alto! Debes ingresar un número en 'Calificación Asignada' antes de modificar.", ok=False, ms=3000)
                         return
-                        
                     try:
                         score = float(val)
                     except ValueError:
                         flash("El formato de la calificación es incorrecto. Ingresa solo números.", ok=False, ms=3000)
                         return
-
-                    # Enviar modificación al servidor
+                        
                     submit_grade(item['id'], score, grade_comment_field.value, "edit")
-                    
-                    # Actualizar estado interno y recargar (pintará el campo de verde)
                     state["revised_evals"].add(item["id"])
                     item['teacher_score'] = score
                     item['teacher_comment'] = grade_comment_field.value
                     load_card_at_index(state["current_eval_idx"])
                     flash("Calificación modificada exitosamente", ok=True)
-
+                    
                 btn_prev.on_click = go_prev
                 btn_next.on_click = go_next
                 btn_approve.on_click = handle_approve
                 btn_modify.on_click = handle_modify
-                
-                # Asignar los únicos 4 botones al diálogo
                 grade_dlg.actions = [
                     ft.Container(
                         content=ft.Row([
@@ -2037,7 +1999,6 @@ def main(page: ft.Page):
                         width=600 
                     )
                 ]
-
                 load_card_at_index(current_idx)
                 grade_dlg.open = True
                 page.update()
