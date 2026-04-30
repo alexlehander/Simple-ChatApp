@@ -1279,112 +1279,7 @@ def main(page: ft.Page):
                 except Exception:
                     pass
                 page.update()
-            
-        # --- SECCIÓN MENSAJERÍA ---
-        msg_info_text = ft.Text("", italic=True, color=COLORES["subtitulo"])
-        
-        msg_problem_dropdown = ft.Dropdown(
-            label="Selecciona el Problema", 
-            width=200,
-            border_color=COLORES["primario"],
-            color=COLORES["texto"]
-        )
-        
-        msg_text_field = ft.TextField(
-            label="Escribe tu mensaje...", 
-            multiline=True, 
-            min_lines=4,
-            expand=True,
-            border_color=COLORES["primario"],
-            color=COLORES["texto"]
-        )
-        
-        def close_dialog(e):
-            dialog_msg.open = False
-            page.update()
-            
-        def confirm_send(e):
-            if not msg_text_field.value: 
-                flash("El mensaje no puede estar vacío", ok=False)
-                return
-            if not msg_problem_dropdown.value:
-                flash("Selecciona un número de problema", ok=False)
-                return
                 
-            reset_inactivity_timer()
-            e.control.disabled = True
-            page.update()
-            
-            res = auth_request("POST", "/api/teacher/send-message", json={
-                "student_email": student_filter.value,
-                "practice_name": exercise_filter.value,
-                "problema_id": int(msg_problem_dropdown.value),
-                "message": msg_text_field.value
-            })
-            
-            if res and res.status_code == 200:
-                dialog_msg.open = False
-                flash("Mensaje enviado correctamente", ok=True)
-                load_data_filtered() 
-            else:
-                flash("Error al enviar mensaje", ok=False)
-                
-            e.control.disabled = False
-            page.update()
-            
-        dialog_msg = ft.AlertDialog(
-            title=ft.Text("Mensaje al Estudiante", color=COLORES["texto"]),
-            content=ft.Container(
-                content=ft.Column([
-                    msg_info_text,
-                    ft.Divider(), 
-                    ft.Text("Selecciona el problema destino:", size=12, color=COLORES["subtitulo"]),
-                    msg_problem_dropdown,
-                    msg_text_field
-                ], tight=True, spacing=15),
-                width=600,
-                height=350,
-                bgcolor=COLORES["fondo"]
-            ),
-            actions=[
-                ft.TextButton("Cancelar", on_click=close_dialog),
-                ft.ElevatedButton("Enviar", on_click=confirm_send, bgcolor=COLORES["primario"], color=COLORES["fondo"])
-            ],
-            bgcolor=COLORES["fondo"]
-        )
-        
-        if dialog_msg not in page.overlay: 
-            page.overlay.append(dialog_msg)
-        
-        def send_direct_message(e):
-            reset_inactivity_timer()
-            student_email = student_filter.value
-            task_filename = exercise_filter.value
-
-            if not student_email or student_email == "Todos los estudiantes":
-                flash("Debes seleccionar un estudiante específico para enviar un mensaje.", ok=False)
-                return
-            if not task_filename or task_filename == "Todas las tareas":
-                flash("Debes seleccionar una tarea específica para enviar un mensaje.", ok=False)
-                return
-
-            target_exercise = next((item for item in state["my_exercises"] if isinstance(item, dict) and item["filename"] == task_filename), None)
-            
-            num_problems = 1
-            ex_title = task_filename
-            if target_exercise:
-                num_problems = target_exercise.get("num_problems", 1)
-                ex_title = target_exercise.get("title", task_filename)
-
-            msg_info_text.value = f"Para: {student_email}\nTarea: {ex_title}"
-
-            msg_problem_dropdown.options = [ft.dropdown.Option(str(i)) for i in range(1, num_problems + 1)]
-            msg_problem_dropdown.value = "1"
-            msg_text_field.value = ""
-
-            dialog_msg.open = True
-            page.update()
-            
         def load_data_filtered(e=None):
             if e and hasattr(e, 'control'):
                 e.control.disabled = True
@@ -1477,8 +1372,7 @@ def main(page: ft.Page):
                             student_filter, 
                             exercise_filter, 
                             problem_filter,
-                            ft.IconButton(ft.Icons.SEARCH, icon_size=20, on_click=load_data_filtered, icon_color=COLORES["primario"], tooltip="Aplicar Filtros"),
-                            ft.IconButton(ft.Icons.SEND, icon_size=20, on_click=send_direct_message, icon_color=COLORES["boton"], tooltip="Mensaje Directo")
+                            ft.IconButton(ft.Icons.SEARCH, icon_size=20, on_click=load_data_filtered, icon_color=COLORES["primario"], tooltip="Aplicar Filtros")
                         ], spacing=10)
                     ]),
                     padding=10,
@@ -1967,8 +1861,8 @@ def main(page: ft.Page):
                     
                 btn_prev = ft.ElevatedButton("< Anterior", color=COLORES["texto"], bgcolor=COLORES["borde"])
                 btn_next = ft.ElevatedButton("Siguiente >", color=COLORES["texto"], bgcolor=COLORES["borde"])
-                btn_approve = ft.ElevatedButton("Aprobar", bgcolor=COLORES["boton"], color=COLORES["fondo"])
-                btn_modify = ft.ElevatedButton("Modificar", bgcolor=COLORES["exito"], color=COLORES["fondo"])
+                btn_approve = ft.ElevatedButton("Aprobar Sugerencia", bgcolor=COLORES["boton"], color=COLORES["fondo"])
+                btn_modify = ft.ElevatedButton("Modificar Calificación", bgcolor=COLORES["exito"], color=COLORES["fondo"])
 
                 def load_card_at_index(idx):
                     item = nav_list[idx]
