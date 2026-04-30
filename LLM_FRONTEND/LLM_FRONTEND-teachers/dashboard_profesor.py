@@ -139,7 +139,41 @@ def main(page: ft.Page):
 
     def show_student_detail(email):
         detail_dlg_title.value = f"Línea de Tiempo: {email.split('@')[0]}"
+        filter_recent = {"value": True} # Estado del switch (2 horas)
         
+        # --- UI DE ALERTA DIRECTA ---
+        alert_msg_field = ft.TextField(label="Escribe tu mensaje urgente", multiline=True, min_lines=3, expand=True)
+        
+        def send_alert_action(e):
+            if not alert_msg_field.value.strip():
+                flash("El mensaje no puede estar vacío", ok=False)
+                return
+            e.control.disabled = True
+            page.update()
+            res = auth_request("POST", "/api/teacher/send-alert", json={
+                "student_email": email,
+                "message": alert_msg_field.value
+            })
+            if res and res.status_code == 200:
+                flash("Alerta enviada exitosamente", ok=True)
+                alert_dlg.open = False
+                alert_msg_field.value = ""
+            else:
+                flash("Error al enviar alerta", ok=False)
+            e.control.disabled = False
+            page.update()
+
+        alert_dlg = ft.AlertDialog(
+            title=ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=COLORES["advertencia"]), ft.Text("Enviar Alerta Pop-up")]),
+            content=ft.Container(content=alert_msg_field, width=400, height=120),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: setattr(alert_dlg, 'open', False) or page.update()),
+                ft.ElevatedButton("Enviar Alerta", bgcolor=COLORES["error"], color=COLORES["fondo"], on_click=send_alert_action)
+            ]
+        )
+        if alert_dlg not in page.overlay: page.overlay.append(alert_dlg)
+        
+        # --- LÓGICA DE LÍNEA DE TIEMPO ---
         def fetch_and_render_timeline():
             timeline_data = []
             try:
@@ -157,21 +191,37 @@ def main(page: ft.Page):
                 }.get(color_name, (ft.Icons.CIRCLE_OUTLINED, COLORES["subtitulo"]))
                 
             nuevos_controles = []
-            if not timeline_data:
+            import datetime as dt_module
+            from zoneinfo import ZoneInfo
+            now_tj = dt_module.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None)
+
+            filtered_data = []
+            for event in timeline_data:
+                try:
+                    # CORRECCIÓN DE ZONA HORARIA: Ya no restamos 8 horas, 
+                    # backend ya lo manda en naive America/Tijuana
+                    dt_obj = dt_module.datetime.fromisoformat(event['timestamp'].replace('Z', ''))
+                    
+                    # FILTRO DE 2 HORAS (7200 Segundos)
+                    if filter_recent["value"]:
+                        if (now_tj - dt_obj).total_seconds() > 7200:
+                            continue
+                    filtered_data.append((event, dt_obj))
+                except Exception:
+                    filtered_data.append((event, None))
+
+            if not filtered_data:
                 nuevos_controles.append(
                     ft.Container(
-                        content=ft.Text("No hay interacciones recientes registradas.", italic=True, color=COLORES["subtitulo"]),
+                        content=ft.Text("No hay interacciones en el rango de tiempo seleccionado.", italic=True, color=COLORES["subtitulo"]),
                         alignment=ft.alignment.center, padding=20
                     )
                 )
             else:
-                for event in timeline_data:
-                    try:
-                        import datetime as dt_module
-                        dt_obj = dt_module.datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00'))
-                        dt_local = dt_obj - dt_module.timedelta(hours=8)
-                        time_str = dt_local.strftime("%I:%M %p - %d/%b")
-                    except Exception as e:
+                for event, dt_obj in filtered_data:
+                    if dt_obj:
+                        time_str = dt_obj.strftime("%I:%M %p - %d/%b")
+                    else:
                         time_str = event['timestamp'][:10]
                         
                     icon_shape, icon_color = get_status_meta(event['color'])
@@ -200,12 +250,9 @@ def main(page: ft.Page):
                     nuevos_controles.append(item_row)
                     
             detail_dlg_content.controls = nuevos_controles
-            
             try:
-                if detail_dlg.open:
-                    detail_dlg_content.update()
-            except Exception:
-                pass
+                if detail_dlg.open: detail_dlg_content.update()
+            except Exception: pass
                 
         def trigger_load(e=None):
             detail_dlg_content.controls = [
@@ -214,15 +261,21 @@ def main(page: ft.Page):
                         ft.ProgressRing(color=COLORES["primario"], stroke_width=4),
                         ft.Text("Consultando historial académico...", color=COLORES["subtitulo"], italic=True)
                     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    alignment=ft.alignment.center,
-                    height=200
+                    alignment=ft.alignment.center, height=200
                 )
             ]
-            if detail_dlg.open:
-                detail_dlg_content.update()
-                
+            if detail_dlg.open: detail_dlg_content.update()
             threading.Thread(target=fetch_and_render_timeline, daemon=True).start()
 
+        def on_switch_change(e):
+            filter_recent["value"] = e.control.value
+            trigger_load()
+
+        filter_switch = ft.Switch(label="Solo Últimas 2 Horas", value=True, on_change=on_switch_change, active_color=COLORES["primario"])
+        btn_alert = ft.ElevatedButton("Enviar Alerta", icon=ft.Icons.ADD_ALERT, bgcolor=COLORES["advertencia"], color=COLORES["texto"], on_click=lambda e: setattr(alert_dlg, 'open', True) or page.update())
+
+        detail_dlg.title = ft.Row([detail_dlg_title, ft.Row([filter_switch, btn_alert], spacing=15)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        
         detail_dlg.actions = [
             ft.TextButton("Refrescar", icon=ft.Icons.REFRESH, icon_color=COLORES["primario"], on_click=trigger_load),
             ft.TextButton("Cerrar", on_click=lambda e: close_detail_dlg())
@@ -828,7 +881,8 @@ def main(page: ft.Page):
             on_dismiss=lambda e: close_ex_detail_dlg()
         )
         
-        page.overlay.append(ex_detail_dlg)
+        if ex_detail_dlg not in page.overlay: 
+            page.overlay.append(ex_detail_dlg)
         
         def close_ex_detail_dlg():
             ex_detail_dlg.open = False
@@ -1299,7 +1353,8 @@ def main(page: ft.Page):
             bgcolor=COLORES["fondo"]
         )
         
-        page.overlay.append(dialog_msg)
+        if dialog_msg not in page.overlay: 
+            page.overlay.append(dialog_msg)
         
         def send_direct_message(e):
             reset_inactivity_timer()

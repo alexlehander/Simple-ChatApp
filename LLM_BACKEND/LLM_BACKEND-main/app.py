@@ -748,6 +748,23 @@ def manage_my_exercises():
         db.session.commit()
         return jsonify({"msg": "Eliminado"}), 200
 
+@app.route("/api/teacher/send-alert", methods=["POST"])
+@jwt_required()
+def send_student_alert():
+    data = request.get_json()
+    student_email = data.get("student_email")
+    message = data.get("message")
+    
+    if not student_email or not message:
+        return jsonify({"error": "Faltan datos"}), 400
+    
+    socketio.emit('teacher_alert', {
+        'student_email': student_email,
+        'message': message
+    })
+    
+    return jsonify({"msg": "Alerta enviada"}), 200
+
 @app.route("/api/teacher/send-message", methods=["POST"])
 @jwt_required()
 def teacher_send_message():

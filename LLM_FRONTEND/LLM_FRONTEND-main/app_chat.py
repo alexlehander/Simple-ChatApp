@@ -169,7 +169,35 @@ def main(page: ft.Page):
     def on_disconnect_handler(e):
         page.is_alive = False
         print("El usuario se desconectó, deteniendo hilos...")
-        
+    
+    # --- CUADRO DE ALERTA DEL PROFESOR ---
+    alert_dialog_student = ft.AlertDialog(
+        title=ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=COLORES["advertencia"]), ft.Text("¡Aviso de tu Profesor!", color=COLORES["texto"])]),
+        content=ft.Text("", size=16, color=COLORES["texto"]),
+        modal=True, # Obliga al estudiante a interactuar con él
+        actions=[
+            ft.ElevatedButton("Entendido", bgcolor=COLORES["boton"], color=COLORES["fondo"], on_click=lambda e: setattr(alert_dialog_student, 'open', False) or page.update())
+        ]
+    )
+    if alert_dialog_student not in page.overlay:
+        page.overlay.append(alert_dialog_student)
+    page.on_teacher_alert = lambda data: None
+    @sio.on('teacher_alert')
+    def on_teacher_alert(data):
+        if data['student_email'] == state["correo"]:
+            page.on_teacher_alert(data)
+            
+    def handle_teacher_alert(data):
+        alert_dialog_student.content.value = data['message']
+        alert_dialog_student.open = True
+        try:
+            if page.is_alive:
+                page.update()
+        except Exception:
+            pass
+            
+    page.on_teacher_alert = handle_teacher_alert
+    
     page.on_disconnect = on_disconnect_handler
     theme_name = load_k(page, "theme", "dark")  # "dark" o "light"
     COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
@@ -653,7 +681,8 @@ def main(page: ft.Page):
             actions=[ft.TextButton("Cerrar", on_click=lambda e: close_ex_detail_dlg())],
             on_dismiss=lambda e: close_ex_detail_dlg()
         )
-        page.overlay.append(ex_detail_dlg)
+        if ex_detail_dlg not in page.overlay: 
+            page.overlay.append(ex_detail_dlg)
         
         def close_ex_detail_dlg():
             ex_detail_dlg.open = False
