@@ -1845,7 +1845,7 @@ def main(page: ft.Page):
             content=ft.Text("Estás a punto de eliminar definitivamente esta evaluación de la base de datos.\n\nEsto es útil si el estudiante reenvió la misma respuesta varias veces y quieres limpiar duplicados. ¿Deseas proceder?"),
             actions=[
                 ft.TextButton("Cancelar", on_click=lambda e: close_delete_eval_dlg()),
-                ft.ElevatedButton("Eliminar Permanentemente", color=COLORES["fondo"], bgcolor=COLORES["error"], on_click=confirm_delete_eval)
+                ft.ElevatedButton("Eliminar Permanentemente", color=COLORES["fondo"], bgcolor=COLORES["error"], on_click=lambda e: confirm_delete_eval(e))
             ]
         )
         
