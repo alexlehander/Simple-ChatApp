@@ -120,6 +120,8 @@ def add_to_pending_queue(page, item: dict):
     save_k(page, STATE_KEYS["pending_queue"], queue)
     
 def main(page: ft.Page):
+    theme_name = load_k(page, "theme", "dark")
+    COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
     state = {
         "token": load_k(page, "student_token"),
         "correo": load_k(page, "correo_identificacion"),
@@ -199,8 +201,6 @@ def main(page: ft.Page):
     page.on_teacher_alert = handle_teacher_alert
     
     page.on_disconnect = on_disconnect_handler
-    theme_name = load_k(page, "theme", "dark")  # "dark" o "light"
-    COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
     page.title = "Grow Together"
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.vertical_alignment = ft.MainAxisAlignment.START 
