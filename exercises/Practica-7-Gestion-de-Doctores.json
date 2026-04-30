@@ -1,0 +1,31 @@
+{
+  "title": "Práctica No. 7 - Capa de Presentación: Gestión de Doctores (CRUD)",
+  "description": "Evaluación teórica sobre la implementación de la interfaz de usuario para el CRUD de Doctores en Blazor Server, incluyendo el uso de componentes Razor, enrutamiento, DTOs y reglas de negocio con FluentValidation.",
+  "max_time": 7200,
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "Defina los cuatro componentes Razor principales (ListaDoctores, CrearDoctor, DetalleDoctor, EditarDoctor) y las rutas de navegación específicas que deben configurarse para completar la gestión del módulo, tal como se especifica en la práctica."
+    },
+    {
+      "id": 2,
+      "enunciado": "En la capa de aplicación se requiere la creación de tres DTOs distintos: DoctorDTO, CrearDoctorDTO y ActualizarDoctorDTO. Explique la razón arquitectónica por la cual se incluye o excluye la propiedad 'IdDoctor' dependiendo de si se trata de una operación de creación o de actualización."
+    },
+    {
+      "id": 3,
+      "enunciado": "De acuerdo con los requisitos del módulo, describa las reglas configuradas en 'CrearDoctorValidator' utilizando FluentValidation. Mencione detalladamente las validaciones específicas estipuladas para el nombre, correo electrónico y fecha de contratación."
+    },
+    {
+      "id": 4,
+      "enunciado": "En el componente del formulario de creación (CrearDoctor.razor), ¿qué componentes de entrada nativos de Blazor (por ejemplo, InputText, InputSelect, InputDate) se deben utilizar para mapear los campos del doctor, y cómo se debe gestionar específicamente el campo de la Especialidad?"
+    },
+    {
+      "id": 5,
+      "enunciado": "El sistema define reglas de negocio estrictas para mantener la integridad relacional. Explique la restricción principal al intentar eliminar un registro de un Doctor (verificando asociaciones previas) y cómo debe reaccionar el sistema si se intenta registrar un correo electrónico duplicado."
+    },
+    {
+      "id": 6,
+      "enunciado": "Para garantizar la calidad de la entrega, se exige realizar pruebas funcionales sistemáticas. Describa al menos tres escenarios de prueba (casos límite) requeridos en esta práctica, incluyendo específicamente el intento de eliminación con asociaciones y la validación de correos duplicados."
+    }
+  ]
+}

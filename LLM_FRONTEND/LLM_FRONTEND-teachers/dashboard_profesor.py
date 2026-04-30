@@ -367,6 +367,8 @@ def main(page: ft.Page):
             if not page.is_alive: break
             
             if state["token"]:
+                if is_session_active:
+                    reset_inactivity_timer()
                 last_act = state.get("last_activity", 0)
                 if time.time() - last_act > 3600:
                     print("Sesión expirada por inactividad.")
@@ -1329,6 +1331,9 @@ def main(page: ft.Page):
             page.update()
             
         def load_data_filtered(e=None):
+            if e and hasattr(e, 'control'):
+                e.control.disabled = True
+                page.update()
             reset_inactivity_timer()
             params = {}
             if student_filter.value != "Todos los estudiantes":
@@ -1337,10 +1342,12 @@ def main(page: ft.Page):
                 params["practice_name"] = exercise_filter.value
                 if problem_filter.value != "Todos los ejercicios" and problem_filter.value is not None:
                     pass
-                    
             res = auth_request("GET", "/api/teacher/dashboard-data", params=params)
             if res and res.status_code == 200:
                 render_data(res.json())
+            if e and hasattr(e, 'control'):
+                e.control.disabled = False
+                page.update()
                 
         def render_data(data):
             with ui_lock:
@@ -1489,14 +1496,73 @@ def main(page: ft.Page):
             visible=False
         )
 
+        # --- NUEVO CUADRO DE CONFIRMACIÓN PARA DETENER LA CLASE ---
+        stop_session_dlg = ft.AlertDialog(
+            title=ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=COLORES["advertencia"]), ft.Text("Finalizar Sesión en Vivo")]),
+            content=ft.Text("¿Estás seguro de que deseas detener el monitoreo en vivo?\n\nAl hacerlo, dejarás de recibir alertas en tiempo real y se generará el reporte cualitativo final de la clase."),
+            actions=[
+                ft.TextButton("Cancelar", on_click=lambda e: close_stop_session_dlg()),
+                ft.ElevatedButton("Detener y Generar Reporte", color=COLORES["fondo"], bgcolor=COLORES["error"], on_click=lambda e: confirm_stop_session(e))
+            ]
+        )
+        page.overlay.append(stop_session_dlg)
+
+        def close_stop_session_dlg():
+            stop_session_dlg.open = False
+            page.update()
+
+        def confirm_stop_session(e):
+            e.control.disabled = True # <-- BLOQUEO DEL MULTI-CLIC
+            page.update()
+            
+            close_stop_session_dlg()
+            nonlocal is_session_active
+            is_session_active = False
+            
+            start_session_btn.text = "Iniciar Sesión en Vivo"
+            start_session_btn.icon = ft.Icons.PLAY_ARROW
+            start_session_btn.bgcolor = COLORES["exito"]
+            session_status_text.value = "Sesión Inactiva"
+            session_status_text.color = COLORES["subtitulo"]
+            if sio.connected:
+                sio.disconnect()
+            
+            if "live_session_start" in state:
+                session_start_local = state["live_session_start"]
+                session_end_local = dt.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None).isoformat()
+                
+                flash("Procesando análisis cualitativo con IA... Un momento...", ok=True, ms=4000)
+                
+                def generar_reporte():
+                    res = auth_request("POST", "/api/teacher/live-session/generate", json={
+                        "start_time": session_start_local, 
+                        "end_time": session_end_local
+                    }, timeout=60)
+                    
+                    if res and res.status_code == 200:
+                        report_id = res.json().get("report_id")
+                        download_live_report_btn.visible = True
+                        download_live_report_btn.on_click = lambda e: page.launch_url(f"{BASE}/api/teacher/live-session/download?token={state['token']}&report_id={report_id}")
+                        flash("¡Análisis de sesión generado! Listo para descargar", ok=True, ms=5000)
+                    else:
+                        try:
+                            flash(res.json().get("error", "Error generando reporte"), ok=False)
+                        except:
+                            flash("No hubo datos suficientes para generar reporte", ok=False)
+                    page.update()
+                    
+                threading.Thread(target=generar_reporte, daemon=True).start()
+                del state["live_session_start"]
+                
+            e.control.disabled = False
+            page.update()
+            
         def toggle_session(e):
             nonlocal is_session_active
-            is_session_active = not is_session_active
-            
-            if is_session_active:
-                # ACTIVAR
+            if not is_session_active:
+                is_session_active = True
                 state["live_session_start"] = dt.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None).isoformat()
-                download_live_report_btn.visible = False # Ocultar el botón anterior
+                download_live_report_btn.visible = False 
                 
                 start_session_btn.text = "Detener Sesión"
                 start_session_btn.icon = ft.Icons.STOP
@@ -1508,53 +1574,20 @@ def main(page: ft.Page):
                     if not sio.connected:
                         sio.connect(BASE) 
                 except Exception as err:
-                        flash(f"Error conectando: {err}", ok=False)
-                        is_session_active = False
-                        toggle_session(None) 
-                        return
+                    flash(f"Error de conexión: {err}", ok=False)
+                    is_session_active = False
+                    start_session_btn.text = "Iniciar Sesión en Vivo"
+                    start_session_btn.icon = ft.Icons.PLAY_ARROW
+                    start_session_btn.bgcolor = COLORES["exito"]
+                    session_status_text.value = "Sesión Inactiva"
+                    session_status_text.color = COLORES["subtitulo"]
+                page.update()
             else:
-                # DESACTIVAR (El profesor terminó la clase)
-                start_session_btn.text = "Iniciar Sesión en Vivo"
-                start_session_btn.icon = ft.Icons.PLAY_ARROW
-                start_session_btn.bgcolor = COLORES["exito"]
-                session_status_text.value = "Sesión Inactiva"
-                session_status_text.color = COLORES["subtitulo"]
-                if sio.connected:
-                    sio.disconnect()
-                
-                # GENERAR REPORTE AL DETENER
-                if "live_session_start" in state:
-                    session_end = dt.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None).isoformat()
-                    flash("Procesando análisis cualitativo con IA... Un momento.", ok=True, ms=4000)
-                    
-                    def generar_reporte():
-                        res = auth_request("POST", "/api/teacher/live-session/generate", json={
-                            "start_time": state["live_session_start"],
-                            "end_time": session_end
-                        }, timeout=60)
-                        
-                        if res and res.status_code == 200:
-                            report_id = res.json().get("report_id")
-                            # Habilitar el botón de descarga
-                            download_live_report_btn.visible = True
-                            download_live_report_btn.on_click = lambda e: page.launch_url(f"{BASE}/api/teacher/live-session/download?token={state['token']}&report_id={report_id}")
-                            flash("¡Análisis de sesión generado! Listo para descargar.", ok=True, ms=5000)
-                        else:
-                            try:
-                                flash(res.json().get("error", "Error generando reporte"), ok=False)
-                            except:
-                                flash("No hubo datos suficientes para generar reporte", ok=False)
-                        page.update()
-                        
-                    threading.Thread(target=generar_reporte, daemon=True).start()
-                    del state["live_session_start"]
-                    
-            page.update()
+                stop_session_dlg.open = True
+                page.update()
 
         def load_full_dashboard():
-            # Carga datos históricos iniciales
             reset_inactivity_timer()
-            # Obtenemos lista de estudiantes para pintar las tarjetas iniciales
             render_dashboard_view(state["students"])
         
         def render_dashboard_view(student_list):
@@ -1755,7 +1788,9 @@ def main(page: ft.Page):
         )
         grade_score_field = ft.TextField(
             label="Calificación Asignada",
+            hint_text="Pendiente",
             text_align=ft.TextAlign.CENTER,
+            input_filter=ft.InputFilter(allow=True, regex_string=r"^[0-9.]*$"),
             expand=1
         )
         grade_comment_field = ft.TextField(
@@ -1783,6 +1818,10 @@ def main(page: ft.Page):
             width=float("inf")
         )
         
+        def close_and_refresh_grades(e=None):
+            load_grades()
+            page.update()
+        
         grade_dlg = ft.AlertDialog(
             title=ft.Container(content=grade_student_label, alignment=ft.alignment.center),
             content=ft.Container(
@@ -1797,7 +1836,8 @@ def main(page: ft.Page):
                 ], tight=True, spacing=15),
                 width=600
             ),
-            scrollable=True
+            scrollable=True,
+            on_dismiss=close_and_refresh_grades
         )
         
         delete_eval_dlg = ft.AlertDialog(
@@ -1805,7 +1845,7 @@ def main(page: ft.Page):
             content=ft.Text("Estás a punto de eliminar definitivamente esta evaluación de la base de datos.\n\nEsto es útil si el estudiante reenvió la misma respuesta varias veces y quieres limpiar duplicados. ¿Deseas proceder?"),
             actions=[
                 ft.TextButton("Cancelar", on_click=lambda e: close_delete_eval_dlg()),
-                ft.ElevatedButton("Eliminar Permanentemente", color=COLORES["fondo"], bgcolor=COLORES["error"], on_click=lambda e: confirm_delete_eval())
+                ft.ElevatedButton("Eliminar Permanentemente", color=COLORES["fondo"], bgcolor=COLORES["error"], on_click=confirm_delete_eval)
             ]
         )
         
@@ -1824,7 +1864,9 @@ def main(page: ft.Page):
             delete_eval_dlg.open = False
             page.update()
             
-        def confirm_delete_eval():
+        def confirm_delete_eval(e):
+            e.control.disabled = True
+            page.update()
             eval_id = state.get("delete_target_id")
             if eval_id:
                 res = auth_request("DELETE", f"/api/teacher/grades/{eval_id}")
@@ -1833,6 +1875,7 @@ def main(page: ft.Page):
                     load_grades()
                 else:
                     flash("Error al eliminar la evaluación.", ok=False)
+            e.control.disabled = False
             close_delete_eval_dlg()
 
         def submit_grade(item_id, score, comment, action):
@@ -1871,11 +1914,6 @@ def main(page: ft.Page):
                 btn_next = ft.ElevatedButton("Siguiente >", color=COLORES["texto"], bgcolor=COLORES["borde"])
                 btn_approve = ft.ElevatedButton("Aprobar", bgcolor=COLORES["boton"], color=COLORES["fondo"])
                 btn_modify = ft.ElevatedButton("Modificar", bgcolor=COLORES["exito"], color=COLORES["fondo"])
-
-                def handle_dismiss(e):
-                    load_grades()
-                    page.update()
-                grade_dlg.on_dismiss = handle_dismiss
 
                 def load_card_at_index(idx):
                     item = nav_list[idx]
@@ -1925,25 +1963,31 @@ def main(page: ft.Page):
                             text_align=ft.TextAlign.JUSTIFY, border=ft.InputBorder.NONE, content_padding=0
                         )
                     ], spacing=5)
-
-                    llm_score_val = float(item.get('llm_score', 0))
+                    
+                    raw_llm = item.get('llm_score')
+                    llm_score_val = float(raw_llm) if raw_llm is not None else 0.0
                     llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
                     grade_llm_score_field.value = f"{llm_score_display}/10"
                     
                     if is_revised:
-                        teacher_score_val = float(item.get('teacher_score', item['llm_score']))
+                        raw_teacher = item.get('teacher_score')
+                        base_val = raw_teacher if raw_teacher is not None else raw_llm
+                        teacher_score_val = float(base_val) if base_val is not None else 0.0
                         teacher_score_display = int(teacher_score_val) if teacher_score_val.is_integer() else teacher_score_val
                         grade_score_field.value = str(teacher_score_display)
                         grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
+                        
                         grade_score_field.bgcolor = COLORES["fondo"]
                         grade_score_field.color = COLORES["exito"] 
                         grade_score_field.text_style = ft.TextStyle(weight="bold", size=18)
+                        grade_score_field.hint_style = None
                     else:
-                        grade_score_field.value = "Pendiente"
+                        grade_score_field.value = ""
                         grade_comment_field.value = item['llm_comment']
                         grade_score_field.bgcolor = COLORES["fondo"]
                         grade_score_field.color = COLORES["texto"]
                         grade_score_field.text_style = ft.TextStyle(weight="normal", size=18)
+                        grade_score_field.hint_style = ft.TextStyle(color=COLORES["advertencia"], italic=True)
                         
                     btn_prev.disabled = (idx == 0)
                     btn_next.disabled = (idx == len(nav_list) - 1)
@@ -1958,20 +2002,25 @@ def main(page: ft.Page):
                         load_card_at_index(state["current_eval_idx"] + 1)
                         
                 def handle_approve(e):
+                    e.control.disabled = True
+                    page.update()
                     item = state["current_eval_item"]
-                    score = float(item.get('llm_score', 0))
+                    raw_score = item.get('llm_score')
+                    score = float(raw_score) if raw_score is not None else 0.0
                     submit_grade(item['id'], score, grade_comment_field.value, "approve")
                     state["revised_evals"].add(item["id"])
                     item['teacher_score'] = score
                     item['teacher_comment'] = grade_comment_field.value
                     load_card_at_index(state["current_eval_idx"])
                     flash("Calificación de IA aprobada", ok=True)
+                    e.control.disabled = False
+                    page.update()
                     
                 def handle_modify(e):
                     item = state["current_eval_item"]
                     val = grade_score_field.value
                     
-                    if not val or val.strip().lower() == "pendiente":
+                    if not val:
                         flash("¡Alto! Debes ingresar un número en 'Calificación Asignada' antes de modificar.", ok=False, ms=3000)
                         return
                     try:
@@ -1980,12 +2029,16 @@ def main(page: ft.Page):
                         flash("El formato de la calificación es incorrecto. Ingresa solo números.", ok=False, ms=3000)
                         return
                         
+                    e.control.disabled = True
+                    page.update()
                     submit_grade(item['id'], score, grade_comment_field.value, "edit")
                     state["revised_evals"].add(item["id"])
                     item['teacher_score'] = score
                     item['teacher_comment'] = grade_comment_field.value
                     load_card_at_index(state["current_eval_idx"])
                     flash("Calificación modificada exitosamente", ok=True)
+                    e.control.disabled = False
+                    page.update()
                     
                 btn_prev.on_click = go_prev
                 btn_next.on_click = go_next
@@ -2205,6 +2258,7 @@ def main(page: ft.Page):
         
         def load_student_profile(email):
             if not email: return
+            state["expected_profile_email"] = email
             profile_content.controls = [
                 ft.Container(content=ft.ProgressRing(color=COLORES["primario"]), alignment=ft.alignment.center, height=100)
             ]
@@ -2212,6 +2266,8 @@ def main(page: ft.Page):
             
             def fetch():
                 res = auth_request("GET", f"/api/teacher/student-profile/{email}")
+                if state.get("expected_profile_email") != email:
+                    return
                 if res and res.status_code == 200:
                     render_student_profile(res.json(), email)
                 else:
@@ -2219,15 +2275,19 @@ def main(page: ft.Page):
                     page.update()
             threading.Thread(target=fetch, daemon=True).start()
             
-        def generate_report_for_practice(email, prac_name):
+        def generate_report_for_practice(e, email, prac_name):
+            e.control.disabled = True
+            page.update()
             flash(f"Analizando interacciones con IA para {prac_name}... esto tomará unos segundos...", ok=True, ms=6000)
             def fetch():
                 res = auth_request("POST", "/api/teacher/generate-report", json={"student_email": email, "practice_name": prac_name}, timeout=60)
                 if res and res.status_code == 200:
                     flash("¡Reporte cualitativo generado con éxito!", ok=True)
-                    load_student_profile(email) # Recargar la vista para mostrarlo
+                    load_student_profile(email)
                 else:
-                    flash("Error al generar el reporte con la IA.", ok=False)
+                    flash("¡Error al generar el reporte con la IA!", ok=False)
+                    e.control.disabled = False
+                    page.update()
             threading.Thread(target=fetch, daemon=True).start()
             
         def render_student_profile(data, email):
@@ -2248,7 +2308,7 @@ def main(page: ft.Page):
                                     ft.Row([
                                         ft.Icon(ft.Icons.AUTO_AWESOME, color=COLORES["advertencia"]),
                                         ft.Text("Diagnóstico Cualitativo de la IA", weight="bold", size=16, color=COLORES["primario"]),
-                                        ft.IconButton(ft.Icons.REFRESH, tooltip="Regenerar Reporte", icon_color=COLORES["subtitulo"], on_click=lambda e, pr=prac_name: generate_report_for_practice(email, pr))
+                                        ft.IconButton(ft.Icons.REFRESH, tooltip="Regenerar Reporte", icon_color=COLORES["subtitulo"], on_click=lambda e, pr=prac_name: generate_report_for_practice(e, email, pr))
                                     ]),
                                     ft.Row([
                                         ft.Container(
@@ -2274,7 +2334,7 @@ def main(page: ft.Page):
                                 content=ft.Row([
                                     ft.Icon(ft.Icons.INSIGHTS, color=COLORES["primario"]),
                                     ft.Text("Aún no se ha generado un reporte de desempeño para esta sesión.", expand=True, color=COLORES["subtitulo"], italic=True),
-                                    ft.ElevatedButton("Generar Reporte con IA", icon=ft.Icons.AUTO_AWESOME, bgcolor=COLORES["boton"], color=COLORES["texto"], on_click=lambda e, pr=prac_name: generate_report_for_practice(email, pr))
+                                    ft.ElevatedButton("Generar Reporte con IA", icon=ft.Icons.AUTO_AWESOME, bgcolor=COLORES["boton"], color=COLORES["texto"], on_click=lambda e, pr=prac_name: generate_report_for_practice(e, email, pr))
                                 ]),
                                 bgcolor=COLORES["fondo"], padding=15, border_radius=8, border=ft.border.all(1, COLORES["borde"]), margin=ft.margin.only(bottom=15, right=15)
                             )
