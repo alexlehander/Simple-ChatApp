@@ -572,7 +572,6 @@ def main(page: ft.Page):
                             minutes = ex.get('max_time', 0) // 60
                             title = ex.get('title', 'Sin Título')
                             filename = ex.get('filename')
-                            
                             card = ft.Container(
                                 content=ft.Column([
                                     ft.Row([
@@ -588,10 +587,25 @@ def main(page: ft.Page):
                                         ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["subtitulo"]),
                                         ft.Text(f"{ex.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"]),
                                     ]),
-                                    ft.ElevatedButton("Comenzar Práctica", icon=ft.Icons.PLAY_ARROW, bgcolor=COLORES["boton"], color=COLORES["texto"], width=float("inf"), on_click=lambda e, f=filename, t=title: iniciar_practica(f, t))
+                                    ft.ElevatedButton(
+                                        "Comenzar Práctica", 
+                                        icon=ft.Icons.PLAY_ARROW, 
+                                        bgcolor=COLORES["boton"], 
+                                        color=COLORES["texto"], 
+                                        width=float("inf"), 
+                                        # Al hacer click aquí, lanzamos la práctica. Flet previene la propagación del click al contenedor padre.
+                                        on_click=lambda e, f=filename, t=title: iniciar_practica(f, t)
+                                    )
                                 ]),
-                                bgcolor=COLORES["accento"], padding=20, border_radius=10, border=ft.border.all(1, COLORES["borde"]),
-                                shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"])
+                                bgcolor=COLORES["accento"], 
+                                padding=20, 
+                                border_radius=10, 
+                                border=ft.border.all(1, COLORES["borde"]),
+                                shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"]),
+                                # ✅ NUEVO: Hacemos el contenedor clicable
+                                ink=True, 
+                                on_click=lambda e, f=filename: show_exercise_detail(f),
+                                tooltip="Haz clic para ver detalles del ejercicio"
                             )
                             exercises_grid.controls.append(card)
                 else:
@@ -629,7 +643,92 @@ def main(page: ft.Page):
         ], expand=True))
         
         threading.Thread(target=load_dashboard_data, daemon=True).start()
+    
+        ex_detail_dlg_title = ft.Text("", weight="bold", size=20, color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
+        ex_detail_dlg_content = ft.ListView(spacing=10)
         
+        ex_detail_dlg = ft.AlertDialog(
+            title=ex_detail_dlg_title,
+            content=ft.Container(content=ex_detail_dlg_content, width=700, height=500, padding=10),
+            actions=[ft.TextButton("Cerrar", on_click=lambda e: close_ex_detail_dlg())],
+            on_dismiss=lambda e: close_ex_detail_dlg()
+        )
+        page.overlay.append(ex_detail_dlg)
+        
+        def close_ex_detail_dlg():
+            ex_detail_dlg.open = False
+            page.update()
+            
+        def show_exercise_detail(filename):
+            ex_detail_dlg_title.value = "Cargando detalles..."
+            ex_detail_dlg_content.controls = [
+                ft.Container(
+                    content=ft.ProgressRing(color=COLORES["primario"], stroke_width=4),
+                    alignment=ft.alignment.center,
+                    height=200
+                )
+            ]
+            ex_detail_dlg.open = True
+            page.update()
+            
+            def fetch_and_render_ex():
+                try:
+                    res = auth_request("GET", f"/api/exercises/detail/{filename}", timeout=10)
+                    if res and res.status_code == 200:
+                        data = res.json()
+                        title = data.get("title", filename)
+                        desc = data.get("description", "Sin descripción")
+                        max_time = data.get("max_time", 0) // 60
+                        problemas = data.get("problemas", [])
+                        
+                        ex_detail_dlg_title.value = title
+                        
+                        info_col = ft.Container(
+                            content=ft.Column([
+                                ft.Text(desc, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY),
+                                ft.Row([
+                                    ft.Icon(ft.Icons.TIMER, size=16, color=COLORES["subtitulo"]),
+                                    ft.Text(f"Tiempo límite para resolver la tarea: {max_time} minutos", color=COLORES["subtitulo"], italic=True)
+                                ], alignment=ft.MainAxisAlignment.CENTER),
+                                ft.Divider(color=COLORES["borde"], height=20),
+                                ft.Text(f"{len(problemas)} Ejercicios Incluidos", weight="bold", size=16, color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
+                            ], 
+                            spacing=5, 
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            margin=ft.margin.symmetric(horizontal=15)
+                        )
+                        prob_list = []
+                        if not problemas:
+                            prob_list.append(ft.Text("No hay ejercicios configurados en esta práctica", color=COLORES["subtitulo"], italic=True))
+                        else:
+                            for p in problemas:
+                                prob_list.append(
+                                    ft.Container(
+                                        content=ft.Column([
+                                            ft.Text(f"Problema {p.get('id', '?')}", weight="bold", color=COLORES["secundario"], size=14),
+                                            ft.Text(p.get("enunciado", "Sin enunciado"), color=COLORES["texto"], size=13, text_align=ft.TextAlign.JUSTIFY)
+                                        ], spacing=5),
+                                        bgcolor=COLORES["fondo"],
+                                        padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
+                                        border_radius=8,
+                                        border=ft.border.all(1, COLORES["borde"]),
+                                    )
+                                )
+                        ex_detail_dlg_content.controls = [info_col] + prob_list
+                    else:
+                        ex_detail_dlg_content.controls = [ft.Text("No se pudo cargar la información de la tarea.", color=COLORES["error"])]
+                except Exception as e:
+                    print(f"Error fetch detail: {e}")
+                    ex_detail_dlg_content.controls = [ft.Text("Error de conexión al cargar detalles.", color=COLORES["error"])]
+                    
+                try:
+                    if ex_detail_dlg.open:
+                        ex_detail_dlg.update()
+                except Exception:
+                    pass
+                    
+            threading.Thread(target=fetch_and_render_ex, daemon=True).start()
+    
     def reiniciar_practica(e):
         try:
             page._stop_timer_global = True 
