@@ -787,7 +787,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Lista de estudiantes inscritos", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=refresh_students)
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_students)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_students, sort_btn_my], spacing=5),
                             ft.Divider(height=5, color="transparent"),
@@ -804,7 +804,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Lista de estudiantes disponibles", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar lista de estudiantes", on_click=refresh_students)
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_students)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_students, sort_btn_global], spacing=5),
                             ft.Divider(height=5, color="transparent"),
@@ -1023,7 +1023,7 @@ def main(page: ft.Page):
                 is_active = data.get("is_active", False)
                 status_str = "Activo (visible para estudiantes)" if is_active else "Inactivo (oculto para estudiantes)"
                 flash(f"Ejercicio {status_str}", ok=is_active)
-                load_exercises() # Recargar para actualizar los colores de la UI
+                load_exercises()
             else:
                 flash("Error al cambiar estado", ok=False)
                 
@@ -1171,7 +1171,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Catálogo local de tareas seleccionadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=refresh_exercises)
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_exercises)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
                             ft.Divider(height=5, color="transparent"),
@@ -1188,7 +1188,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Catálogo global de tareas disponibles", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=refresh_exercises)
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_exercises)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_global_tasks, sort_btn_global_tasks], spacing=5),
                             ft.Divider(height=5, color="transparent"),
@@ -1997,7 +1997,7 @@ def main(page: ft.Page):
                             ft.Icon(ft.Icons.CHECK_CIRCLE, color=COLORES["exito"]),
                             ft.Text("EVALUACIÓN REVISADA", weight="bold", color=COLORES["exito"], size=14)
                         ], alignment=ft.MainAxisAlignment.CENTER),
-                        bgcolor="#E8F5E9" if load_k(page, "theme") == "light" else "#1A2E20", 
+                        bgcolor=COLORES["accento"],
                         padding=5,
                         border_radius=5,
                         visible=is_revised,
@@ -2165,27 +2165,71 @@ def main(page: ft.Page):
                     return ft.Container(
                         content=ft.Row([
                             ft.Column([
-                                ft.Text(f"{item.get('nombre', 'Estudiante')}", weight="bold", size=14, color=COLORES["texto"]),
-                                ft.Text(f"{item['correo']}", size=11, color=COLORES["subtitulo"]),
+                                ft.Text(
+                                    f"{item.get('nombre', 'Estudiante')}",
+                                    weight="bold",
+                                    size=14,
+                                    color=COLORES["texto"]
+                                ),
+                                ft.Text(
+                                    f"{item['correo']}",
+                                    size=11,
+                                    color=COLORES["subtitulo"]
+                                ),
                                 ft.Row([
-                                    ft.Icon(ft.Icons.MENU_BOOK, size=12, color=COLORES["primario"]),
-                                    ft.Text(f"{item['practica']} - P{item['problema_id']}", size=12, color=COLORES["primario"]),
+                                    ft.Icon(
+                                        ft.Icons.MENU_BOOK,
+                                        size=12,
+                                        color=COLORES["primario"]
+                                    ),
+                                    ft.Text(
+                                        f"{item['practica']} - P{item['problema_id']}",
+                                        size=12,
+                                        color=COLORES["primario"]
+                                    ),
                                     ft.Container(width=5),
-                                    ft.Icon(ft.Icons.EVENT_NOTE, size=12, color=COLORES["subtitulo"]),
-                                    ft.Text(f"{date_str}", size=12, color=COLORES["subtitulo"])
+                                    ft.Icon(
+                                        ft.Icons.EVENT_NOTE,
+                                        size=12,
+                                        color=COLORES["subtitulo"]
+                                    ),
+                                    ft.Text(
+                                        f"{date_str}",
+                                        size=12,
+                                        color=COLORES["subtitulo"]
+                                    )
                                 ], spacing=5)
                             ], expand=True),
                             ft.Column([
-                                ft.Text(f"{score_display}/10", color=score_color, weight="bold", size=16),
-                                ft.Text("Evaluación IA", size=10, italic=True) if not is_completed else ft.Text("Nota Final", size=10, italic=True)
+                                ft.Text(
+                                    f"{score_display}/10",
+                                    color=score_color,
+                                    weight="bold",
+                                    size=16
+                                ),
+                                ft.Text(
+                                    "Evaluación IA",
+                                    size=10,
+                                    italic=True
+                                ) if not is_completed else ft.Text("Nota Final", size=10, italic=True)
                             ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.END),
                             ft.Column([
-                                ft.IconButton(ft.Icons.EDIT, on_click=lambda e, i=item: open_grade_dialog(i, is_completed), icon_color=COLORES["primario"], tooltip="Editar Evaluación"),
-                                ft.IconButton(ft.Icons.DELETE_FOREVER, on_click=lambda e, i=item: open_delete_eval_dlg(i['id']), icon_color=COLORES["error"], tooltip="Eliminar Duplicado")
-                            ], spacing=0)
+                                ft.IconButton(
+                                    ft.Icons.DELETE_FOREVER,
+                                    on_click=lambda e,
+                                    i=item: open_delete_eval_dlg(i['id']),
+                                    icon_color=COLORES["error"],
+                                    tooltip="Eliminar Duplicado")
+                            ], spacing=0, alignment=ft.MainAxisAlignment.CENTER)
                         ]),
-                        bgcolor=COLORES["fondo"], padding=10, border_radius=5, border=ft.border.all(1, COLORES["borde"]),
-                        margin=ft.margin.only(bottom=5)
+                        bgcolor=COLORES["fondo"],
+                        padding=10,
+                        border_radius=5,
+                        border=ft.border.all(1, COLORES["borde"]),
+                        margin=ft.margin.only(bottom=5),
+                        ink=True,
+                        on_click=lambda e, i=item: open_grade_dialog(i, is_completed), 
+                        tooltip="Hacer clic en cualquier lugar para abrir detalles y revisión de evaluación"
                     )
 
                 def get_group_key(item, group_type):
@@ -2261,7 +2305,7 @@ def main(page: ft.Page):
                             ft.Row([
                                 btn_download_excel,
                                 ft.Text("Evaluaciones Completadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=refresh_grades)
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_grades)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_completed_grades, group_completed_dropdown], spacing=10),
                             ft.Divider(height=5, color="transparent"),
@@ -2278,7 +2322,7 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Row([
                                 ft.Text("Evaluaciones Pendientes", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
-                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Recargar", on_click=refresh_grades)
+                                ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_grades)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([search_pending_grades, group_pending_dropdown], spacing=10),
                             ft.Divider(height=5, color="transparent"),

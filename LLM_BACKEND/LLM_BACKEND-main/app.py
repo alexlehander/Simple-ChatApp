@@ -555,8 +555,6 @@ def calculate_sliding_window_color(student_email):
     """Calculates status color based on recent interaction history."""
     with app.app_context():
         since_time = hora_ensenada() - dt.timedelta(minutes=SEMAPHORE_WINDOW_MINUTES)
-        
-        # Fetch recent interactions for this student
         recent_interactions = AnalisisInteraccion.query.filter(
             AnalisisInteraccion.correo_identificacion == student_email,
             AnalisisInteraccion.created_at >= since_time
@@ -564,19 +562,17 @@ def calculate_sliding_window_color(student_email):
         
         if not recent_interactions:
             return "green"
-
         red_count = 0
         yellow_count = 0
         
         for interaction in recent_interactions:
             intent_lower = (interaction.intent or "").lower()
             
-            if any(flag in intent_lower for flag in RED_FLAG_INTENTS):
+            if any(flag.lower() in intent_lower for flag in RED_FLAG_INTENTS):
                 red_count += 1
-            elif any(flag in intent_lower for flag in YELLOW_FLAG_INTENTS):
+            elif any(flag.lower() in intent_lower for flag in YELLOW_FLAG_INTENTS):
                 yellow_count += 1
                 
-        # Apply Heuristics (Priority: Red > Yellow > Green)
         if red_count >= RED_THRESHOLD:
             return "red"
         elif yellow_count >= YELLOW_THRESHOLD:
@@ -1107,19 +1103,27 @@ def generate_student_report():
     data = request.get_json()
     email = data.get('student_email')
     practice = data.get('practice_name')
-
-    # 1. Recopilar datos de la sesión
     chats = ChatLog.query.filter_by(correo_identificacion=email, practice_name=practice).order_by(ChatLog.id.asc()).all()
     respuestas = RespuestaUsuario.query.filter_by(correo_identificacion=email, practice_name=practice).order_by(RespuestaUsuario.problema_id.asc()).all()
-
+    interacciones = AnalisisInteraccion.query.filter_by(correo_identificacion=email).all()
+    
     if not chats and not respuestas:
         return jsonify({"error": "No hay datos suficientes para analizar."}), 400
 
-    # 2. Construir Transcripción para el LLM
     transcript_lines = []
     for c in chats:
         role = "ESTUDIANTE" if c.role == "user" else ("PROFESOR" if c.role == "teacher" else "TUTOR IA")
         transcript_lines.append(f"[{role} - P{c.problema_id}]: {c.content}")
+        
+    conteo_alertas = {"green": 0, "yellow": 0, "red": 0}
+    for i in interacciones:
+        if i.color_asignado in conteo_alertas:
+            conteo_alertas[i.color_asignado] += 1
+    
+    transcript_lines.append("\n--- RESUMEN DE SEMÁFORO COGNITIVO ---")
+    transcript_lines.append(f"Interacciones Seguras (Verdes): {conteo_alertas['green']}")
+    transcript_lines.append(f"Alertas de Confusión (Amarillas): {conteo_alertas['yellow']}")
+    transcript_lines.append(f"Alertas Críticas (Rojas): {conteo_alertas['red']}")
     
     transcript_lines.append("\n--- RESPUESTAS FINALES ENTREGADAS ---")
     for r in respuestas:
@@ -1301,76 +1305,167 @@ def generate_live_session_report():
     profesor_id = int(get_jwt_identity())
     data = request.get_json()
     
-    # Recibimos las fechas ISO desde el frontend
+    # 1. Validación de fechas
     try:
         start_time = dt.datetime.fromisoformat(data.get("start_time"))
         end_time = dt.datetime.fromisoformat(data.get("end_time"))
     except Exception as e:
         return jsonify({"error": "Fechas inválidas"}), 400
 
-    # 1. Obtener a los alumnos de este profesor
+    # 2. Obtener lista de mis estudiantes asignados
     mis_estudiantes = [s.student_email for s in ListaClase.query.filter_by(profesor_id=profesor_id).all()]
     if not mis_estudiantes:
         return jsonify({"error": "No tienes alumnos asignados."}), 400
 
-    # 2. Recolectar la actividad de la sesión (Semáforo)
+    # 3. Recopilación de TODOS los datos relevantes en el rango de tiempo
+    # Semáforo
     interacciones = AnalisisInteraccion.query.filter(
         AnalisisInteraccion.correo_identificacion.in_(mis_estudiantes),
         AnalisisInteraccion.created_at >= start_time,
         AnalisisInteraccion.created_at <= end_time
     ).all()
+    
+    # Respuestas (Solo las dadas durante la sesión)
+    respuestas = RespuestaUsuario.query.filter(
+        RespuestaUsuario.correo_identificacion.in_(mis_estudiantes),
+        RespuestaUsuario.created_at >= start_time,
+        RespuestaUsuario.created_at <= end_time
+    ).all()
+    
+    # Chats (Solo durante la sesión)
+    chats = ChatLog.query.filter(
+        ChatLog.correo_identificacion.in_(mis_estudiantes),
+        ChatLog.created_at >= start_time,
+        ChatLog.created_at <= end_time
+    ).all()
 
-    if not interacciones:
+    if not interacciones and not respuestas and not chats:
         return jsonify({"error": "No hubo actividad de estudiantes durante esta sesión."}), 400
 
-    # 3. Agrupar métricas por estudiante
-    stats = {}
-    for i in interacciones:
-        email = i.correo_identificacion
-        if email not in stats:
-            stats[email] = {"green": 0, "yellow": 0, "red": 0, "intents": []}
-        stats[email][i.color_asignado] += 1
-        stats[email]["intents"].append(i.intent)
-
-    # 4. LLM Prompt para Análisis Cualitativo
-    prompt = f"""
-    Eres un analista educativo. Se realizó una sesión en vivo de una clase de laboratorio/practica universitaria.
-    Analiza las siguientes métricas del semáforo cognitivo (green=bien, yellow=confusión, red=frustración/demanda) e intenciones de los estudiantes:
-    {json.dumps(stats)}
+    # 4. Estructurar la Data por Estudiante
+    # Recopilamos qué prácticas se usaron para extraer enunciados
+    practicas_involucradas = set()
+    for item in respuestas + chats:
+        if item.practice_name: practicas_involucradas.add(item.practice_name)
     
-    Genera un análisis cualitativo de un par de oraciones por estudiante, resumiendo su desempeño, fortalezas/debilidades y enfoque en la sesión.
-    Devuelve ÚNICAMENTE un JSON válido con esta estructura: {{"correo_del_estudiante": "Análisis cualitativo..."}}
-    """
+    # Pre-cargar descripciones de prácticas y problemas
+    enunciados_cache = {}
+    for prac in practicas_involucradas:
+        meta = get_exercise_metadata(prac)
+        enunciados_cache[prac] = meta
 
-    try:
-        response_text = call_mistral([
-            {"role": "system", "content": "Responde estrictamente en formato JSON puro."},
-            {"role": "user", "content": prompt}
-        ], temperature=0.2)
+    estudiantes_data = {}
+    
+    # Inicializar a los estudiantes que tuvieron CUALQUIER tipo de actividad
+    active_emails = set(i.correo_identificacion for i in interacciones + respuestas + chats)
+    
+    for email in active_emails:
+        estudiantes_data[email] = {
+            "semaforo": {"green": 0, "yellow": 0, "red": 0},
+            "transcripcion_chats": [],
+            "respuestas_finales": []
+        }
+
+    # Llenar Semáforo
+    for i in interacciones:
+        estudiantes_data[i.correo_identificacion]["semaforo"][i.color_asignado] += 1
         
-        import re
-        try:
-            llm_analysis = json.loads(response_text)
-        except:
-            match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            llm_analysis = json.loads(match.group(0)) if match else {}
-            
-    except Exception as e:
-        print(f"Error LLM: {e}")
-        llm_analysis = {email: "Error al generar análisis cualitativo." for email in stats.keys()}
+    # Llenar Chats
+    for c in chats:
+        role = "Estudiante" if c.role == "user" else ("Profesor" if c.role == "teacher" else "IA")
+        practica_desc = enunciados_cache.get(c.practice_name, {}).get("description", "Sin desc.")
+        # Buscamos el enunciado exacto
+        enunciado = "No encontrado"
+        for p in enunciados_cache.get(c.practice_name, {}).get("problemas", []):
+            if p.get("id") == c.problema_id:
+                enunciado = p.get("enunciado", "No encontrado")
+                break
+                
+        estudiantes_data[c.correo_identificacion]["transcripcion_chats"].append(
+            f"[Contexto: {c.practice_name} - {practica_desc} | Ejercicio: {enunciado}]\n{role}: {c.content}"
+        )
 
-    # 5. Combinar métricas crudas con el análisis del LLM
+    # Llenar Respuestas
+    for r in respuestas:
+        estudiantes_data[r.correo_identificacion]["respuestas_finales"].append(
+            f"[Práctica: {r.practice_name} | Problema: {r.problema_id} | Entregó]: {r.respuesta}"
+        )
+
+    # 5. Generar Prompts Masivos (Por Estudiante y Uno General)
     final_report = []
-    for email, st in stats.items():
+    
+    # Iterar por estudiante activo para generar su resumen
+    for email, data in estudiantes_data.items():
+        # Limitar la transcripción para no reventar el token limit (ej. últimos 15 msgs)
+        transcripcion_corta = "\n".join(data["transcripcion_chats"][-15:]) 
+        respuestas_texto = "\n".join(data["respuestas_finales"])
+        
+        prompt_estudiante = f"""
+        Actúa como un profesor experto evaluando el desempeño de un estudiante específico en una sesión en vivo de laboratorio.
+        Aquí están los datos de lo que hizo el estudiante '{email}' durante este tiempo exacto:
+        
+        Métricas de Semáforo (Riesgo): Verdes: {data['semaforo']['green']}, Amarillas: {data['semaforo']['yellow']}, Rojas: {data['semaforo']['red']}
+        
+        Respuestas Entregadas:
+        {respuestas_texto}
+        
+        Transcripción de Chat (Muestra representativa):
+        {transcripcion_corta}
+        
+        Genera un análisis cualitativo estricto y en español. Debes detallar:
+        1. Puntos fuertes del estudiante.
+        2. Debilidades conceptuales o técnicas detectadas en base a sus respuestas y chat.
+        3. Si requiere intervención humana obligatoria antes de la próxima clase.
+        
+        Devuelve tu análisis en formato de párrafo. No uses markdown. No saludes.
+        """
+        
+        try:
+            analisis_ia = call_mistral([
+                {"role": "system", "content": "Eres un analista académico estricto."},
+                {"role": "user", "content": prompt_estudiante}
+            ], temperature=0.3, max_tokens=300)
+        except Exception as e:
+            print(f"Error evaluando a {email}: {e}")
+            analisis_ia = "Error al conectar con IA para este estudiante."
+            
         final_report.append({
             "Estudiante": email,
-            "Interacciones (Verde)": st["green"],
-            "Alertas (Amarillo)": st["yellow"],
-            "Riesgo (Rojo)": st["red"],
-            "Análisis Cualitativo IA": llm_analysis.get(email, "Sin análisis disponible")
+            "Interacciones (Verde)": data["semaforo"]["green"],
+            "Alertas (Amarillo)": data["semaforo"]["yellow"],
+            "Riesgo (Rojo)": data["semaforo"]["red"],
+            "Análisis Cualitativo IA": analisis_ia
         })
 
-    # 6. Guardar en BD
+    # 6. Generar el Párrafo General del Grupo
+    if final_report:
+        prompt_grupo = f"""
+        Actúa como un director de escuela. Acabas de recibir las evaluaciones individuales de los estudiantes que participaron en la sesión de laboratorio.
+        Aquí tienes los resúmenes de cada uno:
+        
+        {json.dumps([{"Estudiante": r["Estudiante"], "Analisis": r["Análisis Cualitativo IA"]} for r in final_report])}
+        
+        Redacta UN SOLO PÁRRAFO GENERALIZADO resumiendo cómo fue el rendimiento global del grupo, cuáles fueron los problemas más comunes compartidos y cuál debe ser el enfoque de la siguiente clase grupal.
+        No uses markdown, no saludes, escribe como un reporte formal.
+        """
+        try:
+            analisis_grupal = call_mistral([
+                {"role": "system", "content": "Eres un director de academia."},
+                {"role": "user", "content": prompt_grupo}
+            ], temperature=0.4, max_tokens=400)
+        except Exception as e:
+            analisis_grupal = "No se pudo generar el análisis grupal."
+            
+        # Lo agregamos como una "fila" especial al final del reporte
+        final_report.append({
+            "Estudiante": ">>> RESUMEN GLOBAL DEL GRUPO <<<",
+            "Interacciones (Verde)": "-",
+            "Alertas (Amarillo)": "-",
+            "Riesgo (Rojo)": "-",
+            "Análisis Cualitativo IA": analisis_grupal
+        })
+
+    # 7. Guardar en BD
     nuevo_reporte = ReporteSesionVivo(
         profesor_id=profesor_id,
         start_time=start_time,
@@ -1381,7 +1476,6 @@ def generate_live_session_report():
     db.session.commit()
 
     return jsonify({"msg": "Reporte generado", "report_id": nuevo_reporte.id}), 200
-
 
 @app.route("/api/teacher/live-session/download", methods=["GET"])
 def download_live_session_report():
