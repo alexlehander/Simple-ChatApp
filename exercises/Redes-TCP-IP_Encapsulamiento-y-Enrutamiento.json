@@ -1,0 +1,47 @@
+{
+  "title": "Práctica: Redes TCP/IP, Encapsulamiento y Enrutamiento",
+  "description": "Construcción de una red con múltiples dispositivos, configuración de direccionamiento IP, y análisis del proceso de encapsulamiento y enrutamiento entre redes utilizando el modelo TCP/IP[cite: 15].",
+  "max_time": 7200,
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "Tras realizar la configuración de la topología y ejecutar un ping desde PC0 (192.168.1.1) hacia la IP 192.168.2.1: ¿El ping funciona inmediatamente? ¿Por qué[cite: 15]?"
+    },
+    {
+      "id": 2,
+      "enunciado": "Analizando el recorrido en modo simulación (filtrando por ARP e ICMP): Describe qué ocurre cuando el dispositivo necesita comunicarse con otra red diferente[cite: 15]."
+    },
+    {
+      "id": 3,
+      "enunciado": "¿Cuál es la diferencia entre la Dirección IP destino y la Dirección MAC destino? Explica cómo cambian durante el recorrido[cite: 15]."
+    },
+    {
+      "id": 4,
+      "enunciado": "Durante la transmisión del paquete entre las redes, ¿en qué momento interviene el router y qué función cumple[cite: 15]?"
+    },
+    {
+      "id": 5,
+      "enunciado": "Identifica en la simulación los siguientes datos específicos para el primer salto: IP origen, IP destino, MAC origen y MAC destino[cite: 15]."
+    },
+    {
+      "id": 6,
+      "enunciado": "Explica: ¿Qué información cambia y cuál se mantiene igual cuando el paquete pasa por el router? (Debes identificar específicamente qué ocurre con la dirección IP y con la dirección MAC)[cite: 15]."
+    },
+    {
+      "id": 7,
+      "enunciado": "Explica el proceso completo de encapsulamiento desde que el mensaje sale de PC0 hasta que llega a PC2[cite: 15]."
+    },
+    {
+      "id": 8,
+      "enunciado": "Reflexión crítica: ¿Por qué es importante el router en el modelo TCP/IP[cite: 15]?"
+    },
+    {
+      "id": 9,
+      "enunciado": "Reflexión crítica: ¿Qué pasaría si las direcciones IP (por ejemplo, las direcciones de las computadoras o los Gateways) no estuvieran bien configuradas[cite: 15]?"
+    },
+    {
+      "id": 10,
+      "enunciado": "Reflexión crítica: ¿Dónde ocurre el encapsulamiento y el desencapsulamiento dentro de esta red[cite: 15]?"
+    }
+  ]
+}
