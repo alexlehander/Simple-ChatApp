@@ -81,16 +81,20 @@ def main(page: ft.Page):
     def on_disconnect(e):
         page.is_alive = False
         print("Cliente desconectado, deteniendo hilos")
-    
-    def save_k(page, k, v):
-        page.client_storage.set(k, v)
-    
+        
     def load_k(page, k, default=None):
         try:
-            v = page.client_storage.get(k)
-            return v if v is not None else default
+            if page.client_storage.contains_key(k):
+                return page.client_storage.get(k)
         except Exception:
-            return default
+            pass
+        return default
+        
+    def save_k(page, k, v):
+        try:
+            page.client_storage.set(k, v)
+        except Exception:
+            pass
             
     page.is_alive = True
     page.on_disconnect = on_disconnect
@@ -1454,7 +1458,8 @@ def main(page: ft.Page):
                 ft.ElevatedButton("Detener y Generar Reporte", color=COLORES["fondo"], bgcolor=COLORES["error"], on_click=lambda e: confirm_stop_session(e))
             ]
         )
-        page.overlay.append(stop_session_dlg)
+        if stop_session_dlg not in page.overlay:
+            page.overlay.append(stop_session_dlg)
 
         def close_stop_session_dlg():
             stop_session_dlg.open = False
@@ -1797,8 +1802,10 @@ def main(page: ft.Page):
                 ft.ElevatedButton("Eliminar Permanentemente", color=COLORES["fondo"], bgcolor=COLORES["error"], on_click=lambda e: confirm_delete_eval(e))
             ]
         )
-        
-        page.overlay.extend([grade_dlg, delete_eval_dlg])
+        if grade_dlg not in page.overlay:
+            page.overlay.append(grade_dlg)
+        if delete_eval_dlg not in page.overlay:
+            page.overlay.append(delete_eval_dlg)
 
         def close_grade_dlg():
             grade_dlg.open = False
@@ -1827,15 +1834,31 @@ def main(page: ft.Page):
             e.control.disabled = False
             close_delete_eval_dlg()
 
-        def submit_grade(item_id, score, comment, action):
-            res = auth_request("POST", "/api/teacher/grades/submit", json={
-                "id": item_id, "score": score, "comment": comment, "action": action
-            })
-            if res and res.status_code == 200:
-                pass 
-            else:
-                flash("Error al guardar en el servidor", ok=False)
-                
+        def submit_grade(eval_id, action, score=None, comment=None):
+            if getattr(page, "_is_submitting_grade", False):
+                return
+            page._is_submitting_grade = True
+            try:
+                payload = {"id": eval_id, "action": action}
+                if action == "edit":
+                    payload["score"] = score
+                    payload["comment"] = comment
+                    
+                res = auth_request("POST", "/api/teacher/grades/submit", json=payload)
+                if res and res.status_code == 200:
+                    grade_dlg.open = False
+                    flash(f"Evaluación {'aprobada' if action == 'approve' else 'actualizada'}", ok=True)
+                    load_grades()
+                else:
+                    flash("Error al procesar la calificación", ok=False)
+            finally:
+                page._is_submitting_grade = False
+                if hasattr(page, "session_id") and page.session_id:
+                    try:
+                        page.update()
+                    except AssertionError:
+                        pass
+                        
         def open_grade_dialog(initial_item, is_completed):
             with ui_lock:
                 if "revised_evals" not in state:
@@ -2501,9 +2524,9 @@ def main(page: ft.Page):
         load_students()
         load_exercises()
         load_grades()
-
-    stored_token = page.client_storage.get("teacher_token")
-    last_act_stored = page.client_storage.get("last_activity")
+        
+    stored_token = load_k(page, "teacher_token")
+    last_act_stored = load_k(page, "last_activity")
     
     if stored_token and last_act_stored:
         if time.time() - last_act_stored > 3600:
