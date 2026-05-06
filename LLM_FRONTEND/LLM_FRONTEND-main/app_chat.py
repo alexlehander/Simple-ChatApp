@@ -66,7 +66,10 @@ STATE_KEYS = {
 }
 
 def save_k(page, k, v):
-    page.client_storage.set(k, v)
+    try:
+        page.client_storage.set(k, v)
+    except Exception as e:
+        print(f"Ignorado: No se pudo guardar '{k}' (Usuario desconectado).")
     try:
         page.client_storage.set("last_heartbeat", time.time())
     except Exception:
@@ -74,9 +77,10 @@ def save_k(page, k, v):
     
 def load_k(page, k, default=None):
     try:
-        v = page.client_storage.get(k)
-        return v if v is not None else default
-    except Exception:
+        if page.client_storage.contains_key(k):
+            return page.client_storage.get(k)
+        return default
+    except Exception as e:
         return default
         
 def update_map(page, key, problem_id, item):
@@ -150,12 +154,12 @@ def main(page: ft.Page):
     page.on_bot_message = lambda data: None
     @sio.on('nuevo_mensaje_bot')
     def on_nuevo_mensaje(data):
-        if data['correo'] == state["correo"]:
-            page.on_bot_message(data)
-    try:
-        sio.connect(BASE)
-    except Exception as e:
-        print("Error conectando sockets en el chat:", e)
+        def procesar_mensaje():
+            try:
+                page.on_bot_message(data)
+            except Exception as e:
+                print(f"Error procesando mensaje de socket: {e}")
+        threading.Thread(target=procesar_mensaje, daemon=True).start()
         
     try:
         last_heartbeat = page.client_storage.get("last_heartbeat")
@@ -256,6 +260,13 @@ def main(page: ft.Page):
         if not state.get("token"):
             show_login_register()
             return
+            
+        try:
+            if not sio.connected:
+                sio.connect(BASE)
+                print("🔌 SocketIO Conectado exitosamente")
+        except Exception as e:
+            print(f"⚠️ Error conectando socket: {e}")
             
         screen = load_k(page, STATE_KEYS["screen"], "dashboard")
         
@@ -546,23 +557,26 @@ def main(page: ft.Page):
         teachers_row = ft.Row(wrap=True, spacing=10)
         
         def iniciar_practica(filename, title):
-            try:
-                res = auth_request("GET", f"/api/exercises/detail/{filename}")
-                if res and res.status_code == 200:
-                    data = res.json()
-                    problemas = data.get("problemas", [])
+            exercises_grid.controls.clear()
+            exercises_grid.controls.append(ft.ProgressRing(color=COLORES["primario"]))
+            page.update()
+            
+            def fetch_practica():
+                try:
+                    res = auth_request("GET", f"/api/exercises/detail/{filename}")
+                    if res and res.status_code == 200:
+                        data = res.json()
+                        save_k(page, "selected_session_meta", data)
+                        save_k(page, "selected_session_title", title)
+                        save_k(page, "selected_session_problems", data.get("problemas", []))
+                        save_k(page, "selected_session_filename", filename)
+                        mostrar_pantalla_consentimiento()
+                    else:
+                        flash("Error al descargar la práctica.", ok=False)
+                except Exception as e:
+                    flash("Error de conexión.", ok=False)
                     
-                    save_k(page, "selected_session_meta", data)
-                    save_k(page, "selected_session_title", title)
-                    save_k(page, "selected_session_problems", problemas)
-                    save_k(page, "selected_session_filename", filename)
-                    
-                    mostrar_pantalla_consentimiento()
-                else:
-                    flash("Error al descargar la práctica del servidor.", ok=False)
-            except Exception as e:
-                print("Error loading practice:", e)
-                flash("Error de conexión.", ok=False)
+            threading.Thread(target=fetch_practica, daemon=True).start()
 
         def load_dashboard_data():
             exercises_grid.controls.clear()
@@ -643,8 +657,13 @@ def main(page: ft.Page):
                 exercises_grid.controls.clear()
                 exercises_grid.controls.append(ft.Text("Error de conexión", color=COLORES["error"]))
                 
-            page.update()
-
+            if not hasattr(page, "session_id") or not page.session_id:
+                return
+            try:
+                page.update()
+            except AssertionError:
+                print("Advertencia: Intento de actualizar un componente destruido.")
+            
         header = ft.Container(
             content=ft.Row([
                 ft.Row([ft.Icon(ft.Icons.SCHOOL, color=COLORES["primario"], size=30), ft.Text(f"Portal de Alumnos - {state['nombre']}", size=24, weight="bold", color=COLORES["texto"])]),
@@ -816,20 +835,6 @@ def main(page: ft.Page):
         debounce_timers = {}
         DEBOUNCE_DELAY_SECONDS = 1.0
         
-        def debounce_save(id_problema: int, value: str):
-            pid = str(id_problema)
-            if pid in debounce_timers and debounce_timers[pid] is not None:
-                debounce_timers[pid].cancel()
-            def perform_save():
-                if not getattr(page, 'is_alive', False): return
-                try:
-                    save_k(page, f"respuesta_{id_problema}", value)
-                except Exception as _:
-                    pass
-            t = threading.Timer(DEBOUNCE_DELAY_SECONDS, perform_save)
-            debounce_timers[pid] = t
-            t.start()
-            
         def construir_barra_progreso():
             progress_squares = []
             for i in range(1, NUM_PROBLEMAS + 1):
@@ -951,9 +956,8 @@ def main(page: ft.Page):
                     border_radius=10,
                     hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
                     color=COLORES["accento"],
-                    on_change=lambda e, pid=id_problema: debounce_save(pid, e.control.value),
                     on_focus=on_input_focus,
-                    on_blur=on_input_blur
+                    on_blur=lambda e, pid=id_problema: (save_k(page, f"respuesta_{pid}", e.control.value), on_input_blur(e))
                 )
 
                 draft = page.client_storage.get(f"respuesta_{id_problema}")
@@ -1028,6 +1032,11 @@ def main(page: ft.Page):
         # app_chat.py (Reemplazar la función enviar_respuesta dentro de mostrar_pantalla_intervencion)
 
         def enviar_respuesta(e):
+            ahora = time.time()
+            if hasattr(page, "_last_answer_time") and (ahora - page._last_answer_time < 3.0):
+                mostrar_aviso("Por favor espera unos segundos antes de volver a enviar.")
+                return
+            page._last_answer_time = ahora
             if getattr(page, "_is_sending_response", False):
                 return
             page._is_sending_response = True
@@ -1165,6 +1174,11 @@ def main(page: ft.Page):
         )
 
         def send_message(e):
+            ahora = time.time()
+            if hasattr(page, "_last_chat_time") and (ahora - page._last_chat_time < 3.0):
+                flash("Espera un momento antes de enviar otro mensaje.", ok=False, ms=2000)
+                return
+            page._last_chat_time = ahora
             msg = (user_input.value or "").strip()
             if not msg: return
 
@@ -1435,7 +1449,8 @@ def main(page: ft.Page):
         
         # Temporizador (Xmin)
         def iniciar_temporizador():
-            page._stop_timer_global = False
+            page._stop_timer_global = False 
+            stop_timer = False
             start_epoch = load_k(page, STATE_KEYS["timer_start"], None)
             now = int(time.time())
             if start_epoch is None:
@@ -1501,66 +1516,71 @@ def main(page: ft.Page):
                     if page.is_alive:
                         mostrar_pantalla_encuesta_final()
             threading.Thread(target=cuenta, daemon=True).start()
-        
+            
         iniciar_temporizador()
-                
-        def process_pending_queue():
-            nonlocal is_retransmiting
-            while not stop_timer:
-                time.sleep(15)
-                if not page.is_alive: return
-                if is_retransmiting: continue
-                is_retransmiting = True
-                
-                queue: list = load_k(page, STATE_KEYS["pending_queue"], []) or []
-                new_queue = []
-                
-                if queue:
-                    flash(f"Reintentando {len(queue)} petición(es) pendiente(s)...", ok=True, ms=2000)
+        
+        if not getattr(page, "_is_queue_running", False):
+            page._is_queue_running = True
+            
+            def process_pending_queue():
+                nonlocal is_retransmiting
+                while not getattr(page, "_stop_timer_global", False) and page.is_alive:
+                    time.sleep(15)
+                    if not page.is_alive: return
+                    if is_retransmiting: continue
+                    is_retransmiting = True
                     
-                for item in queue:
-                    payload = item["data"]
-                    problema_id = item["problema_id"]
-                    is_success = False
-                    MAX_RETRIES = 50
+                    queue: list = load_k(page, STATE_KEYS["pending_queue"], []) or []
+                    new_queue = []
                     
-                    try:
-                        if item["type"] == "answer":
-                            resp = requests.post(f"{BACKEND_URL_VERIFICAR}/{problema_id}", json=payload, timeout=60)
-                            resp.raise_for_status()
-                            is_success = True
-                        elif item["type"] == "chat":
-                            resp = requests.post(f"{BACKEND_URL_CHAT}/{problema_id}", json=payload, timeout=60)
-                            resp.raise_for_status()
-                            is_success = True
-                            
-                    except requests.exceptions.HTTPError as http_err:
-                        item["retry_count"] = item.get("retry_count", 0) + 1 
-                        if item["retry_count"] < MAX_RETRIES:
+                    if queue:
+                        flash(f"Reintentando {len(queue)} petición(es) pendiente(s)...", ok=True, ms=2000)
+                        
+                    for item in queue:
+                        payload = item["data"]
+                        problema_id = item["problema_id"]
+                        is_success = False
+                        MAX_RETRIES = 50
+                        
+                        try:
+                            if item["type"] == "answer":
+                                resp = requests.post(f"{BACKEND_URL_VERIFICAR}/{problema_id}", json=payload, timeout=60)
+                                resp.raise_for_status()
+                                is_success = True
+                            elif item["type"] == "chat":
+                                resp = requests.post(f"{BACKEND_URL_CHAT}/{problema_id}", json=payload, timeout=60)
+                                resp.raise_for_status()
+                                is_success = True
+                                
+                        except requests.exceptions.HTTPError as http_err:
+                            item["retry_count"] = item.get("retry_count", 0) + 1 
+                            if item["retry_count"] < MAX_RETRIES:
+                                new_queue.append(item)
+                                print(f"⚠️ Reintento HTTP fallido {item['retry_count']}/{MAX_RETRIES} para {item['type']} {problema_id}. Error: {http_err}")
+                            else:
+                                flash(f"❌ Descartando {item['type']} para problema {problema_id}. Falló {MAX_RETRIES} veces por error HTTP.", ok=False)
+                                print(f"❌ Descartando {item['type']} {problema_id}. Límite de reintentos ({MAX_RETRIES}) alcanzado.")
+                                
+                        except requests.exceptions.RequestException as e:
                             new_queue.append(item)
-                            print(f"⚠️ Reintento HTTP fallido {item['retry_count']}/{MAX_RETRIES} para {item['type']} {problema_id}. Error: {http_err}")
-                        else:
-                            flash(f"❌ Descartando {item['type']} para problema {problema_id}. Falló {MAX_RETRIES} veces por error HTTP.", ok=False)
-                            print(f"❌ Descartando {item['type']} {problema_id}. Límite de reintentos ({MAX_RETRIES}) alcanzado.")
                             
-                    except requests.exceptions.RequestException as e:
-                        new_queue.append(item)
-                        
-                    except Exception as e:
-                        print(f"⚠️ Error fatal en reintento de {item['type']}: {e}. Descartando permanentemente.")
-                        
-                current_queue_on_disk = load_k(page, STATE_KEYS["pending_queue"], []) or []
-                items_added_during_process = current_queue_on_disk[len(queue):]
-                final_queue = new_queue + items_added_during_process
-                if len(final_queue) < len(current_queue_on_disk):
-                     save_k(page, STATE_KEYS["pending_queue"], final_queue)
-                     if not final_queue:
-                         flash("✅ Todas las peticiones pendientes han sido enviadas.", ok=True, ms=2000)
-                     else:
-                         flash(f"Se enviaron peticiones. Quedan {len(final_queue)} pendientes.", ok=True, ms=2000)
-                is_retransmiting = False
+                        except Exception as e:
+                            print(f"⚠️ Error fatal en reintento de {item['type']}: {e}. Descartando permanentemente.")
+                            
+                    current_queue_on_disk = load_k(page, STATE_KEYS["pending_queue"], []) or []
+                    items_added_during_process = current_queue_on_disk[len(queue):]
+                    final_queue = new_queue + items_added_during_process
+                    if len(final_queue) < len(current_queue_on_disk):
+                         save_k(page, STATE_KEYS["pending_queue"], final_queue)
+                         if not final_queue:
+                             flash("✅ Todas las peticiones pendientes han sido enviadas.", ok=True, ms=2000)
+                         else:
+                             flash(f"Se enviaron peticiones. Quedan {len(final_queue)} pendientes.", ok=True, ms=2000)
+                    is_retransmiting = False
+                    
+                page._is_queue_running = False
                 
-        threading.Thread(target=process_pending_queue, daemon=True).start()
+            threading.Thread(target=process_pending_queue, daemon=True).start()
 
     # =============== PANTALLA ENCUESTA FINAL ===============
     def mostrar_pantalla_encuesta_final():
