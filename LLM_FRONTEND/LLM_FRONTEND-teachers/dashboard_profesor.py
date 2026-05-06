@@ -1732,7 +1732,6 @@ def main(page: ft.Page):
         col_completed_grades = ft.ListView(expand=True, spacing=10)
         col_pending_grades = ft.ListView(expand=True, spacing=10)
         
-        # --- DIÁLOGOS DE CALIFICACIÓN Y ELIMINACIÓN ---
         grade_llm_score_field = ft.TextField(
             label="Calificación Sugerida", 
             read_only=True, 
@@ -1772,28 +1771,6 @@ def main(page: ft.Page):
             width=float("inf")
         )
         
-        def close_and_refresh_grades(e=None):
-            load_grades()
-            page.update()
-        
-        grade_dlg = ft.AlertDialog(
-            title=ft.Container(content=grade_student_label, alignment=ft.alignment.center),
-            content=ft.Container(
-                content=ft.Column([
-                    ft.Container(content=grade_task_label, alignment=ft.alignment.center),
-                    grade_response_container,
-                    ft.Row([
-                        grade_llm_score_field,
-                        grade_score_field
-                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, spacing=20),
-                    grade_comment_field,
-                ], tight=True, spacing=15),
-                width=600
-            ),
-            scrollable=True,
-            on_dismiss=close_and_refresh_grades
-        )
-        
         delete_eval_dlg = ft.AlertDialog(
             title=ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=COLORES["error"]), ft.Text("Confirmar Eliminación")]),
             content=ft.Text("Estás a punto de eliminar definitivamente esta evaluación de la base de datos.\n\nEsto es útil si el estudiante reenvió la misma respuesta varias veces y quieres limpiar duplicados. ¿Deseas proceder?"),
@@ -1802,11 +1779,23 @@ def main(page: ft.Page):
                 ft.ElevatedButton("Eliminar Permanentemente", color=COLORES["fondo"], bgcolor=COLORES["error"], on_click=lambda e: confirm_delete_eval(e))
             ]
         )
+        
+        def close_and_refresh_grades(e=None):
+            load_grades()
+            page.update()
+        
+        grade_dlg = ft.AlertDialog(
+            title=ft.Container(content=grade_student_label, alignment=ft.alignment.center),
+            actions_alignment=ft.MainAxisAlignment.CENTER,
+            on_dismiss=close_and_refresh_grades
+        )
+            
         if grade_dlg not in page.overlay:
             page.overlay.append(grade_dlg)
+            
         if delete_eval_dlg not in page.overlay:
             page.overlay.append(delete_eval_dlg)
-
+            
         def close_grade_dlg():
             grade_dlg.open = False
             page.update()
@@ -1864,6 +1853,74 @@ def main(page: ft.Page):
                 if "revised_evals" not in state:
                     state["revised_evals"] = set()
                     
+                if "teacher_clipboard" not in state:
+                    state["teacher_clipboard"] = load_k(page, "teacher_clipboard_data", [
+                        "Falta desarrollar el procedimiento.",
+                        "Excelente análisis del problema.",
+                        "Revisa tus operaciones matemáticas."
+                    ])
+                    
+                def add_to_clipboard(e):
+                    val = clipboard_input.value.strip()
+                    if val:
+                        state["teacher_clipboard"].append(val)
+                        save_k(page, "teacher_clipboard_data", state["teacher_clipboard"])
+                        clipboard_input.value = ""
+                        render_clipboard()
+                        
+                def remove_from_clipboard(idx):
+                    state["teacher_clipboard"].pop(idx)
+                    save_k(page, "teacher_clipboard_data", state["teacher_clipboard"])
+                    render_clipboard()
+                    
+                def append_to_student_comment(text):
+                    current = grade_comment_field.value or ""
+                    grade_comment_field.value = f"{current}\n{text}".strip()
+                    grade_comment_field.update()
+                    
+                clipboard_list = ft.ListView(expand=True, spacing=10)
+                clipboard_input = ft.TextField(hint_text="Nuevo comentario...", text_size=12, expand=True, on_submit=add_to_clipboard)
+                
+                def render_clipboard():
+                    items = []
+                    for i, text in enumerate(state["teacher_clipboard"]):
+                        items.append(
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Text(text, size=11, color=COLORES["texto"], expand=True, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS),
+                                    ft.IconButton(ft.Icons.ADD_COMMENT, icon_color=COLORES["exito"], icon_size=16, tooltip="Insertar", on_click=lambda e, t=text: append_to_student_comment(t)),
+                                    ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], icon_size=16, tooltip="Borrar", on_click=lambda e, idx=i: remove_from_clipboard(idx)),
+                                ]),
+                                bgcolor=COLORES["fondo"], padding=5, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                            )
+                        )
+                    clipboard_list.controls = items
+                    try: clipboard_list.update()
+                    except: pass
+                    
+                left_panel = ft.Container(
+                    content=ft.Column([
+                        ft.Text("📋 Portapapeles Docente", weight="bold", color=COLORES["primario"]),
+                        ft.Row([clipboard_input, ft.IconButton(ft.Icons.ADD, on_click=add_to_clipboard, icon_color=COLORES["primario"])]),
+                        ft.Divider(),
+                        clipboard_list
+                    ]),
+                    width=280, bgcolor=COLORES["accento"], padding=15, border_radius=10, border=ft.border.all(1, COLORES["borde"])
+                )
+                
+                llm_rubric_list = ft.ListView(expand=True, spacing=10)
+                right_panel = ft.Container(
+                    content=ft.Column([
+                        ft.Row([
+                            ft.Icon(ft.Icons.AUTO_AWESOME, color=COLORES["advertencia"]),
+                            ft.Text("Justificación IA", weight="bold", color=COLORES["primario"])
+                        ]),
+                        ft.Divider(),
+                        llm_rubric_list
+                    ]),
+                    width=280, bgcolor=COLORES["accento"], padding=15, border_radius=10, border=ft.border.all(1, COLORES["borde"])
+                )
+                
                 def get_group_key_local(item, group_type):
                     if group_type == "fecha": return item.get("fecha", "")[:10]
                     elif group_type == "practica": return item.get("practica", "Sin práctica")
@@ -1882,11 +1939,45 @@ def main(page: ft.Page):
                 except StopIteration:
                     current_idx = 0
                     
-                btn_prev = ft.ElevatedButton("< Anterior", color=COLORES["texto"], bgcolor=COLORES["borde"])
-                btn_next = ft.ElevatedButton("Siguiente >", color=COLORES["texto"], bgcolor=COLORES["borde"])
+                btn_prev_arrow = ft.IconButton(icon=ft.Icons.CHEVRON_LEFT, icon_size=40, icon_color=COLORES["primario"])
+                btn_next_arrow = ft.IconButton(icon=ft.Icons.CHEVRON_RIGHT, icon_size=40, icon_color=COLORES["primario"])
+                
                 btn_approve = ft.ElevatedButton("Aprobar Sugerencia", bgcolor=COLORES["boton"], color=COLORES["fondo"])
                 btn_modify = ft.ElevatedButton("Modificar Calificación", bgcolor=COLORES["exito"], color=COLORES["fondo"])
+                
+                center_grading_content = ft.Container(
+                    content=ft.Column([
+                        ft.Container(content=grade_task_label, alignment=ft.alignment.center),
+                        grade_response_container,
+                        ft.Row([
+                            grade_llm_score_field,
+                            grade_score_field
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, spacing=20),
+                        grade_comment_field,
+                    ], tight=True, spacing=15, scroll=ft.ScrollMode.AUTO),
+                    width=420,
+                    padding=10
+                )
 
+                center_panel = ft.Container(
+                    content=ft.Row([
+                        btn_prev_arrow,
+                        center_grading_content,
+                        btn_next_arrow
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                    expand=True
+                )
+                
+                grade_dlg.content = ft.Container(
+                    content=ft.Row([
+                        left_panel,
+                        center_panel,
+                        right_panel
+                    ], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
+                    width=1150,
+                    height=550
+                )
+                
                 def load_card_at_index(idx):
                     item = nav_list[idx]
                     state["current_eval_idx"] = idx
@@ -1903,7 +1994,7 @@ def main(page: ft.Page):
                                     enunciado = p.get("enunciado", enunciado)
                                     break
                             break
-
+                            
                     grade_student_label.value = f"{item.get('nombre', item['correo'])}"
                     date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
                     grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
@@ -1920,7 +2011,7 @@ def main(page: ft.Page):
                         visible=is_revised,
                         margin=ft.margin.only(bottom=10)
                     )
-
+                    
                     grade_response_container.content = ft.Column([
                         revised_banner,
                         ft.Text("Descripción de la Práctica:", weight="bold", size=12, color=COLORES["primario"]),
@@ -1948,7 +2039,6 @@ def main(page: ft.Page):
                         teacher_score_display = int(teacher_score_val) if teacher_score_val.is_integer() else teacher_score_val
                         grade_score_field.value = str(teacher_score_display)
                         grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
-                        
                         grade_score_field.bgcolor = COLORES["fondo"]
                         grade_score_field.color = COLORES["exito"] 
                         grade_score_field.text_style = ft.TextStyle(weight="bold", size=18)
@@ -1961,10 +2051,42 @@ def main(page: ft.Page):
                         grade_score_field.text_style = ft.TextStyle(weight="normal", size=18)
                         grade_score_field.hint_style = ft.TextStyle(color=COLORES["advertencia"], italic=True)
                         
-                    btn_prev.disabled = (idx == 0)
-                    btn_next.disabled = (idx == len(nav_list) - 1)
-                    page.update()
+                    raw_comment = item.get('llm_comment', '')
+                    comentario_general = raw_comment # fallback
+                    llm_rubric_list.controls.clear()
+                    try:
+                        import json
+                        rubric_data = json.loads(raw_comment)
+                        comentario_general = rubric_data.get("comentario", raw_comment)
+                        
+                        if "rubricas" in rubric_data:
+                            for rub in rubric_data["rubricas"]:
+                                llm_rubric_list.controls.append(
+                                    ft.Container(
+                                        content=ft.Column([
+                                            ft.Text(rub.get("dimension", "Dimensión"), weight="bold", size=12, color=COLORES["secundario"]),
+                                            ft.Text(rub.get("observacion", ""), size=12, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY)
+                                        ], spacing=2),
+                                        bgcolor=COLORES["fondo"], padding=8, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                                    )
+                                )
+                    except:
+                        llm_rubric_list.controls.append(ft.Text("Evaluación general, sin desglose de rúbricas.", size=12, color=COLORES["texto"], italic=True))
 
+                    if is_revised:
+                        grade_comment_field.value = item.get('teacher_comment', comentario_general)
+                    else:
+                        grade_comment_field.value = comentario_general
+                        
+                    btn_prev_arrow.disabled = (idx == 0)
+                    btn_next_arrow.disabled = (idx == len(nav_list) - 1)
+                    
+                    btn_prev_arrow.icon_color = COLORES["subtitulo"] if btn_prev_arrow.disabled else COLORES["primario"]
+                    btn_next_arrow.icon_color = COLORES["subtitulo"] if btn_next_arrow.disabled else COLORES["primario"]
+                    
+                    render_clipboard()
+                    page.update()
+                    
                 def go_prev(e):
                     if state["current_eval_idx"] > 0:
                         load_card_at_index(state["current_eval_idx"] - 1)
@@ -2012,23 +2134,19 @@ def main(page: ft.Page):
                     e.control.disabled = False
                     page.update()
                     
-                btn_prev.on_click = go_prev
-                btn_next.on_click = go_next
+                btn_prev_arrow.on_click = go_prev
+                btn_next_arrow.on_click = go_next
                 btn_approve.on_click = handle_approve
                 btn_modify.on_click = handle_modify
+                
                 grade_dlg.actions = [
-                    ft.Container(
-                        content=ft.Row([
-                            ft.Row([btn_prev, btn_next], spacing=10),
-                            ft.Row([btn_approve, btn_modify], spacing=10)
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        width=600 
-                    )
+                    ft.Row([btn_approve, btn_modify], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
                 ]
+                
                 load_card_at_index(current_idx)
                 grade_dlg.open = True
                 page.update()
-            
+                
         def update_grade_filters(target, value):
             if target == "completed": state["filter_completed_grades"] = value.lower()
             else: state["filter_pending_grades"] = value.lower()

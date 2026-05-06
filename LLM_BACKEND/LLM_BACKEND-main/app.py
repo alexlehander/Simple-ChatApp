@@ -474,8 +474,13 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
 # 2. Automated Grading Function
 def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
     example_json = """{
-        "calificación": 10,
-        "comentario": "Solución correcta, cuenta con el procedimiento completo y una explicación exhaustiva."
+        "calificación": 8,
+        "comentario": "La lógica general es adecuada, pero el desarrollo carece de pasos intermedios y la explicación es muy superficial.",
+        "rubricas": [
+            {"dimension": "Exactitud de la solución", "observacion": "El resultado final de la operación coincide con el esperado."},
+            {"dimension": "Completitud del procedimiento", "observacion": "Se saltó la declaración de variables y no mostró el proceso paso a paso."},
+            {"dimension": "Nivel de detalle de la explicación", "observacion": "Solo indicó el resultado sin argumentar el razonamiento analítico."}
+        ]
     }"""
     user_prompt = f"""
         Actúa como un profesor experto de ciencias computacionales que evalúa una práctica universitaria.
@@ -484,10 +489,15 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
 
         Tu tarea consiste en:
         1. Leer la descripción del problema para entender qué se pedía.
-        2. Evaluar si la respuesta del estudiante satisface los requisitos planteados en la descripción.
-        3. Asignar una calificación (0-10) y un comentario justificativo.
+        2. Evaluar la respuesta basándote EXCLUSIVAMENTE en estas 3 dimensiones:
+           - Exactitud de la solución: ¿Es correcta la respuesta final conceptual o matemáticamente?
+           - Completitud del procedimiento: ¿El estudiante mostró y desarrolló todos los pasos técnicos necesarios?
+           - Nivel de detalle de la explicación: ¿El estudiante justificó adecuadamente su razonamiento?
+        3. Asignar una calificación global (0-10) basada en las dimensiones anteriores.
+        4. Redactar un 'comentario' general corto, que se le mostrara posteriormente al estudiante junto con la calificación del profesor.
+        5. Generar una 'observacion' específica y detallada para cada una de las 3 'rubricas'.
 
-        Usa estrictamente esta rúbrica para asignar la calificación y guiar tu comentario:
+        Usa esta rúbrica para asignar la calificación y guiar tu comentario (puedes usar tambien numeros impares si la respuesta proporcionada por el estudiante cae entre 2 items):
         - 10: Solución correcta, cuenta con el procedimiento completo y una explicación exhaustiva.
         - 8: Solución correcta y explicación exhaustiva, pero el procedimiento es incomplelto.
         - 8: Solución correcta y procedimiento completo, pero la explicación no es exhaustiva.
@@ -522,17 +532,17 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
             data = json.loads(match.group(0)) if match else {"calificación": 0, "comentario": "Error al procesar la evaluación del LLM"}
 
         nota = float(data.get("calificación", data.get("score", 0)))
-        comentario = data.get("comentario", data.get("comment", "Sin comentarios."))
+        comentario_completo = json.dumps(data, ensure_ascii=False)
 
         with app.app_context():
             resp_record = db.session.get(RespuestaUsuario, respuesta_id)
             if resp_record:
                 resp_record.llm_score = nota
-                resp_record.llm_comment = comentario
+                resp_record.llm_comment = comentario_completo
                 resp_record.status = "pending"
                 db.session.commit()
                 
-                print(f"📝 Evaluado ID {respuesta_id}: {resp_record.llm_score}/10 - {comentario[:30]}...")
+                print(f"📝 Evaluado ID {respuesta_id}: {resp_record.llm_score}/10")
                 color = "green" if nota >= 7 else "yellow" if nota >= 4 else "red"
                 
                 socketio.emit('student_activity', {
