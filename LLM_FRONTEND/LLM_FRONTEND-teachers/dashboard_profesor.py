@@ -121,7 +121,9 @@ def main(page: ft.Page):
     
     page.overlay.append(save_snack)
     sio = socketio.Client()
-    is_session_active = False
+    is_session_active = load_k(page, "is_live_session_active", False)
+    if is_session_active:
+        state["live_session_start"] = load_k(page, "live_session_start_time")
     student_cards_state = {}
     dashboard_grid = ft.GridView(expand=True, runs_count=5, max_extent=250, child_aspect_ratio=1.0, spacing=10, run_spacing=10)
     session_status_text = ft.Text("Sesión Inactiva", color=COLORES["subtitulo"])
@@ -1404,13 +1406,24 @@ def main(page: ft.Page):
         
         # Botón para iniciar/parar socket
         start_session_btn = ft.ElevatedButton(
-            "Iniciar Sesión en Vivo", 
-            icon=ft.Icons.PLAY_ARROW,
-            bgcolor=COLORES["exito"],
+            "Detener Sesión" if is_session_active else "Iniciar Sesión en Vivo", 
+            icon=ft.Icons.STOP if is_session_active else ft.Icons.PLAY_ARROW,
+            bgcolor=COLORES["error"] if is_session_active else COLORES["exito"],
             color=COLORES["texto"],
             height=40,
             on_click=lambda e: toggle_session(e)
         )
+
+        if is_session_active:
+            session_status_text.value = "🔴 EN VIVO: Recibiendo alertas..."
+            session_status_text.color = COLORES["error"]
+            try:
+                if not sio.connected:
+                    sio.connect(BASE)
+            except: pass
+        else:
+            session_status_text.value = "Sesión Inactiva"
+            session_status_text.color = COLORES["subtitulo"]
 
         # Botón para descargar reporte (Oculto por defecto)
         download_live_report_btn = ft.ElevatedButton(
@@ -1439,13 +1452,13 @@ def main(page: ft.Page):
             page.update()
 
         def confirm_stop_session(e):
-            e.control.disabled = True # <-- BLOQUEO DEL MULTI-CLIC
+            e.control.disabled = True 
             page.update()
-            
             close_stop_session_dlg()
             nonlocal is_session_active
             is_session_active = False
-            
+            save_k(page, "is_live_session_active", False)
+            page.client_storage.remove("live_session_start_time")
             start_session_btn.text = "Iniciar Sesión en Vivo"
             start_session_btn.icon = ft.Icons.PLAY_ARROW
             start_session_btn.bgcolor = COLORES["exito"]
@@ -1488,9 +1501,10 @@ def main(page: ft.Page):
             nonlocal is_session_active
             if not is_session_active:
                 is_session_active = True
+                save_k(page, "is_live_session_active", True)
                 state["live_session_start"] = dt.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None).isoformat()
-                download_live_report_btn.visible = False 
-                
+                save_k(page, "live_session_start_time", state["live_session_start"])
+                download_live_report_btn.visible = False
                 start_session_btn.text = "Detener Sesión"
                 start_session_btn.icon = ft.Icons.STOP
                 start_session_btn.bgcolor = COLORES["error"]
@@ -2559,9 +2573,10 @@ def main(page: ft.Page):
         
         # Tabs Principales
         tabs = ft.Tabs(
-            selected_index=0,
+            selected_index=load_k(page, "current_tab_index", 0),
             animation_duration=300,
             on_change=lambda e: (
+                save_k(page, "current_tab_index", e.control.selected_index),
                 reset_inactivity_timer(),
                 load_exercises() if e.control.selected_index == 1 else None,
                 load_grades() if e.control.selected_index == 2 else None,
