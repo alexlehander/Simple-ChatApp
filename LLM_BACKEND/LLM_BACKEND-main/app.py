@@ -1002,14 +1002,20 @@ def get_student_statuses():
 def get_student_timeline(email):
     """Fetches combined chronological timeline of chat and answers."""
     try:
-        chats = AnalisisInteraccion.query.filter_by(correo_identificacion=email).order_by(AnalisisInteraccion.created_at.desc()).limit(25).all()
+        chats = db.session.query(AnalisisInteraccion, ChatLog.content).join(
+            ChatLog, AnalisisInteraccion.chat_id == ChatLog.id
+        ).filter(
+            AnalisisInteraccion.correo_identificacion == email
+        ).order_by(AnalisisInteraccion.created_at.desc()).limit(25).all()
+        
         chat_events = [{
             'type': 'chat',
-            'id': c.id,
-            'timestamp': c.created_at.isoformat(),
-            'intent': c.intent,
-            'color': c.color_asignado,
-            'description': f"Consultó al LLM: {c.intent}"
+            'id': c[0].id,
+            'timestamp': c[0].created_at.isoformat(),
+            'intent': c[0].intent,
+            'color': c[0].color_asignado,
+            'description': f"Consultó al LLM: {c[0].intent}",
+            'content': c[1]
         } for c in chats]
 
         answers = RespuestaUsuario.query.filter_by(correo_identificacion=email).filter(RespuestaUsuario.status != 'processing').order_by(RespuestaUsuario.created_at.desc()).limit(25).all()
@@ -1020,7 +1026,8 @@ def get_student_timeline(email):
             'problem_id': a.problema_id,
             'score': a.llm_score,
             'color': "green" if (a.llm_score or 0) >= 7 else "yellow" if (a.llm_score or 0) >= 4 else "red",
-            'description': f"Entregó Respuesta P{a.problema_id} (Calificación: {a.llm_score})"
+            'description': f"Entregó Respuesta P{a.problema_id} (Calificación: {a.llm_score})",
+            'respuesta': a.respuesta
         } for a in answers]
 
         combined_timeline = sorted(
