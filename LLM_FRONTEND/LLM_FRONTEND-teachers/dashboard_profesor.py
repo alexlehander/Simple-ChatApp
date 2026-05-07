@@ -143,9 +143,8 @@ def main(page: ft.Page):
 
     def show_student_detail(email):
         detail_dlg_title.value = f"Línea de Tiempo: {email.split('@')[0]}"
-        filter_recent = {"value": True} # Estado del switch (2 horas)
+        filter_recent = {"value": True}
         
-        # --- UI DE ALERTA DIRECTA ---
         alert_msg_field = ft.TextField(label="Escribe tu mensaje urgente", multiline=True, min_lines=3, expand=True)
         
         def send_alert_action(e):
@@ -177,7 +176,36 @@ def main(page: ft.Page):
         )
         if alert_dlg not in page.overlay: page.overlay.append(alert_dlg)
         
-        # --- LÓGICA DE LÍNEA DE TIEMPO ---
+        interaction_text_field = ft.TextField(
+            read_only=True, 
+            multiline=True, 
+            min_lines=4, 
+            max_lines=15, 
+            text_size=13,
+            border=ft.InputBorder.NONE,
+            color=COLORES["texto"]
+        )
+        
+        interaction_dlg = ft.AlertDialog(
+            title=ft.Row([ft.Icon(ft.Icons.CONTENT_PASTE_SEARCH, color=COLORES["primario"]), ft.Text("Contenido de la Interacción", size=18)]),
+            content=ft.Container(content=interaction_text_field, width=500, padding=15, bgcolor=COLORES["accento"], border_radius=8, border=ft.border.all(1, COLORES["borde"])),
+            actions=[ft.TextButton("Cerrar", on_click=lambda e: close_interaction_dlg())]
+        )
+        if interaction_dlg not in page.overlay: page.overlay.append(interaction_dlg)
+            
+        def close_interaction_dlg():
+            interaction_dlg.open = False
+            page.update()
+            
+        def open_interaction_detail(ev):
+            text = ev.get('content') or ev.get('respuesta') or ev.get('texto') or ev.get('mensaje')
+            if not text:
+                text = f"Detalles técnicos:\n{ev.get('description', 'Sin contenido adicional disponible en el servidor.')}"
+            
+            interaction_text_field.value = text
+            interaction_dlg.open = True
+            page.update()
+
         def fetch_and_render_timeline():
             timeline_data = []
             try:
@@ -202,11 +230,7 @@ def main(page: ft.Page):
             filtered_data = []
             for event in timeline_data:
                 try:
-                    # CORRECCIÓN DE ZONA HORARIA: Ya no restamos 8 horas, 
-                    # backend ya lo manda en naive America/Tijuana
                     dt_obj = dt_module.datetime.fromisoformat(event['timestamp'].replace('Z', ''))
-                    
-                    # FILTRO DE 2 HORAS (7200 Segundos)
                     if filter_recent["value"]:
                         if (now_tj - dt_obj).total_seconds() > 7200:
                             continue
@@ -249,7 +273,10 @@ def main(page: ft.Page):
                             ], expand=True, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
                         ], spacing=15),
                         padding=ft.padding.symmetric(vertical=10, horizontal=5),
-                        border=ft.border.only(bottom=ft.border.BorderSide(1, COLORES["borde"]))
+                        border=ft.border.only(bottom=ft.border.BorderSide(1, COLORES["borde"])),
+                        ink=True, 
+                        on_click=lambda e, ev=event: open_interaction_detail(ev),
+                        tooltip="Clic para leer el mensaje completo"
                     )
                     nuevos_controles.append(item_row)
                     
@@ -1878,7 +1905,7 @@ def main(page: ft.Page):
                     page.update() 
 
                 clipboard_list = ft.ListView(expand=True, spacing=10)
-                clipboard_input = ft.TextField(hint_text="Nuevo comentario...", text_size=12, expand=True, on_submit=add_to_clipboard)
+                clipboard_input = ft.TextField(hint_text="Nuevo comentario...", text_size=14, expand=True, on_submit=add_to_clipboard)
 
                 def render_clipboard():
                     items = []
@@ -1886,7 +1913,7 @@ def main(page: ft.Page):
                         items.append(
                             ft.Container(
                                 content=ft.Row([
-                                    ft.Text(text, size=11, color=COLORES["texto"], expand=True, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS),
+                                    ft.Text(text, size=14, color=COLORES["texto"], expand=True, max_lines=3, overflow=ft.TextOverflow.ELLIPSIS),
                                     ft.IconButton(ft.Icons.ADD_COMMENT, icon_color=COLORES["exito"], icon_size=16, tooltip="Insertar", on_click=lambda e, t=text: append_to_student_comment(t)),
                                     ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], icon_size=16, tooltip="Borrar", on_click=lambda e, idx=i: remove_from_clipboard(idx)),
                                 ]),
@@ -1897,7 +1924,6 @@ def main(page: ft.Page):
                     try: clipboard_list.update()
                     except: pass
 
-                # --- ALTURA DINÁMICA: 75% de la pantalla actual del dispositivo ---
                 dynamic_height = page.height * 0.75
 
                 left_panel = ft.Container(
@@ -1975,11 +2001,9 @@ def main(page: ft.Page):
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                 )
 
-                # --- CONTENEDOR PRINCIPAL: Usa el 95% del ancho dinámico. ---
-                # --- La columna principal permite deslizar hacia abajo en celular. ---
                 grade_dlg.content = ft.Container(
-                    width=page.width * 0.95,
-                    height=page.height * 0.85, 
+                    width=page.width * 0.75,
+                    height=page.height * 0.75, 
                     content=ft.Column([
                         ft.ResponsiveRow([
                             left_panel,
@@ -2025,13 +2049,13 @@ def main(page: ft.Page):
 
                     grade_response_container.content = ft.Column([
                         revised_banner,
-                        ft.Text("Descripción de la Práctica:", weight="bold", size=12, color=COLORES["primario"]),
-                        ft.Text(desc, size=12, italic=True, color=COLORES["subtitulo"]),
+                        ft.Text("Descripción de la Práctica:", weight="bold", size=14, color=COLORES["primario"]),
+                        ft.Text(desc, size=14, italic=True, color=COLORES["subtitulo"]),
                         ft.Divider(height=1, color=COLORES["borde"]),
-                        ft.Text(f"Enunciado (Problema {item['problema_id']}):", weight="bold", size=12, color=COLORES["primario"]),
-                        ft.Text(enunciado, size=12, color=COLORES["texto"]),
+                        ft.Text(f"Enunciado (Problema {item['problema_id']}):", weight="bold", size=14, color=COLORES["primario"]),
+                        ft.Text(enunciado, size=14, color=COLORES["texto"]),
                         ft.Divider(height=1, color=COLORES["borde"]),
-                        ft.Text("Respuesta del Estudiante:", weight="bold", size=12, color=COLORES["primario"]),
+                        ft.Text("Respuesta del Estudiante:", weight="bold", size=14, color=COLORES["primario"]),
                         ft.TextField(
                             value=item['respuesta'], read_only=True, multiline=True, min_lines=3, max_lines=6,
                             text_align=ft.TextAlign.JUSTIFY, border=ft.InputBorder.NONE, content_padding=0
@@ -2075,8 +2099,8 @@ def main(page: ft.Page):
                                 llm_rubric_list.controls.append(
                                     ft.Container(
                                         content=ft.Column([
-                                            ft.Text(rub.get("dimension", "Dimensión"), weight="bold", size=12, color=COLORES["secundario"]),
-                                            ft.Text(rub.get("observacion", ""), size=12, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY)
+                                            ft.Text(rub.get("dimension", "Dimensión"), weight="bold", size=14, color=COLORES["secundario"]),
+                                            ft.Text(rub.get("observacion", ""), size=14, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY)
                                         ], spacing=2),
                                         bgcolor=COLORES["fondo"], padding=8, border_radius=5, border=ft.border.all(1, COLORES["borde"])
                                     )
