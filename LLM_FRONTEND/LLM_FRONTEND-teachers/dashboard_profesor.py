@@ -1897,6 +1897,7 @@ def main(page: ft.Page):
                     try: clipboard_list.update()
                     except: pass
 
+                # --- ALTURA DINÁMICA: 75% de la pantalla actual del dispositivo ---
                 dynamic_height = page.height * 0.75
 
                 left_panel = ft.Container(
@@ -1974,6 +1975,8 @@ def main(page: ft.Page):
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
                 )
 
+                # --- CONTENEDOR PRINCIPAL: Usa el 95% del ancho dinámico. ---
+                # --- La columna principal permite deslizar hacia abajo en celular. ---
                 grade_dlg.content = ft.Container(
                     width=page.width * 0.95,
                     height=page.height * 0.85, 
@@ -2073,7 +2076,87 @@ def main(page: ft.Page):
                                     ft.Container(
                                         content=ft.Column([
                                             ft.Text(rub.get("dimension", "Dimensión"), weight="bold", size=12, color=COLORES["secundario"]),
-                                            ft.Text(rub.get("observacion", ""), size=12, color=COLORES["texto"],
+                                            ft.Text(rub.get("observacion", ""), size=12, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY)
+                                        ], spacing=2),
+                                        bgcolor=COLORES["fondo"], padding=8, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                                    )
+                                )
+                    except:
+                        llm_rubric_list.controls.append(ft.Text("Evaluación general, sin desglose de rúbricas.", size=12, color=COLORES["texto"], italic=True))
+
+                    if is_revised:
+                        grade_comment_field.value = item.get('teacher_comment', comentario_general)
+                    else:
+                        grade_comment_field.value = comentario_general
+
+                    btn_prev_arrow.disabled = (idx == 0)
+                    btn_next_arrow.disabled = (idx == len(nav_list) - 1)
+
+                    btn_prev_arrow.icon_color = COLORES["subtitulo"] if btn_prev_arrow.disabled else COLORES["primario"]
+                    btn_next_arrow.icon_color = COLORES["subtitulo"] if btn_next_arrow.disabled else COLORES["primario"]
+
+                    render_clipboard()
+                    page.update()
+
+                def go_prev(e):
+                    if state["current_eval_idx"] > 0:
+                        load_card_at_index(state["current_eval_idx"] - 1)
+
+                def go_next(e):
+                    if state["current_eval_idx"] < len(nav_list) - 1:
+                        load_card_at_index(state["current_eval_idx"] + 1)
+
+                def handle_approve(e):
+                    e.control.disabled = True
+                    page.update()
+                    item = state["current_eval_item"]
+                    raw_score = item.get('llm_score')
+                    score = float(raw_score) if raw_score is not None else 0.0
+                    submit_grade(item['id'], score, grade_comment_field.value, "approve")
+                    state["revised_evals"].add(item["id"])
+                    item['teacher_score'] = score
+                    item['teacher_comment'] = grade_comment_field.value
+                    load_card_at_index(state["current_eval_idx"])
+                    flash("Calificación de IA aprobada", ok=True)
+                    e.control.disabled = False
+                    page.update()
+
+                def handle_modify(e):
+                    item = state["current_eval_item"]
+                    val = grade_score_field.value
+
+                    if not val:
+                        flash("¡Alto! Debes ingresar un número en 'Calificación Asignada' antes de modificar.", ok=False, ms=3000)
+                        return
+                    try:
+                        score = float(val)
+                    except ValueError:
+                        flash("El formato de la calificación es incorrecto. Ingresa solo números.", ok=False, ms=3000)
+                        return
+
+                    e.control.disabled = True
+                    page.update()
+                    submit_grade(item['id'], score, grade_comment_field.value, "edit")
+                    state["revised_evals"].add(item["id"])
+                    item['teacher_score'] = score
+                    item['teacher_comment'] = grade_comment_field.value
+                    load_card_at_index(state["current_eval_idx"])
+                    flash("Calificación modificada exitosamente", ok=True)
+                    e.control.disabled = False
+                    page.update()
+
+                btn_prev_arrow.on_click = go_prev
+                btn_next_arrow.on_click = go_next
+                btn_approve.on_click = handle_approve
+                btn_modify.on_click = handle_modify
+
+                grade_dlg.actions = [
+                    ft.Row([btn_approve, btn_modify], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
+                ]
+
+                load_card_at_index(current_idx)
+                grade_dlg.open = True
+                page.update()
                 
         def update_grade_filters(target, value):
             if target == "completed": state["filter_completed_grades"] = value.lower()
