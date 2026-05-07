@@ -1835,7 +1835,6 @@ def main(page: ft.Page):
                     
                 res = auth_request("POST", "/api/teacher/grades/submit", json=payload)
                 if res and res.status_code == 200:
-                    grade_dlg.open = False
                     flash(f"Evaluación {'aprobada' if action == 'approve' else 'actualizada'}", ok=True)
                     load_grades()
                 else:
@@ -1852,14 +1851,14 @@ def main(page: ft.Page):
             with ui_lock:
                 if "revised_evals" not in state:
                     state["revised_evals"] = set()
-                    
+
                 if "teacher_clipboard" not in state:
                     state["teacher_clipboard"] = load_k(page, "teacher_clipboard_data", [
                         "Falta desarrollar el procedimiento.",
                         "Excelente análisis del problema.",
                         "Revisa tus operaciones matemáticas."
                     ])
-                    
+
                 def add_to_clipboard(e):
                     val = clipboard_input.value.strip()
                     if val:
@@ -1867,20 +1866,20 @@ def main(page: ft.Page):
                         save_k(page, "teacher_clipboard_data", state["teacher_clipboard"])
                         clipboard_input.value = ""
                         render_clipboard()
-                        
+
                 def remove_from_clipboard(idx):
                     state["teacher_clipboard"].pop(idx)
                     save_k(page, "teacher_clipboard_data", state["teacher_clipboard"])
                     render_clipboard()
-                    
+
                 def append_to_student_comment(text):
                     current = grade_comment_field.value or ""
                     grade_comment_field.value = f"{current}\n{text}".strip()
-                    grade_comment_field.update()
-                    
+                    page.update()
+
                 clipboard_list = ft.ListView(expand=True, spacing=10)
                 clipboard_input = ft.TextField(hint_text="Nuevo comentario...", text_size=12, expand=True, on_submit=add_to_clipboard)
-                
+
                 def render_clipboard():
                     items = []
                     for i, text in enumerate(state["teacher_clipboard"]):
@@ -1897,7 +1896,7 @@ def main(page: ft.Page):
                     clipboard_list.controls = items
                     try: clipboard_list.update()
                     except: pass
-                    
+
                 left_panel = ft.Container(
                     content=ft.Column([
                         ft.Text("📋 Portapapeles Docente", weight="bold", color=COLORES["primario"]),
@@ -1905,9 +1904,9 @@ def main(page: ft.Page):
                         ft.Divider(),
                         clipboard_list
                     ]),
-                    width=280, bgcolor=COLORES["accento"], padding=15, border_radius=10, border=ft.border.all(1, COLORES["borde"])
+                    bgcolor=COLORES["accento"], padding=15, border_radius=10, border=ft.border.all(1, COLORES["borde"])
                 )
-                
+
                 llm_rubric_list = ft.ListView(expand=True, spacing=10)
                 right_panel = ft.Container(
                     content=ft.Column([
@@ -1918,33 +1917,33 @@ def main(page: ft.Page):
                         ft.Divider(),
                         llm_rubric_list
                     ]),
-                    width=280, bgcolor=COLORES["accento"], padding=15, border_radius=10, border=ft.border.all(1, COLORES["borde"])
+                    bgcolor=COLORES["accento"], padding=15, border_radius=10, border=ft.border.all(1, COLORES["borde"])
                 )
-                
+
                 def get_group_key_local(item, group_type):
                     if group_type == "fecha": return item.get("fecha", "")[:10]
                     elif group_type == "practica": return item.get("practica", "Sin práctica")
                     elif group_type == "problema": return f"Ejercicio #{item.get('problema_id', '?')}"
                     elif group_type == "estudiante": return item.get("nombre", item.get("correo"))
                     return "General"
-                    
+
                 group_by = state.get("group_by_completed") if is_completed else state.get("group_by_pending")
                 target_group = get_group_key_local(initial_item, group_by)
-                
+
                 full_list = state["nav_comp"] if is_completed else state["nav_pend"]
                 nav_list = [x for x in full_list if get_group_key_local(x, group_by) == target_group]
-                
+
                 try:
                     current_idx = next(i for i, x in enumerate(nav_list) if x["id"] == initial_item["id"])
                 except StopIteration:
                     current_idx = 0
-                    
+
                 btn_prev_arrow = ft.IconButton(icon=ft.Icons.CHEVRON_LEFT, icon_size=40, icon_color=COLORES["primario"])
                 btn_next_arrow = ft.IconButton(icon=ft.Icons.CHEVRON_RIGHT, icon_size=40, icon_color=COLORES["primario"])
-                
+
                 btn_approve = ft.ElevatedButton("Aprobar Sugerencia", bgcolor=COLORES["boton"], color=COLORES["fondo"])
                 btn_modify = ft.ElevatedButton("Modificar Calificación", bgcolor=COLORES["exito"], color=COLORES["fondo"])
-                
+
                 center_grading_content = ft.Container(
                     content=ft.Column([
                         ft.Container(content=grade_task_label, alignment=ft.alignment.center),
@@ -1954,8 +1953,7 @@ def main(page: ft.Page):
                             grade_score_field
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, spacing=20),
                         grade_comment_field,
-                    ], tight=True, spacing=15, scroll=ft.ScrollMode.AUTO),
-                    width=420,
+                    ], tight=True, spacing=15),
                     padding=10
                 )
 
@@ -1967,17 +1965,18 @@ def main(page: ft.Page):
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                     expand=True
                 )
-                
+
                 grade_dlg.content = ft.Container(
-                    content=ft.Row([
-                        left_panel,
-                        center_panel,
-                        right_panel
-                    ], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.STRETCH),
-                    width=1150,
-                    height=550
+                    content=ft.ResponsiveRow([
+                        ft.Container(content=left_panel, col={"xs": 12, "lg": 3}),
+                        ft.Container(content=center_panel, col={"xs": 12, "lg": 6}),
+                        ft.Container(content=right_panel, col={"xs": 12, "lg": 3})
+                    ], vertical_alignment=ft.CrossAxisAlignment.START),
+                    width=page.width * 0.85,
+                    height=page.height * 0.85,
+                    scroll=ft.ScrollMode.AUTO
                 )
-                
+
                 def load_card_at_index(idx):
                     item = nav_list[idx]
                     state["current_eval_idx"] = idx
@@ -1994,12 +1993,12 @@ def main(page: ft.Page):
                                     enunciado = p.get("enunciado", enunciado)
                                     break
                             break
-                            
+
                     grade_student_label.value = f"{item.get('nombre', item['correo'])}"
                     date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
                     grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
                     is_revised = item["id"] in state["revised_evals"] or is_completed
-                    
+
                     revised_banner = ft.Container(
                         content=ft.Row([
                             ft.Icon(ft.Icons.CHECK_CIRCLE, color=COLORES["exito"]),
@@ -2011,7 +2010,7 @@ def main(page: ft.Page):
                         visible=is_revised,
                         margin=ft.margin.only(bottom=10)
                     )
-                    
+
                     grade_response_container.content = ft.Column([
                         revised_banner,
                         ft.Text("Descripción de la Práctica:", weight="bold", size=12, color=COLORES["primario"]),
@@ -2026,12 +2025,12 @@ def main(page: ft.Page):
                             text_align=ft.TextAlign.JUSTIFY, border=ft.InputBorder.NONE, content_padding=0
                         )
                     ], spacing=5)
-                    
+
                     raw_llm = item.get('llm_score')
                     llm_score_val = float(raw_llm) if raw_llm is not None else 0.0
                     llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
                     grade_llm_score_field.value = f"{llm_score_display}/10"
-                    
+
                     if is_revised:
                         raw_teacher = item.get('teacher_score')
                         base_val = raw_teacher if raw_teacher is not None else raw_llm
@@ -2050,15 +2049,15 @@ def main(page: ft.Page):
                         grade_score_field.color = COLORES["texto"]
                         grade_score_field.text_style = ft.TextStyle(weight="normal", size=18)
                         grade_score_field.hint_style = ft.TextStyle(color=COLORES["advertencia"], italic=True)
-                        
+
                     raw_comment = item.get('llm_comment', '')
-                    comentario_general = raw_comment # fallback
+                    comentario_general = raw_comment 
                     llm_rubric_list.controls.clear()
                     try:
                         import json
                         rubric_data = json.loads(raw_comment)
                         comentario_general = rubric_data.get("comentario", raw_comment)
-                        
+
                         if "rubricas" in rubric_data:
                             for rub in rubric_data["rubricas"]:
                                 llm_rubric_list.controls.append(
@@ -2077,24 +2076,24 @@ def main(page: ft.Page):
                         grade_comment_field.value = item.get('teacher_comment', comentario_general)
                     else:
                         grade_comment_field.value = comentario_general
-                        
+
                     btn_prev_arrow.disabled = (idx == 0)
                     btn_next_arrow.disabled = (idx == len(nav_list) - 1)
-                    
+
                     btn_prev_arrow.icon_color = COLORES["subtitulo"] if btn_prev_arrow.disabled else COLORES["primario"]
                     btn_next_arrow.icon_color = COLORES["subtitulo"] if btn_next_arrow.disabled else COLORES["primario"]
-                    
+
                     render_clipboard()
                     page.update()
-                    
+
                 def go_prev(e):
                     if state["current_eval_idx"] > 0:
                         load_card_at_index(state["current_eval_idx"] - 1)
-                        
+
                 def go_next(e):
                     if state["current_eval_idx"] < len(nav_list) - 1:
                         load_card_at_index(state["current_eval_idx"] + 1)
-                        
+
                 def handle_approve(e):
                     e.control.disabled = True
                     page.update()
@@ -2109,11 +2108,11 @@ def main(page: ft.Page):
                     flash("Calificación de IA aprobada", ok=True)
                     e.control.disabled = False
                     page.update()
-                    
+
                 def handle_modify(e):
                     item = state["current_eval_item"]
                     val = grade_score_field.value
-                    
+
                     if not val:
                         flash("¡Alto! Debes ingresar un número en 'Calificación Asignada' antes de modificar.", ok=False, ms=3000)
                         return
@@ -2122,7 +2121,7 @@ def main(page: ft.Page):
                     except ValueError:
                         flash("El formato de la calificación es incorrecto. Ingresa solo números.", ok=False, ms=3000)
                         return
-                        
+
                     e.control.disabled = True
                     page.update()
                     submit_grade(item['id'], score, grade_comment_field.value, "edit")
@@ -2133,16 +2132,16 @@ def main(page: ft.Page):
                     flash("Calificación modificada exitosamente", ok=True)
                     e.control.disabled = False
                     page.update()
-                    
+
                 btn_prev_arrow.on_click = go_prev
                 btn_next_arrow.on_click = go_next
                 btn_approve.on_click = handle_approve
                 btn_modify.on_click = handle_modify
-                
+
                 grade_dlg.actions = [
                     ft.Row([btn_approve, btn_modify], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
                 ]
-                
+
                 load_card_at_index(current_idx)
                 grade_dlg.open = True
                 page.update()
