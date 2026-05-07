@@ -1967,14 +1967,15 @@ def main(page: ft.Page):
                 )
 
                 grade_dlg.content = ft.Container(
-                    content=ft.ResponsiveRow([
-                        ft.Container(content=left_panel, col={"xs": 12, "lg": 3}),
-                        ft.Container(content=center_panel, col={"xs": 12, "lg": 6}),
-                        ft.Container(content=right_panel, col={"xs": 12, "lg": 3})
-                    ], vertical_alignment=ft.CrossAxisAlignment.START),
-                    width=page.width * 0.85,
-                    height=page.height * 0.85,
-                    scroll=ft.ScrollMode.AUTO
+                    content=ft.Column([
+                        ft.ResponsiveRow([
+                            ft.Container(content=left_panel, col={"xs": 12, "md": 3}),
+                            ft.Container(content=center_panel, col={"xs": 12, "md": 6}),
+                            ft.Container(content=right_panel, col={"xs": 12, "md": 3})
+                        ], vertical_alignment=ft.CrossAxisAlignment.START)
+                    ], scroll=ft.ScrollMode.AUTO, expand=True),
+                    width=page.width * 0.9,
+                    height=page.height * 0.85
                 )
 
                 def load_card_at_index(idx):
