@@ -143,9 +143,8 @@ def main(page: ft.Page):
 
     def show_student_detail(email):
         detail_dlg_title.value = f"Línea de Tiempo: {email.split('@')[0]}"
-        filter_recent = {"value": True}
-        
-        alert_msg_field = ft.TextField(label="Escribe tu mensaje urgente", multiline=True, min_lines=3, expand=True)
+        filter_recent = {"value": True} 
+        alert_msg_field = ft.TextField(label="Mensaje urgente", multiline=True, min_lines=2, expand=True)
         
         def send_alert_action(e):
             if not alert_msg_field.value.strip():
@@ -153,12 +152,9 @@ def main(page: ft.Page):
                 return
             e.control.disabled = True
             page.update()
-            res = auth_request("POST", "/api/teacher/send-alert", json={
-                "student_email": email,
-                "message": alert_msg_field.value
-            })
+            res = auth_request("POST", "/api/teacher/send-alert", json={"student_email": email, "message": alert_msg_field.value})
             if res and res.status_code == 200:
-                flash("Alerta enviada exitosamente", ok=True)
+                flash("Alerta enviada", ok=True)
                 alert_dlg.open = False
                 alert_msg_field.value = ""
             else:
@@ -167,44 +163,14 @@ def main(page: ft.Page):
             page.update()
 
         alert_dlg = ft.AlertDialog(
-            title=ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=COLORES["advertencia"]), ft.Text("Enviar Alerta Pop-up")]),
-            content=ft.Container(content=alert_msg_field, width=400, height=120),
+            title=ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=COLORES["advertencia"]), ft.Text("Enviar Alerta")]),
+            content=ft.Container(content=alert_msg_field, width=400, height=100),
             actions=[
                 ft.TextButton("Cancelar", on_click=lambda e: setattr(alert_dlg, 'open', False) or page.update()),
-                ft.ElevatedButton("Enviar Alerta", bgcolor=COLORES["error"], color=COLORES["fondo"], on_click=send_alert_action)
+                ft.ElevatedButton("Enviar", bgcolor=COLORES["error"], color=COLORES["fondo"], on_click=send_alert_action)
             ]
         )
         if alert_dlg not in page.overlay: page.overlay.append(alert_dlg)
-        
-        interaction_text_field = ft.TextField(
-            read_only=True, 
-            multiline=True, 
-            min_lines=4, 
-            max_lines=15, 
-            text_size=13,
-            border=ft.InputBorder.NONE,
-            color=COLORES["texto"]
-        )
-        
-        interaction_dlg = ft.AlertDialog(
-            title=ft.Row([ft.Icon(ft.Icons.CONTENT_PASTE_SEARCH, color=COLORES["primario"]), ft.Text("Contenido de la Interacción", size=18)]),
-            content=ft.Container(content=interaction_text_field, width=500, padding=15, bgcolor=COLORES["accento"], border_radius=8, border=ft.border.all(1, COLORES["borde"])),
-            actions=[ft.TextButton("Cerrar", on_click=lambda e: close_interaction_dlg())]
-        )
-        if interaction_dlg not in page.overlay: page.overlay.append(interaction_dlg)
-            
-        def close_interaction_dlg():
-            interaction_dlg.open = False
-            page.update()
-            
-        def open_interaction_detail(ev):
-            text = ev.get('content') or ev.get('respuesta') or ev.get('texto') or ev.get('mensaje')
-            if not text:
-                text = f"Detalles técnicos:\n{ev.get('description', 'Sin contenido adicional disponible en el servidor.')}"
-            
-            interaction_text_field.value = text
-            interaction_dlg.open = True
-            page.update()
 
         def fetch_and_render_timeline():
             timeline_data = []
@@ -224,7 +190,6 @@ def main(page: ft.Page):
                 
             nuevos_controles = []
             import datetime as dt_module
-            from zoneinfo import ZoneInfo
             now_tj = dt_module.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None)
 
             filtered_data = []
@@ -232,53 +197,50 @@ def main(page: ft.Page):
                 try:
                     dt_obj = dt_module.datetime.fromisoformat(event['timestamp'].replace('Z', ''))
                     if filter_recent["value"]:
-                        if (now_tj - dt_obj).total_seconds() > 7200:
-                            continue
+                        if (now_tj - dt_obj).total_seconds() > 7200: continue
                     filtered_data.append((event, dt_obj))
                 except Exception:
                     filtered_data.append((event, None))
 
             if not filtered_data:
-                nuevos_controles.append(
-                    ft.Container(
-                        content=ft.Text("No hay interacciones en el rango de tiempo seleccionado.", italic=True, color=COLORES["subtitulo"]),
-                        alignment=ft.alignment.center, padding=20
-                    )
-                )
+                nuevos_controles.append(ft.Container(content=ft.Text("Sin interacciones recientes.", italic=True), alignment=ft.alignment.center, padding=20))
             else:
                 for event, dt_obj in filtered_data:
-                    if dt_obj:
-                        time_str = dt_obj.strftime("%I:%M %p - %d/%b")
-                    else:
-                        time_str = event['timestamp'][:10]
-                        
+                    time_str = dt_obj.strftime("%I:%M %p") if dt_obj else "??"
                     icon_shape, icon_color = get_status_meta(event['color'])
                     event_icon = ft.Icons.CHAT_BUBBLE_OUTLINED if event['type'] == 'chat' else ft.Icons.ASSIGNMENT_TURNED_IN_OUTLINED
+                    detalle_texto = event.get('content') or event.get('respuesta') or event.get('texto') or "Sin detalle adicional."
                     
-                    item_row = ft.Container(
-                        content=ft.Row([
+                    item_tile = ft.ExpansionTile(
+                        title=ft.Row([
                             ft.Column([
-                                 ft.Text(time_str, size=10, color=COLORES["subtitulo"]),
-                                 ft.Icon(event_icon, color=COLORES["primario"], size=20),
-                            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
-                            
-                            ft.Container(width=2, height=40, bgcolor=COLORES["borde"]),
-                            
-                            ft.Row([
-                                 ft.Column([
-                                    ft.Text(event['description'], weight="bold", size=14, color=COLORES["texto"]),
-                                    ft.Text(f"Tipo: {event['type'].title()} | Etiqueta: {event['color'].title()}", size=11, color=COLORES["subtitulo"]),
-                                 ], expand=True, spacing=2),
-                                 ft.Icon(icon_shape, color=icon_color, size=24)
-                            ], expand=True, alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-                        ], spacing=15),
-                        padding=ft.padding.symmetric(vertical=10, horizontal=5),
-                        border=ft.border.only(bottom=ft.border.BorderSide(1, COLORES["borde"])),
-                        ink=True, 
-                        on_click=lambda e, ev=event: open_interaction_detail(ev),
-                        tooltip="Clic para leer el mensaje completo"
+                                ft.Text(time_str, size=10, color=COLORES["subtitulo"]),
+                                ft.Icon(event_icon, color=COLORES["primario"], size=18),
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
+                            ft.VerticalDivider(width=10),
+                            ft.Column([
+                                ft.Text(event['description'], weight="bold", size=13, color=COLORES["texto"]),
+                                ft.Text(f"Tipo: {event['type'].title()}", size=10, color=COLORES["subtitulo"]),
+                            ], expand=True, spacing=0),
+                            ft.Icon(icon_shape, color=icon_color, size=20)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        
+                        controls=[
+                            ft.Container(
+                                content=ft.Column([
+                                    ft.Divider(height=1, color=COLORES["borde"]),
+                                    ft.Text("Contenido de la interacción:", size=11, weight="bold", color=COLORES["primario"]),
+                                    ft.Text(detalle_texto, size=12, color=COLORES["texto"]),
+                                ], spacing=5),
+                                padding=ft.padding.only(left=40, right=20, bottom=15, top=5),
+                                bgcolor=COLORES["accento"]
+                            )
+                        ],
+                        collapsed_bgcolor=COLORES["fondo"],
+                        bgcolor=COLORES["fondo"],
+                        shape=ft.Border(),
                     )
-                    nuevos_controles.append(item_row)
+                    nuevos_controles.append(item_tile)
                     
             detail_dlg_content.controls = nuevos_controles
             try:
@@ -286,15 +248,7 @@ def main(page: ft.Page):
             except Exception: pass
                 
         def trigger_load(e=None):
-            detail_dlg_content.controls = [
-                ft.Container(
-                    content=ft.Column([
-                        ft.ProgressRing(color=COLORES["primario"], stroke_width=4),
-                        ft.Text("Consultando historial académico...", color=COLORES["subtitulo"], italic=True)
-                    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                    alignment=ft.alignment.center, height=200
-                )
-            ]
+            detail_dlg_content.controls = [ft.Container(content=ft.ProgressRing(), alignment=ft.alignment.center, height=100)]
             if detail_dlg.open: detail_dlg_content.update()
             threading.Thread(target=fetch_and_render_timeline, daemon=True).start()
 
@@ -302,21 +256,13 @@ def main(page: ft.Page):
             filter_recent["value"] = e.control.value
             trigger_load()
 
-        filter_switch = ft.Switch(label="Solo Últimas 2 Horas", value=True, on_change=on_switch_change, active_color=COLORES["primario"])
-        btn_alert = ft.ElevatedButton("Enviar Alerta", icon=ft.Icons.ADD_ALERT, bgcolor=COLORES["advertencia"], color=COLORES["texto"], on_click=lambda e: setattr(alert_dlg, 'open', True) or page.update())
+        filter_switch = ft.Switch(label="Últimas 2h", value=True, on_change=on_switch_change, active_color=COLORES["primario"])
+        btn_alert = ft.IconButton(ft.Icons.ADD_ALERT, icon_color=COLORES["error"], on_click=lambda e: setattr(alert_dlg, 'open', True) or page.update())
 
-        detail_dlg.title = ft.Row([detail_dlg_title, ft.Row([filter_switch, btn_alert], spacing=15)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        
-        detail_dlg.actions = [
-            ft.TextButton("Refrescar", icon=ft.Icons.REFRESH, icon_color=COLORES["primario"], on_click=trigger_load),
-            ft.TextButton("Cerrar", on_click=lambda e: close_detail_dlg())
-        ]
-
-        detail_dlg.content.width = 800
-        detail_dlg.content.height = 600
+        detail_dlg.title = ft.Row([detail_dlg_title, ft.Row([filter_switch, btn_alert])], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        detail_dlg.content.width = 700
         detail_dlg.open = True
         page.update()
-        
         trigger_load()
         
     @sio.event
@@ -2136,7 +2082,7 @@ def main(page: ft.Page):
                     item = state["current_eval_item"]
                     raw_score = item.get('llm_score')
                     score = float(raw_score) if raw_score is not None else 0.0
-                    submit_grade(item['id'], score, grade_comment_field.value, "approve")
+                    submit_grade(item['id'], "approve", score, grade_comment_field.value)
                     state["revised_evals"].add(item["id"])
                     item['teacher_score'] = score
                     item['teacher_comment'] = grade_comment_field.value
@@ -2148,7 +2094,7 @@ def main(page: ft.Page):
                 def handle_modify(e):
                     item = state["current_eval_item"]
                     val = grade_score_field.value
-
+                    
                     if not val:
                         flash("¡Alto! Debes ingresar un número en 'Calificación Asignada' antes de modificar.", ok=False, ms=3000)
                         return
@@ -2157,10 +2103,10 @@ def main(page: ft.Page):
                     except ValueError:
                         flash("El formato de la calificación es incorrecto. Ingresa solo números.", ok=False, ms=3000)
                         return
-
+                        
                     e.control.disabled = True
                     page.update()
-                    submit_grade(item['id'], score, grade_comment_field.value, "edit")
+                    submit_grade(item['id'], "edit", score, grade_comment_field.value)
                     state["revised_evals"].add(item["id"])
                     item['teacher_score'] = score
                     item['teacher_comment'] = grade_comment_field.value
