@@ -1,0 +1,91 @@
+{
+  "title": "Práctica: Red LAN Híbrida (Ethernet y Wi-Fi)",
+  "description": "Diseñar e implementar una red LAN híbrida utilizando tecnologías Ethernet y Wi-Fi en Packet Tracer, permitiendo la comunicación entre dispositivos cableados e inalámbricos dentro de una misma red local.",
+  "max_time": 7200,
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "¿Qué ventajas ofrece Ethernet?"
+    },
+    {
+      "id": 2,
+      "enunciado": "¿Qué ventajas ofrece Wi-Fi?"
+    },
+    {
+      "id": 3,
+      "enunciado": "¿Por qué se utiliza DHCP?"
+    },
+    {
+      "id": 4,
+      "enunciado": "¿Qué función tiene el gateway?"
+    },
+    {
+      "id": 5,
+      "enunciado": "¿Qué ocurre si el switch se conecta al puerto Internet?"
+    },
+    {
+      "id": 6,
+      "enunciado": "¿Por qué es importante WPA2?"
+    },
+    {
+      "id": 7,
+      "enunciado": "¿Qué función cumple el router dentro de la red?"
+    },
+    {
+      "id": 8,
+      "enunciado": "¿Por qué todos los dispositivos deben estar en la misma red IP?"
+    },
+    {
+      "id": 9,
+      "enunciado": "¿Qué función tiene el Default Gateway?"
+    },
+    {
+      "id": 10,
+      "enunciado": "¿Qué dispositivos utilizaron Ethernet y cuáles Wi-Fi?"
+    },
+    {
+      "id": 11,
+      "enunciado": "¿Qué ventajas ofrece Ethernet dentro de una LAN?"
+    },
+    {
+      "id": 12,
+      "enunciado": "¿Qué ventajas ofrece una red inalámbrica?"
+    },
+    {
+      "id": 13,
+      "enunciado": "¿Por qué fue necesario configurar seguridad WPA2 en el Wi-Fi?"
+    },
+    {
+      "id": 14,
+      "enunciado": "¿Qué ocurre si el switch se conecta al puerto Internet del router?"
+    },
+    {
+      "id": 15,
+      "enunciado": "¿Qué comando utilizaste para verificar conectividad entre dispositivos?"
+    },
+    {
+      "id": 16,
+      "enunciado": "¿Qué significa \"Request timed out\" durante un ping?"
+    },
+    {
+      "id": 17,
+      "enunciado": "¿Qué problemas podrían impedir la comunicación entre dispositivos?"
+    },
+    {
+      "id": 18,
+      "enunciado": "¿Cómo verificaste que la laptop estaba conectada al Wi-Fi?"
+    },
+    {
+      "id": 19,
+      "enunciado": "¿Qué función tiene el DHCP en la red?"
+    },
+    {
+      "id": 20,
+      "enunciado": "¿Por qué las laptops obtuvieron IP automáticamente?"
+    },
+    {
+      "id": 21,
+      "enunciado": "¿Qué aprendiste sobre la integración entre Ethernet y redes inalámbricas?"
+    }
+  ]
+}

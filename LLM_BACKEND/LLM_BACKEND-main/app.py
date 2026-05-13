@@ -295,6 +295,7 @@ def save_chat_turn(user: Usuario | None, correo: str | None, practice_name: str 
     return log.id
     
 def get_rag_context(user_query: str) -> str:
+    return ""
     try:
         response = requests.post(
             HF_EMBED_URL,
