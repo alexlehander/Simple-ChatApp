@@ -1736,7 +1736,6 @@ def main(page: ft.Page):
                 ft.dropdown.Option("estudiante", "Estudiante"),
             ]
 
-        # --- DROPDOWNS COMPLETADAS ---
         group_completed_A_dropdown = ft.Dropdown(
             label="Filtrar por", options=get_opciones(), value="practica",
             expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
@@ -1748,7 +1747,6 @@ def main(page: ft.Page):
             on_change=lambda e: update_grade_grouping("completed", False, e.control.value)
         )
 
-        # --- DROPDOWNS PENDIENTES ---
         group_pending_A_dropdown = ft.Dropdown(
             label="Filtrar por", options=get_opciones(), value="practica",
             expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
@@ -1880,10 +1878,18 @@ def main(page: ft.Page):
                         
         def open_grade_dialog(initial_item, is_completed):
             with ui_lock:
+                master_students = state.get("students", [])
+                master_practices = [ex for ex in state.get("my_exercises", []) if isinstance(ex, dict)]
+                try:
+                    sel_student_idx = next(i for i, s in enumerate(master_students) if s["email"] == initial_item["correo"])
+                except StopIteration: sel_student_idx = 0
+                try:
+                    sel_practice_idx = next(i for i, p in enumerate(master_practices) if p["title"] == initial_item["practica"] or p["filename"] == initial_item["practica"])
+                except StopIteration: sel_practice_idx = 0
+                sel_problem_id = int(initial_item.get("problema_id", 1))
                 status_msg_dlg = ft.Text("", weight="bold", size=14, text_align=ft.TextAlign.CENTER)
                 if "revised_evals" not in state:
                     state["revised_evals"] = set()
-
                 if "teacher_clipboard" not in state:
                     state["teacher_clipboard"] = load_k(page, "teacher_clipboard_data", [
                         "Falta desarrollar el procedimiento.",
@@ -1897,7 +1903,7 @@ def main(page: ft.Page):
                     page.update()
                     
                     def clear_msg():
-                        time.sleep(3) # Duración del mensaje
+                        time.sleep(3)
                         status_msg_dlg.value = ""
                         try:
                             if page.is_alive: page.update()
@@ -1974,34 +1980,43 @@ def main(page: ft.Page):
                     bgcolor=COLORES["accento"], padding=15, border_radius=10, border=ft.border.all(1, COLORES["borde"])
                 )
 
-                def get_group_key_local(item, group_type):
-                    if group_type == "fecha": return item.get("fecha", "")[:10]
-                    elif group_type == "practica": return item.get("practica", "Sin práctica")
-                    elif group_type == "problema": return f"Ejercicio #{item.get('problema_id', '?')}"
-                    elif group_type == "estudiante": return item.get("nombre", item.get("correo"))
-                    return "General"
-
-                group_by = state.get("group_by_completed") if is_completed else state.get("group_by_pending")
-                target_group = get_group_key_local(initial_item, group_by)
-
-                full_list = state["nav_comp"] if is_completed else state["nav_pend"]
-                nav_list = [x for x in full_list if get_group_key_local(x, group_by) == target_group]
-
-                try:
-                    current_idx = next(i for i, x in enumerate(nav_list) if x["id"] == initial_item["id"])
-                except StopIteration:
-                    current_idx = 0
-
-                btn_prev_arrow = ft.IconButton(icon=ft.Icons.CHEVRON_LEFT, icon_size=40, icon_color=COLORES["primario"])
-                btn_next_arrow = ft.IconButton(icon=ft.Icons.CHEVRON_RIGHT, icon_size=40, icon_color=COLORES["primario"])
-
                 btn_approve = ft.ElevatedButton("Aprobar Sugerencia", bgcolor=COLORES["boton"], color=COLORES["fondo"])
                 btn_modify = ft.ElevatedButton("Modificar Calificación", bgcolor=COLORES["exito"], color=COLORES["fondo"])
+
+                lbl_nav_student = ft.Text("", weight="bold", size=20, color=COLORES["texto"])
+                lbl_nav_practice = ft.Text("", size=16, color=COLORES["primario"])
+                lbl_nav_problem = ft.Text("", size=14, weight="bold", color=COLORES["texto"])
+                lbl_nav_date = ft.Text("", size=12, color=COLORES["subtitulo"])
+
+                def nav_change(level, delta):
+                    nonlocal sel_student_idx, sel_practice_idx, sel_problem_id
+                    if level == "student":
+                        sel_student_idx = (sel_student_idx + delta) % len(master_students)
+                    elif level == "practice":
+                        sel_practice_idx = (sel_practice_idx + delta) % len(master_practices)
+                        sel_problem_id = 1
+                    elif level == "problem":
+                        num_probs = master_practices[sel_practice_idx].get("num_problems", 1)
+                        sel_problem_id = ((sel_problem_id - 1 + delta) % num_probs) + 1
+                    sync_hierarchical_view()
+
+                def create_nav_row(label_ctrl, level):
+                    return ft.Row([
+                        ft.IconButton(ft.Icons.CHEVRON_LEFT, on_click=lambda e: nav_change(level, -1), icon_color=COLORES["primario"]),
+                        ft.Container(content=label_ctrl, alignment=ft.alignment.center, expand=True),
+                        ft.IconButton(ft.Icons.CHEVRON_RIGHT, on_click=lambda e: nav_change(level, 1), icon_color=COLORES["primario"]),
+                    ], alignment=ft.MainAxisAlignment.CENTER, spacing=0)
+
+                grade_dlg.title = ft.Column([
+                    create_nav_row(lbl_nav_student, "student"),
+                    create_nav_row(lbl_nav_practice, "practice"),
+                    create_nav_row(lbl_nav_problem, "problem"),
+                    ft.Container(content=lbl_nav_date, alignment=ft.alignment.center, padding=ft.padding.only(top=5))
+                ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
                 center_grading_content = ft.Container(
                     expand=True, 
                     content=ft.Column([
-                        ft.Container(content=grade_task_label, alignment=ft.alignment.center),
                         grade_response_container,
                         ft.Row([
                             grade_llm_score_field,
@@ -2015,11 +2030,7 @@ def main(page: ft.Page):
                 center_panel = ft.Container(
                     col={"xs": 12, "lg": 6},
                     height=alto_dialogo,
-                    content=ft.Row([
-                        btn_prev_arrow,
-                        center_grading_content,
-                        btn_next_arrow
-                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+                    content=center_grading_content
                 )
 
                 grade_dlg.content = ft.Container(
@@ -2034,122 +2045,90 @@ def main(page: ft.Page):
                     ], scroll=ft.ScrollMode.AUTO)
                 )
 
-                def load_card_at_index(idx):
-                    item = nav_list[idx]
-                    state["current_eval_idx"] = idx
+                def sync_hierarchical_view():
+                    student = master_students[sel_student_idx]
+                    practice = master_practices[sel_practice_idx]
+                    
+                    lbl_nav_student.value = f"{student.get('nombre', 'Estudiante')}"
+                    lbl_nav_practice.value = f"📚 {practice['title']}"
+                    lbl_nav_problem.value = f"Ejercicio #{sel_problem_id}"
+                    
+                    all_evals = state.get("pending_grades", []) + state.get("completed_grades", [])
+                    item = next((ev for ev in all_evals if ev["correo"] == student["email"] 
+                                 and (ev["practica"] == practice["title"] or ev["practica"] == practice["filename"])
+                                 and int(ev["problema_id"]) == sel_problem_id), None)
+                    
                     state["current_eval_item"] = item
-                    desc = "Descripción no disponible."
-                    enunciado = "Enunciado no disponible."
-                    for ex in state.get("all_exercises", []):
-                        if ex.get("title") == item.get("practica") or ex.get("filename") == item.get("practica"):
-                            desc = ex.get("description", desc)
-                            for p in ex.get("problemas", []):
-                                p_id = str(p.get("id")).strip().split('.')[0]
-                                item_id = str(item.get("problema_id")).strip().split('.')[0]
-                                if p_id == item_id:
-                                    enunciado = p.get("enunciado", enunciado)
-                                    break
-                            break
-
-                    grade_student_label.value = f"{item.get('nombre', item['correo'])}"
-                    date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Sin fecha"
-                    grade_task_label.value = f"📚 {item['practica']} | 🔢 Ejercicio: {item['problema_id']} | 🕒 {date_str}"
-                    is_revised = item["id"] in state["revised_evals"] or is_completed
-
-                    revised_banner = ft.Container(
-                        content=ft.Row([
-                            ft.Icon(ft.Icons.CHECK_CIRCLE, color=COLORES["exito"]),
-                            ft.Text("EVALUACIÓN REVISADA", weight="bold", color=COLORES["exito"], size=14)
-                        ], alignment=ft.MainAxisAlignment.CENTER),
-                        bgcolor=COLORES["accento"],
-                        padding=5,
-                        border_radius=5,
-                        visible=is_revised,
-                        margin=ft.margin.only(bottom=10)
-                    )
-
-                    grade_response_container.content = ft.Column([
-                        revised_banner,
-                        ft.Text("Descripción de la Práctica:", weight="bold", size=14, color=COLORES["primario"]),
-                        ft.Text(desc, size=14, italic=True, color=COLORES["subtitulo"]),
-                        ft.Divider(height=1, color=COLORES["borde"]),
-                        ft.Text(f"Enunciado (Problema {item['problema_id']}):", weight="bold", size=14, color=COLORES["primario"]),
-                        ft.Text(enunciado, size=14, color=COLORES["texto"]),
-                        ft.Divider(height=1, color=COLORES["borde"]),
-                        ft.Text("Respuesta del Estudiante:", weight="bold", size=14, color=COLORES["primario"]),
-                        ft.TextField(
-                            value=item['respuesta'], read_only=True, multiline=True, min_lines=3, max_lines=6,
-                            text_align=ft.TextAlign.JUSTIFY, border=ft.InputBorder.NONE, content_padding=0
+                    
+                    if not item:
+                        lbl_nav_date.value = "Sin entrega registrada"
+                        grade_response_container.content = ft.Container(
+                            content=ft.Text("El estudiante aún no ha enviado respuesta para este ejercicio.", italic=True, color=COLORES["subtitulo"]),
+                            padding=20, alignment=ft.alignment.center
                         )
-                    ], spacing=5)
-
-                    raw_llm = item.get('llm_score')
-                    llm_score_val = float(raw_llm) if raw_llm is not None else 0.0
-                    llm_score_display = int(llm_score_val) if llm_score_val.is_integer() else llm_score_val
-                    grade_llm_score_field.value = f"{llm_score_display}/10"
-
-                    if is_revised:
-                        raw_teacher = item.get('teacher_score')
-                        base_val = raw_teacher if raw_teacher is not None else raw_llm
-                        teacher_score_val = float(base_val) if base_val is not None else 0.0
-                        teacher_score_display = int(teacher_score_val) if teacher_score_val.is_integer() else teacher_score_val
-                        grade_score_field.value = str(teacher_score_display)
-                        grade_comment_field.value = item.get('teacher_comment', item['llm_comment'])
-                        grade_score_field.bgcolor = COLORES["fondo"]
-                        grade_score_field.color = COLORES["exito"] 
-                        grade_score_field.text_style = ft.TextStyle(weight="bold", size=18)
-                        grade_score_field.hint_style = None
-                    else:
+                        btn_approve.visible = btn_modify.visible = False
+                        grade_llm_score_field.value = "-/10"
                         grade_score_field.value = ""
-                        grade_comment_field.value = item['llm_comment']
-                        grade_score_field.bgcolor = COLORES["fondo"]
-                        grade_score_field.color = COLORES["texto"]
-                        grade_score_field.text_style = ft.TextStyle(weight="normal", size=18)
-                        grade_score_field.hint_style = ft.TextStyle(color=COLORES["advertencia"], italic=True)
-
-                    raw_comment = item.get('llm_comment', '')
-                    comentario_general = raw_comment 
-                    llm_rubric_list.controls.clear()
-                    try:
-                        import json
-                        rubric_data = json.loads(raw_comment)
-                        comentario_general = rubric_data.get("comentario", raw_comment)
-
-                        if "rubricas" in rubric_data:
-                            for rub in rubric_data["rubricas"]:
-                                llm_rubric_list.controls.append(
-                                    ft.Container(
-                                        content=ft.Column([
-                                            ft.Text(rub.get("dimension", "Dimensión"), weight="bold", size=14, color=COLORES["secundario"]),
-                                            ft.Text(rub.get("observacion", ""), size=14, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY)
-                                        ], spacing=2),
-                                        bgcolor=COLORES["fondo"], padding=8, border_radius=5, border=ft.border.all(1, COLORES["borde"])
-                                    )
-                                )
-                    except:
-                        llm_rubric_list.controls.append(ft.Text("Evaluación general, sin desglose de rúbricas.", size=12, color=COLORES["texto"], italic=True))
-
-                    if is_revised:
-                        grade_comment_field.value = item.get('teacher_comment', comentario_general)
+                        grade_comment_field.value = ""
+                        llm_rubric_list.controls.clear()
                     else:
-                        grade_comment_field.value = comentario_general
+                        btn_approve.visible = btn_modify.visible = True
+                        date_str = item.get("fecha", "")[:10] if item.get("fecha") else "Fecha desconocida"
+                        lbl_nav_date.value = f"🕒 Entregado el: {date_str}"
+                        
+                        enunciado = "Enunciado no disponible."
+                        for p in practice.get("problemas", []):
+                            if str(p.get("id")).split('.')[0] == str(sel_problem_id):
+                                enunciado = p.get("enunciado", "Enunciado no disponible.")
+                                break
 
-                    btn_prev_arrow.disabled = (idx == 0)
-                    btn_next_arrow.disabled = (idx == len(nav_list) - 1)
+                        grade_response_container.content = ft.Column([
+                            ft.Text(f"Enunciado:", weight="bold", size=14, color=COLORES["primario"]),
+                            ft.Text(enunciado, size=14, color=COLORES["texto"]),
+                            ft.Divider(height=1, color=COLORES["borde"]),
+                            ft.Text("Respuesta del Estudiante:", weight="bold", size=14, color=COLORES["primario"]),
+                            ft.TextField(value=item['respuesta'], read_only=True, multiline=True, min_lines=3, max_lines=8, border=ft.InputBorder.NONE, text_align=ft.TextAlign.JUSTIFY)
+                        ], spacing=5)
 
-                    btn_prev_arrow.icon_color = COLORES["subtitulo"] if btn_prev_arrow.disabled else COLORES["primario"]
-                    btn_next_arrow.icon_color = COLORES["subtitulo"] if btn_next_arrow.disabled else COLORES["primario"]
+                        raw_llm = item.get('llm_score', 0)
+                        grade_llm_score_field.value = f"{raw_llm}/10"
+                        grade_score_field.value = str(item.get('teacher_score', ""))
+                        
+                        is_revised = item["id"] in state["revised_evals"] or item.get("status") in ["approved", "edited"]
+                        if is_revised:
+                            grade_score_field.bgcolor = COLORES["fondo"]
+                            grade_score_field.color = COLORES["exito"]
+                            grade_score_field.text_style = ft.TextStyle(weight="bold", size=18)
+                        else:
+                            grade_score_field.bgcolor = COLORES["fondo"]
+                            grade_score_field.color = COLORES["texto"]
+                            grade_score_field.text_style = ft.TextStyle(weight="normal", size=18)
+                            
+                        raw_comment = item.get('llm_comment', '')
+                        comentario_general = raw_comment 
+                        llm_rubric_list.controls.clear()
+                        try:
+                            import json
+                            rubric_data = json.loads(raw_comment)
+                            comentario_general = rubric_data.get("comentario", raw_comment)
+                            if "rubricas" in rubric_data:
+                                for rub in rubric_data["rubricas"]:
+                                    llm_rubric_list.controls.append(
+                                        ft.Container(
+                                            content=ft.Column([
+                                                ft.Text(rub.get("dimension", "Dimensión"), weight="bold", size=14, color=COLORES["secundario"]),
+                                                ft.Text(rub.get("observacion", ""), size=14, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY)
+                                            ], spacing=2),
+                                            bgcolor=COLORES["fondo"], padding=8, border_radius=5, border=ft.border.all(1, COLORES["borde"])
+                                        )
+                                    )
+                        except:
+                            llm_rubric_list.controls.append(ft.Text("Evaluación general, sin desglose de rúbricas.", size=12, color=COLORES["texto"], italic=True))
+
+                        grade_comment_field.value = item.get('teacher_comment', comentario_general) if is_revised else comentario_general
 
                     render_clipboard()
                     page.update()
-
-                def go_prev(e):
-                    if state["current_eval_idx"] > 0:
-                        load_card_at_index(state["current_eval_idx"] - 1)
-
-                def go_next(e):
-                    if state["current_eval_idx"] < len(nav_list) - 1:
-                        load_card_at_index(state["current_eval_idx"] + 1)
 
                 def handle_approve(e):
                     e.control.disabled = True
@@ -2157,12 +2136,13 @@ def main(page: ft.Page):
                     item = state["current_eval_item"]
                     raw_score = item.get('llm_score')
                     score = float(raw_score) if raw_score is not None else 0.0
+                    
                     exito = submit_grade(item['id'], "approve", score, grade_comment_field.value)
                     if exito:
                         state["revised_evals"].add(item["id"])
                         item['teacher_score'] = score
                         item['teacher_comment'] = grade_comment_field.value
-                        load_card_at_index(state["current_eval_idx"])
+                        sync_hierarchical_view()
                         show_dialog_feedback("✅ Calificación aprobada correctamente", COLORES["exito"])
                     else:
                         show_dialog_feedback("❌ Error al guardar en el servidor", COLORES["error"])
@@ -2182,20 +2162,19 @@ def main(page: ft.Page):
                         return
                     e.control.disabled = True
                     page.update()
+                    
                     exito = submit_grade(item['id'], "edit", score, grade_comment_field.value)
                     if exito:
                         state["revised_evals"].add(item["id"])
                         item['teacher_score'] = score
                         item['teacher_comment'] = grade_comment_field.value
-                        load_card_at_index(state["current_eval_idx"])
+                        sync_hierarchical_view()
                         show_dialog_feedback("📝 Calificación actualizada", COLORES["exito"])
                     else:
                         show_dialog_feedback("❌ Error al guardar en el servidor", COLORES["error"])
                     e.control.disabled = False
                     page.update()
 
-                btn_prev_arrow.on_click = go_prev
-                btn_next_arrow.on_click = go_next
                 btn_approve.on_click = handle_approve
                 btn_modify.on_click = handle_modify
 
@@ -2206,7 +2185,7 @@ def main(page: ft.Page):
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
                 ]
 
-                load_card_at_index(current_idx)
+                sync_hierarchical_view()
                 grade_dlg.open = True
                 page.update()
                 
