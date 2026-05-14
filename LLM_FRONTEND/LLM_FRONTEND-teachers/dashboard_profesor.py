@@ -1673,7 +1673,7 @@ def main(page: ft.Page):
             border_radius=10,
             bgcolor=COLORES["fondo"],
             color=COLORES["texto"],
-            expand=True,
+            expand=2,
             on_change=lambda e: update_grade_filters("completed", e.control.value)
         )
 
@@ -1686,7 +1686,7 @@ def main(page: ft.Page):
             border_radius=10,
             bgcolor=COLORES["fondo"],
             color=COLORES["texto"],
-            expand=True,
+            expand=2,
             on_change=lambda e: update_grade_filters("pending", e.control.value)
         )
         
@@ -1694,26 +1694,21 @@ def main(page: ft.Page):
             if target == "completed":
                 if is_A: state["group_by_completed_A"] = value
                 else: state["group_by_completed_B"] = value
-                
                 for opt in group_completed_B_dropdown.options:
                     opt.disabled = (opt.key == state["group_by_completed_A"])
                 for opt in group_completed_A_dropdown.options:
                     opt.disabled = (opt.key == state["group_by_completed_B"])
-                    
                 group_completed_A_dropdown.update()
                 group_completed_B_dropdown.update()
             else:
                 if is_A: state["group_by_pending_A"] = value
                 else: state["group_by_pending_B"] = value
-                
                 for opt in group_pending_B_dropdown.options:
                     opt.disabled = (opt.key == state["group_by_pending_A"])
                 for opt in group_pending_A_dropdown.options:
                     opt.disabled = (opt.key == state["group_by_pending_B"])
-                    
                 group_pending_A_dropdown.update()
                 group_pending_B_dropdown.update()
-                
             render_grades()
 
         def get_opciones():
@@ -1727,30 +1722,28 @@ def main(page: ft.Page):
         # --- DROPDOWNS COMPLETADAS ---
         group_completed_A_dropdown = ft.Dropdown(
             label="Filtrar por", options=get_opciones(), value="practica",
-            width=140, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
+            expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
             on_change=lambda e: update_grade_grouping("completed", True, e.control.value)
         )
         group_completed_B_dropdown = ft.Dropdown(
             label="Seguido de", options=get_opciones(), value="problema",
-            width=140, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
+            expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
             on_change=lambda e: update_grade_grouping("completed", False, e.control.value)
         )
-        # Iniciar bloqueados
         group_completed_B_dropdown.options[1].disabled = True # Bloquear 'practica' en B
         group_completed_A_dropdown.options[2].disabled = True # Bloquear 'problema' en A
 
         # --- DROPDOWNS PENDIENTES ---
         group_pending_A_dropdown = ft.Dropdown(
             label="Filtrar por", options=get_opciones(), value="practica",
-            width=140, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
+            expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
             on_change=lambda e: update_grade_grouping("pending", True, e.control.value)
         )
         group_pending_B_dropdown = ft.Dropdown(
             label="Seguido de", options=get_opciones(), value="problema",
-            width=140, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
+            expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
             on_change=lambda e: update_grade_grouping("pending", False, e.control.value)
         )
-        # Iniciar bloqueados
         group_pending_B_dropdown.options[1].disabled = True
         group_pending_A_dropdown.options[2].disabled = True
 
@@ -2241,7 +2234,7 @@ def main(page: ft.Page):
                                 ),
                                 ft.Text(
                                     f"{item['correo']}",
-                                    size=11,
+                                    size=12,
                                     color=COLORES["subtitulo"]
                                 ),
                                 ft.Row([
@@ -2308,11 +2301,9 @@ def main(page: ft.Page):
                     return "General"
 
                 def build_grouped_list(items, group_A, group_B, is_completed):
-                    # Ordenar por A, luego por B, luego por fecha
                     items.sort(key=lambda x: (get_group_key(x, group_A), get_group_key(x, group_B), x.get("fecha", "")), reverse=True)
                     grupos = {}
                     for item in items:
-                        # Combinar la etiqueta A y B para el título del acordeón
                         g_key = f"{get_group_key(item, group_A)} ➔ {get_group_key(item, group_B)}"
                         if g_key not in grupos:
                             grupos[g_key] = []
@@ -2331,22 +2322,16 @@ def main(page: ft.Page):
                         controls.append(tile)
                     return controls
 
-                # --- Filtrar Búsquedas (QUITAMOS LA BÚSQUEDA POR PRÁCTICA) ---
                 filtered_comp = [g for g in state["completed_grades"] if state["filter_completed_grades"] in g.get("correo", "").lower() or state["filter_completed_grades"] in g.get("nombre", "").lower()]
                 filtered_pend = [g for g in state["pending_grades"] if state["filter_pending_grades"] in g.get("correo", "").lower() or state["filter_pending_grades"] in g.get("nombre", "").lower()]
-                
                 filtered_comp.sort(key=lambda x: (get_group_key(x, state["group_by_completed_A"]), get_group_key(x, state["group_by_completed_B"]), x.get("fecha", "")), reverse=True)
                 filtered_pend.sort(key=lambda x: (get_group_key(x, state["group_by_pending_A"]), get_group_key(x, state["group_by_pending_B"]), x.get("fecha", "")), reverse=True)
-                
                 state["nav_comp"] = filtered_comp
                 state["nav_pend"] = filtered_pend
-                
                 if not filtered_comp: nuevas_completadas.append(ft.Text("No hay evaluaciones completadas", color=COLORES["subtitulo"]))
                 else: nuevas_completadas.extend(build_grouped_list(filtered_comp, state["group_by_completed_A"], state["group_by_completed_B"], True))
-                    
                 if not filtered_pend: nuevas_pendientes.append(ft.Text("No hay evaluaciones pendientes", color=COLORES["subtitulo"]))
                 else: nuevas_pendientes.extend(build_grouped_list(filtered_pend, state["group_by_pending_A"], state["group_by_pending_B"], False))
-                
                 col_completed_grades.controls = nuevas_completadas
                 col_pending_grades.controls = nuevas_pendientes
                 
@@ -2357,7 +2342,6 @@ def main(page: ft.Page):
                     pass
                 
         def download_grades_excel(e):
-            # Obtener el filtro de búsqueda general si lo hay (puedes adaptarlo si decides poner dropdowns aquí)
             url = f"{BASE}/api/teacher/grades/download?token={state['token']}"
             page.launch_url(url)
 
@@ -2382,7 +2366,8 @@ def main(page: ft.Page):
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([
                                 search_completed_grades, 
-                                ft.Column([group_completed_A_dropdown, group_completed_B_dropdown], spacing=5)
+                                group_completed_A_dropdown,
+                                group_completed_B_dropdown
                             ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                             ft.Divider(height=5, color="transparent"),
                             col_completed_grades
@@ -2402,7 +2387,8 @@ def main(page: ft.Page):
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             ft.Row([
                                 search_pending_grades, 
-                                ft.Column([group_pending_A_dropdown, group_pending_B_dropdown], spacing=5)
+                                group_pending_A_dropdown,
+                                group_pending_B_dropdown
                             ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                             ft.Divider(height=5, color="transparent"),
                             col_pending_grades
