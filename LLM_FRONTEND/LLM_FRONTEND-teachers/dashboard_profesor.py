@@ -1730,6 +1730,8 @@ def main(page: ft.Page):
             expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
             on_change=lambda e: update_grade_grouping("completed", False, e.control.value)
         )
+        group_completed_B_dropdown.options[1].disabled = True # Bloquea 'practica'
+        group_completed_A_dropdown.options[2].disabled = True # Bloquea 'problema'
 
         # --- DROPDOWNS PENDIENTES ---
         group_pending_A_dropdown = ft.Dropdown(
@@ -1742,6 +1744,8 @@ def main(page: ft.Page):
             expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
             on_change=lambda e: update_grade_grouping("pending", False, e.control.value)
         )
+        group_pending_B_dropdown.options[1].disabled = True 
+        group_pending_A_dropdown.options[2].disabled = True
 
         col_completed_grades = ft.ListView(expand=True, spacing=10)
         col_pending_grades = ft.ListView(expand=True, spacing=10)
