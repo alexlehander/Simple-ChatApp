@@ -2174,11 +2174,6 @@ def main(page: ft.Page):
             else: state["filter_pending_grades"] = value.lower()
             render_grades()
 
-        def update_grade_grouping(target, value):
-            if target == "completed": state["group_by_completed"] = value
-            else: state["group_by_pending"] = value
-            render_grades()
-
         def load_grades():
             res_pend = auth_request("GET", "/api/teacher/grades/pending")
             if res_pend and res_pend.status_code == 200:
