@@ -154,6 +154,8 @@ def main(page: ft.Page):
     page.on_bot_message = lambda data: None
     @sio.on('nuevo_mensaje_bot')
     def on_nuevo_mensaje(data):
+        if data.get('correo') != state.get("correo"):
+            return
         def procesar_mensaje():
             try:
                 page.on_bot_message(data)
