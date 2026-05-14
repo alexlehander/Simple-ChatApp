@@ -1658,12 +1658,14 @@ def main(page: ft.Page):
         state["pending_grades"] = []
         state["completed_grades"] = []
         state["filter_pending_grades"] = ""
-        state["group_by_pending"] = "fecha"
+        state["group_by_pending_A"] = "practica"
+        state["group_by_pending_B"] = "problema"
         state["filter_completed_grades"] = ""
-        state["group_by_completed"] = "fecha"
+        state["group_by_completed_A"] = "practica"
+        state["group_by_completed_B"] = "problema"
         
         search_completed_grades = ft.TextField(
-            hint_text="Buscar por tarea, nombre o correo de estudiante...",
+            hint_text="Buscar por nombre o correo de estudiante...",
             prefix_icon=ft.Icons.SEARCH,
             height=40,
             text_size=12,
@@ -1676,7 +1678,7 @@ def main(page: ft.Page):
         )
 
         search_pending_grades = ft.TextField(
-            hint_text="Buscar por tarea, nombre o correo de estudiante...",
+            hint_text="Buscar por nombre o correo de estudiante...",
             prefix_icon=ft.Icons.SEARCH,
             height=40,
             text_size=12,
@@ -1688,33 +1690,69 @@ def main(page: ft.Page):
             on_change=lambda e: update_grade_filters("pending", e.control.value)
         )
         
-        group_completed_dropdown = ft.Dropdown(
-            label="Agrupar por",
-            options=[
-                ft.dropdown.Option("fecha", "Fecha"),
-                ft.dropdown.Option("practica", "Tarea"),
-                ft.dropdown.Option("problema", "Ejercicio"),
-                ft.dropdown.Option("estudiante", "Estudiante"),
-            ],
-            value="fecha",
-            width=180, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"],
-            content_padding=10,
-            on_change=lambda e: update_grade_grouping("completed", e.control.value)
-        )
+        def update_grade_grouping(target, is_A, value):
+            if target == "completed":
+                if is_A: state["group_by_completed_A"] = value
+                else: state["group_by_completed_B"] = value
+                
+                for opt in group_completed_B_dropdown.options:
+                    opt.disabled = (opt.key == state["group_by_completed_A"])
+                for opt in group_completed_A_dropdown.options:
+                    opt.disabled = (opt.key == state["group_by_completed_B"])
+                    
+                group_completed_A_dropdown.update()
+                group_completed_B_dropdown.update()
+            else:
+                if is_A: state["group_by_pending_A"] = value
+                else: state["group_by_pending_B"] = value
+                
+                for opt in group_pending_B_dropdown.options:
+                    opt.disabled = (opt.key == state["group_by_pending_A"])
+                for opt in group_pending_A_dropdown.options:
+                    opt.disabled = (opt.key == state["group_by_pending_B"])
+                    
+                group_pending_A_dropdown.update()
+                group_pending_B_dropdown.update()
+                
+            render_grades()
 
-        group_pending_dropdown = ft.Dropdown(
-            label="Agrupar por",
-            options=[
+        def get_opciones():
+            return [
                 ft.dropdown.Option("fecha", "Fecha"),
                 ft.dropdown.Option("practica", "Tarea"),
                 ft.dropdown.Option("problema", "Ejercicio"),
                 ft.dropdown.Option("estudiante", "Estudiante"),
-            ],
-            value="fecha",
-            width=180, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"],
-            content_padding=10,
-            on_change=lambda e: update_grade_grouping("pending", e.control.value)
+            ]
+
+        # --- DROPDOWNS COMPLETADAS ---
+        group_completed_A_dropdown = ft.Dropdown(
+            label="Filtrar por", options=get_opciones(), value="practica",
+            width=140, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
+            on_change=lambda e: update_grade_grouping("completed", True, e.control.value)
         )
+        group_completed_B_dropdown = ft.Dropdown(
+            label="Seguido de", options=get_opciones(), value="problema",
+            width=140, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
+            on_change=lambda e: update_grade_grouping("completed", False, e.control.value)
+        )
+        # Iniciar bloqueados
+        group_completed_B_dropdown.options[1].disabled = True # Bloquear 'practica' en B
+        group_completed_A_dropdown.options[2].disabled = True # Bloquear 'problema' en A
+
+        # --- DROPDOWNS PENDIENTES ---
+        group_pending_A_dropdown = ft.Dropdown(
+            label="Filtrar por", options=get_opciones(), value="practica",
+            width=140, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
+            on_change=lambda e: update_grade_grouping("pending", True, e.control.value)
+        )
+        group_pending_B_dropdown = ft.Dropdown(
+            label="Seguido de", options=get_opciones(), value="problema",
+            width=140, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
+            on_change=lambda e: update_grade_grouping("pending", False, e.control.value)
+        )
+        # Iniciar bloqueados
+        group_pending_B_dropdown.options[1].disabled = True
+        group_pending_A_dropdown.options[2].disabled = True
 
         col_completed_grades = ft.ListView(expand=True, spacing=10)
         col_pending_grades = ft.ListView(expand=True, spacing=10)
@@ -2269,14 +2307,17 @@ def main(page: ft.Page):
                     elif group_type == "estudiante": return item.get("nombre", item.get("correo"))
                     return "General"
 
-                def build_grouped_list(items, group_by, is_completed):
-                    items.sort(key=lambda x: (get_group_key(x, group_by), x.get("fecha", "")), reverse=True)
+                def build_grouped_list(items, group_A, group_B, is_completed):
+                    # Ordenar por A, luego por B, luego por fecha
+                    items.sort(key=lambda x: (get_group_key(x, group_A), get_group_key(x, group_B), x.get("fecha", "")), reverse=True)
                     grupos = {}
                     for item in items:
-                        g_key = get_group_key(item, group_by)
+                        # Combinar la etiqueta A y B para el título del acordeón
+                        g_key = f"{get_group_key(item, group_A)} ➔ {get_group_key(item, group_B)}"
                         if g_key not in grupos:
                             grupos[g_key] = []
                         grupos[g_key].append(create_grade_card(item, is_completed))
+                    
                     controls = []
                     for g_key, card_list in grupos.items():
                         tile = ft.ExpansionTile(
@@ -2290,19 +2331,21 @@ def main(page: ft.Page):
                         controls.append(tile)
                     return controls
 
-                # --- Filtrar Búsquedas ---
-                filtered_comp = [g for g in state["completed_grades"] if state["filter_completed_grades"] in g.get("correo", "").lower() or state["filter_completed_grades"] in g.get("practica", "").lower() or state["filter_completed_grades"] in g.get("nombre", "").lower()]
-                filtered_pend = [g for g in state["pending_grades"] if state["filter_pending_grades"] in g.get("correo", "").lower() or state["filter_pending_grades"] in g.get("practica", "").lower() or state["filter_pending_grades"] in g.get("nombre", "").lower()]
-                filtered_comp.sort(key=lambda x: (get_group_key(x, state["group_by_completed"]), x.get("fecha", "")), reverse=True)
-                filtered_pend.sort(key=lambda x: (get_group_key(x, state["group_by_pending"]), x.get("fecha", "")), reverse=True)
+                # --- Filtrar Búsquedas (QUITAMOS LA BÚSQUEDA POR PRÁCTICA) ---
+                filtered_comp = [g for g in state["completed_grades"] if state["filter_completed_grades"] in g.get("correo", "").lower() or state["filter_completed_grades"] in g.get("nombre", "").lower()]
+                filtered_pend = [g for g in state["pending_grades"] if state["filter_pending_grades"] in g.get("correo", "").lower() or state["filter_pending_grades"] in g.get("nombre", "").lower()]
+                
+                filtered_comp.sort(key=lambda x: (get_group_key(x, state["group_by_completed_A"]), get_group_key(x, state["group_by_completed_B"]), x.get("fecha", "")), reverse=True)
+                filtered_pend.sort(key=lambda x: (get_group_key(x, state["group_by_pending_A"]), get_group_key(x, state["group_by_pending_B"]), x.get("fecha", "")), reverse=True)
+                
                 state["nav_comp"] = filtered_comp
                 state["nav_pend"] = filtered_pend
                 
                 if not filtered_comp: nuevas_completadas.append(ft.Text("No hay evaluaciones completadas", color=COLORES["subtitulo"]))
-                else: nuevas_completadas.extend(build_grouped_list(filtered_comp, state["group_by_completed"], True))
+                else: nuevas_completadas.extend(build_grouped_list(filtered_comp, state["group_by_completed_A"], state["group_by_completed_B"], True))
                     
                 if not filtered_pend: nuevas_pendientes.append(ft.Text("No hay evaluaciones pendientes", color=COLORES["subtitulo"]))
-                else: nuevas_pendientes.extend(build_grouped_list(filtered_pend, state["group_by_pending"], False))
+                else: nuevas_pendientes.extend(build_grouped_list(filtered_pend, state["group_by_pending_A"], state["group_by_pending_B"], False))
                 
                 col_completed_grades.controls = nuevas_completadas
                 col_pending_grades.controls = nuevas_pendientes
@@ -2337,7 +2380,10 @@ def main(page: ft.Page):
                                 ft.Text("Evaluaciones Completadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_grades)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Row([search_completed_grades, group_completed_dropdown], spacing=10),
+                            ft.Row([
+                                search_completed_grades, 
+                                ft.Column([group_completed_A_dropdown, group_completed_B_dropdown], spacing=5)
+                            ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                             ft.Divider(height=5, color="transparent"),
                             col_completed_grades
                         ], expand=True),
@@ -2354,7 +2400,10 @@ def main(page: ft.Page):
                                 ft.Text("Evaluaciones Pendientes", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_grades)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Row([search_pending_grades, group_pending_dropdown], spacing=10),
+                            ft.Row([
+                                search_pending_grades, 
+                                ft.Column([group_pending_A_dropdown, group_pending_B_dropdown], spacing=5)
+                            ], spacing=10, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                             ft.Divider(height=5, color="transparent"),
                             col_pending_grades
                         ], expand=True),

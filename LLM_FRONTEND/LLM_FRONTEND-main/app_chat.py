@@ -166,10 +166,15 @@ def main(page: ft.Page):
     try:
         last_heartbeat = page.client_storage.get("last_heartbeat")
         now = time.time()
-        should_reset = False
         if last_heartbeat and (now - last_heartbeat > 3600):
-            print(f"🕒 Sesión expirada por inactividad ({int(now - last_heartbeat)}s). Reseteando...")
-            reset_progress(page)
+            inactividad = int(now - last_heartbeat)
+            print(f"🕒 Sesión inactiva por {inactividad}s. Limpiando progreso...")
+            if inactividad > 43200:
+                print("🚪 Inactividad mayor a 12h. Forzando logout local.")
+                page.client_storage.remove("student_token")
+                state["token"] = None
+            else:
+                reset_progress(page)
             page.client_storage.set("last_heartbeat", now)
     except Exception as e:
         print(f"⚠️ Error verificando sesión: {e}")
@@ -589,6 +594,12 @@ def main(page: ft.Page):
             try:
                 # 1. Cargar Profesores
                 res_teachers = auth_request("GET", "/api/student/my-teachers", timeout=10)
+                if res_teachers and res_teachers.status_code == 401:
+                    print("Token expirado en el backend. Cerrando sesión...")
+                    page.client_storage.remove("student_token")
+                    state.update({"token": None, "correo": None, "nombre": None})
+                    show_login_register()
+                    return
                 if res_teachers and res_teachers.status_code == 200:
                     profesores = res_teachers.json()
                     if not profesores:
@@ -602,7 +613,7 @@ def main(page: ft.Page):
                                     bgcolor=COLORES["accento"],
                                 )
                             )
-                
+                            
                 # 2. Cargar Tareas
                 res_tasks = auth_request("GET", "/api/student/my-active-exercises", timeout=10)
                 exercises_grid.controls.clear()
