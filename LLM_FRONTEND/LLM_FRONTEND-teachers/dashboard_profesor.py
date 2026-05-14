@@ -1665,7 +1665,7 @@ def main(page: ft.Page):
         state["group_by_completed_B"] = "problema"
         
         search_completed_grades = ft.TextField(
-            hint_text="Buscar por nombre o correo de estudiante...",
+            hint_text="Nombre o correo de estudiante...",
             prefix_icon=ft.Icons.SEARCH,
             height=40,
             text_size=12,
@@ -1678,7 +1678,7 @@ def main(page: ft.Page):
         )
 
         search_pending_grades = ft.TextField(
-            hint_text="Buscar por nombre o correo de estudiante...",
+            hint_text="Nombre o correo de estudiante...",
             prefix_icon=ft.Icons.SEARCH,
             height=40,
             text_size=12,
@@ -1927,12 +1927,13 @@ def main(page: ft.Page):
                     clipboard_list.controls = items
                     try: clipboard_list.update()
                     except: pass
-
-                dynamic_height = page.height * 0.75
-
+                    
+                ancho_dialogo = page.width * 0.8
+                alto_dialogo = page.height * 0.8
+                
                 left_panel = ft.Container(
                     col={"xs": 12, "lg": 3},
-                    height=dynamic_height,
+                    height=alto_dialogo,
                     content=ft.Column([
                         ft.Text("📋 Portapapeles Docente", weight="bold", color=COLORES["primario"]),
                         ft.Row([clipboard_input, ft.IconButton(ft.Icons.ADD, on_click=add_to_clipboard, icon_color=COLORES["primario"])]),
@@ -1941,11 +1942,12 @@ def main(page: ft.Page):
                     ]),
                     bgcolor=COLORES["accento"], padding=15, border_radius=10, border=ft.border.all(1, COLORES["borde"])
                 )
-
+                
                 llm_rubric_list = ft.ListView(expand=True, spacing=10)
+                
                 right_panel = ft.Container(
                     col={"xs": 12, "lg": 3},
-                    height=dynamic_height,
+                    height=alto_dialogo,
                     content=ft.Column([
                         ft.Row([
                             ft.Icon(ft.Icons.AUTO_AWESOME, color=COLORES["advertencia"]),
@@ -1997,7 +1999,7 @@ def main(page: ft.Page):
 
                 center_panel = ft.Container(
                     col={"xs": 12, "lg": 6},
-                    height=dynamic_height,
+                    height=alto_dialogo,
                     content=ft.Row([
                         btn_prev_arrow,
                         center_grading_content,
@@ -2006,8 +2008,8 @@ def main(page: ft.Page):
                 )
 
                 grade_dlg.content = ft.Container(
-                    width=page.width * 0.75,
-                    height=page.height * 0.75, 
+                    width=ancho_dialogo,
+                    height=alto_dialogo,
                     content=ft.Column([
                         ft.ResponsiveRow([
                             left_panel,
