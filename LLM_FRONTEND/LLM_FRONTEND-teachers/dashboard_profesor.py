@@ -1692,23 +1692,40 @@ def main(page: ft.Page):
         
         def update_grade_grouping(target, is_A, value):
             if target == "completed":
-                if is_A: state["group_by_completed_A"] = value
-                else: state["group_by_completed_B"] = value
-                for opt in group_completed_B_dropdown.options:
-                    opt.disabled = (opt.key == state["group_by_completed_A"])
-                for opt in group_completed_A_dropdown.options:
-                    opt.disabled = (opt.key == state["group_by_completed_B"])
+                old_val_A = state["group_by_completed_A"]
+                old_val_B = state["group_by_completed_B"]
+                
+                if is_A:
+                    if value == old_val_B:
+                        state["group_by_completed_B"] = old_val_A
+                        group_completed_B_dropdown.value = old_val_A
+                    state["group_by_completed_A"] = value
+                else:
+                    if value == old_val_A:
+                        state["group_by_completed_A"] = old_val_B
+                        group_completed_A_dropdown.value = old_val_B
+                    state["group_by_completed_B"] = value
+                
                 group_completed_A_dropdown.update()
                 group_completed_B_dropdown.update()
             else:
-                if is_A: state["group_by_pending_A"] = value
-                else: state["group_by_pending_B"] = value
-                for opt in group_pending_B_dropdown.options:
-                    opt.disabled = (opt.key == state["group_by_pending_A"])
-                for opt in group_pending_A_dropdown.options:
-                    opt.disabled = (opt.key == state["group_by_pending_B"])
+                old_val_A = state["group_by_pending_A"]
+                old_val_B = state["group_by_pending_B"]
+                
+                if is_A:
+                    if value == old_val_B:
+                        state["group_by_pending_B"] = old_val_A
+                        group_pending_B_dropdown.value = old_val_A
+                    state["group_by_pending_A"] = value
+                else:
+                    if value == old_val_A:
+                        state["group_by_pending_A"] = old_val_B
+                        group_pending_A_dropdown.value = old_val_B
+                    state["group_by_pending_B"] = value
+                
                 group_pending_A_dropdown.update()
                 group_pending_B_dropdown.update()
+            
             render_grades()
 
         def get_opciones():
@@ -1730,8 +1747,6 @@ def main(page: ft.Page):
             expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
             on_change=lambda e: update_grade_grouping("completed", False, e.control.value)
         )
-        group_completed_B_dropdown.options[1].disabled = True # Bloquea 'practica'
-        group_completed_A_dropdown.options[2].disabled = True # Bloquea 'problema'
 
         # --- DROPDOWNS PENDIENTES ---
         group_pending_A_dropdown = ft.Dropdown(
@@ -1744,8 +1759,6 @@ def main(page: ft.Page):
             expand=1, text_size=12, border_color=COLORES["primario"], color=COLORES["texto"], content_padding=10,
             on_change=lambda e: update_grade_grouping("pending", False, e.control.value)
         )
-        group_pending_B_dropdown.options[1].disabled = True 
-        group_pending_A_dropdown.options[2].disabled = True
 
         col_completed_grades = ft.ListView(expand=True, spacing=10)
         col_pending_grades = ft.ListView(expand=True, spacing=10)
