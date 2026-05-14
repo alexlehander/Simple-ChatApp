@@ -1856,7 +1856,7 @@ def main(page: ft.Page):
 
         def submit_grade(eval_id, action, score=None, comment=None):
             if getattr(page, "_is_submitting_grade", False):
-                return
+                return False
             page._is_submitting_grade = True
             try:
                 payload = {"id": eval_id, "action": action}
@@ -1866,10 +1866,10 @@ def main(page: ft.Page):
                     
                 res = auth_request("POST", "/api/teacher/grades/submit", json=payload)
                 if res and res.status_code == 200:
-                    flash(f"Evaluación {'aprobada' if action == 'approve' else 'actualizada'}", ok=True)
                     load_grades()
+                    return True
                 else:
-                    flash("Error al procesar la calificación", ok=False)
+                    return False
             finally:
                 page._is_submitting_grade = False
                 if hasattr(page, "session_id") and page.session_id:
@@ -2157,19 +2157,21 @@ def main(page: ft.Page):
                     item = state["current_eval_item"]
                     raw_score = item.get('llm_score')
                     score = float(raw_score) if raw_score is not None else 0.0
-                    submit_grade(item['id'], "approve", score, grade_comment_field.value)
-                    state["revised_evals"].add(item["id"])
-                    item['teacher_score'] = score
-                    item['teacher_comment'] = grade_comment_field.value
-                    load_card_at_index(state["current_eval_idx"])
-                    show_dialog_feedback("✅ Calificación aprobada correctamente", COLORES["exito"])
+                    exito = submit_grade(item['id'], "approve", score, grade_comment_field.value)
+                    if exito:
+                        state["revised_evals"].add(item["id"])
+                        item['teacher_score'] = score
+                        item['teacher_comment'] = grade_comment_field.value
+                        load_card_at_index(state["current_eval_idx"])
+                        show_dialog_feedback("✅ Calificación aprobada correctamente", COLORES["exito"])
+                    else:
+                        show_dialog_feedback("❌ Error al guardar en el servidor", COLORES["error"])
                     e.control.disabled = False
                     page.update()
-
+                    
                 def handle_modify(e):
                     item = state["current_eval_item"]
                     val = grade_score_field.value
-                    
                     if not val:
                         show_dialog_feedback("⚠️ Ingresa una calificación antes de modificar", COLORES["error"])
                         return
@@ -2178,15 +2180,17 @@ def main(page: ft.Page):
                     except ValueError:
                         show_dialog_feedback("⚠️ Ingresa un número válido", COLORES["error"])
                         return
-                        
                     e.control.disabled = True
                     page.update()
-                    submit_grade(item['id'], "edit", score, grade_comment_field.value)
-                    state["revised_evals"].add(item["id"])
-                    item['teacher_score'] = score
-                    item['teacher_comment'] = grade_comment_field.value
-                    load_card_at_index(state["current_eval_idx"])
-                    show_dialog_feedback("📝 Calificación actualizada", COLORES["exito"])
+                    exito = submit_grade(item['id'], "edit", score, grade_comment_field.value)
+                    if exito:
+                        state["revised_evals"].add(item["id"])
+                        item['teacher_score'] = score
+                        item['teacher_comment'] = grade_comment_field.value
+                        load_card_at_index(state["current_eval_idx"])
+                        show_dialog_feedback("📝 Calificación actualizada", COLORES["exito"])
+                    else:
+                        show_dialog_feedback("❌ Error al guardar en el servidor", COLORES["error"])
                     e.control.disabled = False
                     page.update()
 
