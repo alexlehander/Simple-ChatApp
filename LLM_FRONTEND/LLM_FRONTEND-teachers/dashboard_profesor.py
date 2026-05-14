@@ -1880,6 +1880,7 @@ def main(page: ft.Page):
                         
         def open_grade_dialog(initial_item, is_completed):
             with ui_lock:
+                status_msg_dlg = ft.Text("", weight="bold", size=14, text_align=ft.TextAlign.CENTER)
                 if "revised_evals" not in state:
                     state["revised_evals"] = set()
 
@@ -1889,7 +1890,21 @@ def main(page: ft.Page):
                         "Excelente análisis del problema.",
                         "Revisa tus operaciones matemáticas."
                     ])
-
+                    
+                def show_dialog_feedback(text, color):
+                    status_msg_dlg.value = text
+                    status_msg_dlg.color = color
+                    page.update()
+                    
+                    def clear_msg():
+                        time.sleep(3) # Duración del mensaje
+                        status_msg_dlg.value = ""
+                        try:
+                            if page.is_alive: page.update()
+                        except: pass
+                    
+                    threading.Thread(target=clear_msg, daemon=True).start()
+                    
                 def add_to_clipboard(e):
                     val = clipboard_input.value.strip()
                     if val:
@@ -2147,7 +2162,7 @@ def main(page: ft.Page):
                     item['teacher_score'] = score
                     item['teacher_comment'] = grade_comment_field.value
                     load_card_at_index(state["current_eval_idx"])
-                    flash("Calificación de IA aprobada", ok=True)
+                    show_dialog_feedback("✅ Calificación aprobada correctamente", COLORES["exito"])
                     e.control.disabled = False
                     page.update()
 
@@ -2156,12 +2171,12 @@ def main(page: ft.Page):
                     val = grade_score_field.value
                     
                     if not val:
-                        flash("¡Alto! Debes ingresar un número en 'Calificación Asignada' antes de modificar.", ok=False, ms=3000)
+                        show_dialog_feedback("⚠️ Ingresa una calificación antes de modificar", COLORES["error"])
                         return
                     try:
                         score = float(val)
                     except ValueError:
-                        flash("El formato de la calificación es incorrecto. Ingresa solo números.", ok=False, ms=3000)
+                        show_dialog_feedback("⚠️ Ingresa un número válido", COLORES["error"])
                         return
                         
                     e.control.disabled = True
@@ -2171,7 +2186,7 @@ def main(page: ft.Page):
                     item['teacher_score'] = score
                     item['teacher_comment'] = grade_comment_field.value
                     load_card_at_index(state["current_eval_idx"])
-                    flash("Calificación modificada exitosamente", ok=True)
+                    show_dialog_feedback("📝 Calificación actualizada", COLORES["exito"])
                     e.control.disabled = False
                     page.update()
 
@@ -2181,7 +2196,10 @@ def main(page: ft.Page):
                 btn_modify.on_click = handle_modify
 
                 grade_dlg.actions = [
-                    ft.Row([btn_approve, btn_modify], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
+                    ft.Column([
+                        ft.Container(content=status_msg_dlg, alignment=ft.alignment.center),
+                        ft.Row([btn_approve, btn_modify], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10)
                 ]
 
                 load_card_at_index(current_idx)
