@@ -2796,7 +2796,7 @@ def main(page: ft.Page):
             tabs=[
                 ft.Tab(text="Estudiantes", icon=ft.Icons.GROUPS, content=tab_students),
                 ft.Tab(text="Tareas", icon=ft.Icons.ASSIGNMENT, content=tab_exercises),
-                ft.Tab(text="Clases", icon=ft.Icons.CLASS, content=tab_classes),
+                ft.Tab(text="Clases", icon=ft.Icons.CLASS_, content=tab_classes),
                 ft.Tab(text="Evaluaciones", icon=ft.Icons.GRADE, content=tab_grading),
                 ft.Tab(text="Monitoreo", icon=ft.Icons.INSIGHTS, content=tab_monitor),
                 ft.Tab(text="Perfil Alumno", icon=ft.Icons.PERSON_SEARCH, content=tab_profile),
