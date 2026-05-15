@@ -76,6 +76,9 @@ def main(page: ft.Page):
         "dashboard_data": {},
         "my_exercises": [],
         "all_exercises": [],
+        "classes": [],
+        "filter_students_class": "Todas las clases",
+        "filter_tasks_class": "Todas las clases",
     }
     
     def on_disconnect(e):
@@ -628,6 +631,29 @@ def main(page: ft.Page):
         my_students_col = ft.ListView(expand=True, spacing=10)
         global_students_col = ft.ListView(expand=True, spacing=10)
         
+        filter_students_class_dropdown = ft.Dropdown(
+            label="Filtrar por Clase",
+            options=[ft.dropdown.Option("Todas las clases")],
+            value="Todas las clases",
+            width=200,
+            text_size=12,
+            on_change=lambda e: update_filter_class("students", e.control.value)
+        )
+        
+        filter_tasks_class_dropdown = ft.Dropdown(
+            label="Filtrar por Clase",
+            options=[ft.dropdown.Option("Todas las clases")],
+            value="Todas las clases",
+            width=200,
+            text_size=12,
+            on_change=lambda e: update_filter_class("tasks", e.control.value)
+        )
+
+        def update_filter_class(target, value):
+            if target == "students": state["filter_students_class"] = value
+            else: state["filter_tasks_class"] = value
+            render_students() if target == "students" else render_exercises()
+        
         def update_filters(target, value):
             if target == "my": state["filter_my_students"] = value.lower()
             else: state["filter_global_students"] = value.lower()
@@ -693,6 +719,11 @@ def main(page: ft.Page):
                 busqueda_my = state["filter_my_students"]
                 mis_filtrados = [s for s in mis_estudiantes if busqueda_my in s["email"].lower() or busqueda_my in s.get("nombre", "").lower()]
                 mis_filtrados.sort(key=lambda x: x.get("nombre", "").lower(), reverse=(state["sort_my_students"] == "desc"))
+                if state["filter_students_class"] != "Todas las clases":
+                    clase_actual = next((c for c in state["classes"] if c["nombre"] == state["filter_students_class"]), None)
+                    if clase_actual:
+                        emails_clase = {est["email"] for est in clase_actual["estudiantes"]}
+                        mis_filtrados = [s for s in mis_filtrados if s["email"] in emails_clase]
                 if not mis_filtrados:
                     msg = "No se encontraron resultados" if busqueda_my else "No hay estudiantes inscritos"
                     nuevos_locales.append(ft.Text(msg, color=COLORES["subtitulo"]))
@@ -768,7 +799,7 @@ def main(page: ft.Page):
                                 ft.Text("Lista de estudiantes inscritos", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_students)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Row([search_my_students, sort_btn_my], spacing=5),
+                            ft.Row([search_my_students, filter_students_class_dropdown, sort_btn_my], spacing=5),
                             ft.Divider(height=5, color="transparent"),
                             my_students_col
                         ], expand=True),
@@ -1118,7 +1149,11 @@ def main(page: ft.Page):
                 # --- 1. Filtrar y Ordenar MIS TAREAS ---
                 filtered_mine = [e for e in safe_my_exercises if state["filter_my_tasks"] in e.get("title", "").lower()]
                 filtered_mine.sort(key=lambda x: x.get("title", "").lower(), reverse=(state["sort_my_tasks"] == "desc"))
-                
+                if state["filter_tasks_class"] != "Todas las clases":
+                    clase_actual = next((c for c in state["classes"] if c["nombre"] == state["filter_tasks_class"]), None)
+                    if clase_actual:
+                        tareas_clase = {t["filename"] for t in clase_actual["tareas"]}
+                        filtered_mine = [e for e in filtered_mine if e["filename"] in tareas_clase]
                 if not filtered_mine:
                     nuevas_mias.append(ft.Text("No hay tareas seleccionadas", color=COLORES["subtitulo"]))
                 else:
@@ -1152,7 +1187,7 @@ def main(page: ft.Page):
                                 ft.Text("Catálogo local de tareas seleccionadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_exercises)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                            ft.Row([search_my_tasks, sort_btn_my_tasks], spacing=5),
+                            ft.Row([search_my_tasks, filter_tasks_class_dropdown, sort_btn_my_tasks], spacing=5),
                             ft.Divider(height=5, color="transparent"),
                             col_mine
                         ], expand=True),
@@ -2617,6 +2652,136 @@ def main(page: ft.Page):
             expand=True
         )
         
+        # =========================================
+        # PESTAÑA: Gestión de Clases
+        # =========================================
+        col_classes = ft.ListView(expand=True, spacing=10)
+        def delete_class(class_id):
+            res = auth_request("DELETE", f"/api/teacher/classes/{class_id}")
+            if res and res.status_code == 200:
+                flash("Clase eliminada exitosamente", ok=True)
+                load_classes()
+            else:
+                flash("Error al eliminar la clase", ok=False)
+
+        def open_create_class_dlg():
+            nombre_input = ft.TextField(label="Nombre de la Clase (Ej: Grupo A)", expand=True)
+            
+            # Generamos checkboxes dinámicos basados en lo que el profe tiene en su estado
+            estudiantes_checks = [ft.Checkbox(label=f"{s.get('nombre','')} ({s['email']})", value=False, data=s["email"]) for s in state.get("students", [])]
+            tareas_checks = [ft.Checkbox(label=t["title"], value=False, data=t["filename"]) for t in state.get("my_exercises", []) if isinstance(t, dict)]
+            
+            def save_class(e):
+                if not nombre_input.value.strip():
+                    flash("El nombre de la clase es obligatorio", ok=False)
+                    return
+                
+                # Extraer lo que el profe palomeó
+                seleccionados_est = [c.data for c in estudiantes_checks if c.value]
+                seleccionados_tar = [c.data for c in tareas_checks if c.value]
+                
+                e.control.disabled = True
+                page.update()
+                
+                res = auth_request("POST", "/api/teacher/classes", json={
+                    "nombre": nombre_input.value.strip(),
+                    "estudiantes": seleccionados_est,
+                    "tareas": seleccionados_tar
+                })
+                
+                if res and res.status_code == 201:
+                    flash("Clase creada con éxito", ok=True)
+                    dlg.open = False
+                    load_classes()
+                else:
+                    flash("Error al crear la clase", ok=False)
+                    e.control.disabled = False
+                    page.update()
+                
+            dlg = ft.AlertDialog(
+                title=ft.Text("Crear Nueva Clase"),
+                content=ft.Container(
+                    width=500, height=450,
+                    content=ft.Column([
+                        nombre_input,
+                        ft.Text("Selecciona Estudiantes:", weight="bold", color=COLORES["primario"]),
+                        ft.Container(content=ft.ListView(estudiantes_checks, height=120), border=ft.border.all(1, COLORES["borde"]), padding=5, border_radius=5),
+                        ft.Text("Selecciona Tareas:", weight="bold", color=COLORES["primario"]),
+                        ft.Container(content=ft.ListView(tareas_checks, height=120), border=ft.border.all(1, COLORES["borde"]), padding=5, border_radius=5)
+                    ], scroll=ft.ScrollMode.AUTO, spacing=10)
+                ),
+                actions=[
+                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, 'open', False) or page.update()),
+                    ft.ElevatedButton("Guardar Clase", on_click=save_class, bgcolor=COLORES["exito"], color=COLORES["fondo"])
+                ]
+            )
+            page.overlay.append(dlg)
+            dlg.open = True
+            page.update()
+
+        def open_manage_class_dlg(clase):
+            # Como aún no creamos un endpoint PUT para modificar clases existentes en el backend,
+            # sugerimos temporalmente eliminar y recrear la clase.
+            flash("Para modificar los alumnos o tareas, por favor elimina la clase y vuélvela a crear. (Edición nativa en desarrollo)", ok=False, ms=5000)
+        def load_classes():
+            res = auth_request("GET", "/api/teacher/classes")
+            if res and res.status_code == 200:
+                state["classes"] = res.json()
+                render_classes()
+                update_class_dropdowns()
+
+        def render_classes():
+            nuevas_clases = []
+            for c in state["classes"]:
+                nuevas_clases.append(
+                    ft.ExpansionTile(
+                        title=ft.Text(c["nombre"], weight="bold", color=COLORES["primario"]),
+                        subtitle=ft.Text(f"{len(c['estudiantes'])} Estudiantes | {len(c['tareas'])} Tareas", size=12),
+                        controls=[
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Column([
+                                        ft.Text("Estudiantes en esta clase:", weight="bold", size=12),
+                                        ft.ListView([ft.Text(f"• {e['nombre']}", size=11) for e in c["estudiantes"]], height=100)
+                                    ], expand=1),
+                                    ft.VerticalDivider(),
+                                    ft.Column([
+                                        ft.Text("Tareas asignadas:", weight="bold", size=12),
+                                        ft.ListView([ft.Text(f"• {t['title']}", size=11) for t in c["tareas"]], height=100)
+                                    ], expand=1),
+                                ], height=150),
+                                padding=15, bgcolor=COLORES["accento"]
+                            ),
+                            ft.Row([
+                                ft.TextButton("Gestionar Miembros", icon=ft.Icons.EDIT, on_click=lambda e, cl=c: open_manage_class_dlg(cl)),
+                                ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, id=c["id"]: delete_class(id))
+                            ], alignment=ft.MainAxisAlignment.END)
+                        ],
+                        border=ft.border.all(1, COLORES["borde"]),
+                        border_radius=10
+                    )
+                )
+            col_classes.controls = nuevas_clases if nuevas_clases else [ft.Text("No has creado clases aún.", italic=True)]
+            page.update()
+
+        def update_class_dropdowns():
+            opts = [ft.dropdown.Option("Todas las clases")] + [ft.dropdown.Option(c["nombre"]) for c in state["classes"]]
+            filter_students_class_dropdown.options = opts
+            filter_tasks_class_dropdown.options = opts
+            page.update()
+
+        tab_classes = ft.Container(
+            content=ft.Column([
+                ft.Row([
+                    ft.Text("Mis Clases / Grupos", size=24, weight="bold", color=COLORES["primario"]),
+                    ft.ElevatedButton("Nueva Clase", icon=ft.Icons.ADD, bgcolor=COLORES["boton"], color=COLORES["texto"], on_click=lambda _: open_create_class_dlg())
+                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                ft.Divider(),
+                col_classes
+            ], expand=True),
+            padding=20
+        )
+        
         # Tabs Principales
         tabs = ft.Tabs(
             selected_index=load_k(page, "current_tab_index", 0),
@@ -2631,6 +2796,7 @@ def main(page: ft.Page):
             tabs=[
                 ft.Tab(text="Estudiantes", icon=ft.Icons.GROUPS, content=tab_students),
                 ft.Tab(text="Tareas", icon=ft.Icons.ASSIGNMENT, content=tab_exercises),
+                ft.Tab(text="Clases", icon=ft.Icons.CLASS, content=tab_classes),
                 ft.Tab(text="Evaluaciones", icon=ft.Icons.GRADE, content=tab_grading),
                 ft.Tab(text="Monitoreo", icon=ft.Icons.INSIGHTS, content=tab_monitor),
                 ft.Tab(text="Perfil Alumno", icon=ft.Icons.PERSON_SEARCH, content=tab_profile),

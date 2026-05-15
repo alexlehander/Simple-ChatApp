@@ -187,6 +187,25 @@ class ReporteSesionVivo(db.Model):
     end_time = db.Column(db.DateTime, nullable=False)
     report_data = db.Column(db.JSON, nullable=False)
     created_at = db.Column(db.DateTime, default=hora_ensenada)
+    
+class Grupo(db.Model):
+    __tablename__ = "railway_grupo"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    profesor_id = db.Column(db.Integer, db.ForeignKey("railway_profesor.id"), nullable=False)
+    nombre = db.Column(db.String(128), nullable=False)
+    created_at = db.Column(db.DateTime, default=hora_ensenada)
+
+class GrupoEstudiante(db.Model):
+    __tablename__ = "railway_grupo_estudiante"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    grupo_id = db.Column(db.Integer, db.ForeignKey("railway_grupo.id"), nullable=False)
+    student_email = db.Column(db.String(128), nullable=False)
+
+class GrupoTarea(db.Model):
+    __tablename__ = "railway_grupo_tarea"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    grupo_id = db.Column(db.Integer, db.ForeignKey("railway_grupo.id"), nullable=False)
+    exercise_filename = db.Column(db.String(255), nullable=False)
 
 # ------------------------------------------------------------------------------------
 # System Prompts
@@ -882,7 +901,91 @@ def get_all_registered_users():
     except Exception as e:
         print(f"Error fetching all users: {e}")
         return jsonify([]), 500
+
+# =========================================
+# RUTAS PARA GESTIÓN DE CLASES / GRUPOS
+# =========================================
+
+@app.route("/api/teacher/classes", methods=["GET"])
+@jwt_required()
+def get_teacher_classes():
+    prof_id = int(get_jwt_identity())
+    grupos = Grupo.query.filter_by(profesor_id=prof_id).order_by(Grupo.created_at.desc()).all()
+    
+    data = []
+    for g in grupos:
+        # 1. Obtener estudiantes de esta clase
+        rels_est = GrupoEstudiante.query.filter_by(grupo_id=g.id).all()
+        emails = [r.student_email for r in rels_est]
+        usuarios = Usuario.query.filter(Usuario.correo_identificacion.in_(emails)).all()
+        lista_estudiantes = [{"email": u.correo_identificacion, "nombre": u.nombre or "Estudiante"} for u in usuarios]
         
+        # 2. Obtener tareas de esta clase
+        rels_tar = GrupoTarea.query.filter_by(grupo_id=g.id).all()
+        filenames = [r.exercise_filename for r in rels_tar]
+        lista_tareas = []
+        for fname in filenames:
+            meta = get_exercise_metadata(fname)
+            lista_tareas.append({"filename": fname, "title": meta["title"]})
+            
+        # 3. Ensamblar objeto
+        data.append({
+            "id": g.id,
+            "nombre": g.nombre,
+            "estudiantes": lista_estudiantes,
+            "tareas": lista_tareas
+        })
+        
+    return jsonify(data), 200
+
+@app.route("/api/teacher/classes", methods=["POST"])
+@jwt_required()
+def create_teacher_class():
+    prof_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    nombre = data.get("nombre")
+    estudiantes = data.get("estudiantes", []) # Lista de correos
+    tareas = data.get("tareas", []) # Lista de filenames
+    
+    if not nombre:
+        return jsonify({"error": "El nombre de la clase es obligatorio"}), 400
+        
+    # 1. Crear el grupo base
+    nuevo_grupo = Grupo(profesor_id=prof_id, nombre=nombre)
+    db.session.add(nuevo_grupo)
+    db.session.flush() # Para obtener el ID generado sin hacer commit aún
+    
+    # 2. Ligar estudiantes
+    for email in estudiantes:
+        db.session.add(GrupoEstudiante(grupo_id=nuevo_grupo.id, student_email=email))
+        
+    # 3. Ligar tareas
+    for filename in tareas:
+        db.session.add(GrupoTarea(grupo_id=nuevo_grupo.id, exercise_filename=filename))
+        
+    db.session.commit()
+    return jsonify({"msg": "Clase creada con éxito", "id": nuevo_grupo.id}), 201
+
+@app.route("/api/teacher/classes/<int:class_id>", methods=["DELETE"])
+@jwt_required()
+def delete_teacher_class(class_id):
+    prof_id = int(get_jwt_identity())
+    
+    grupo = Grupo.query.filter_by(id=class_id, profesor_id=prof_id).first()
+    if not grupo:
+        return jsonify({"error": "Clase no encontrada o acceso denegado"}), 404
+        
+    # Eliminar relaciones primero (para evitar errores de foreign key si la DB no tiene CASCADE)
+    GrupoEstudiante.query.filter_by(grupo_id=class_id).delete()
+    GrupoTarea.query.filter_by(grupo_id=class_id).delete()
+    
+    # Eliminar el grupo
+    db.session.delete(grupo)
+    db.session.commit()
+    
+    return jsonify({"msg": "Clase eliminada correctamente"}), 200
+
 # --- HELPER PARA FILTRAR EVALUACIONES DEL PROFESOR ---
 def get_teacher_filtered_responses(prof_id, status_filter):
     # 1. Obtener lista estricta de mis estudiantes
