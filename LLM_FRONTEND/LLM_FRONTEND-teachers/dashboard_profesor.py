@@ -2733,34 +2733,42 @@ def main(page: ft.Page):
         def render_classes():
             nuevas_clases = []
             for c in state["classes"]:
+                # 1. Creamos el tile sin bordes
+                tile = ft.ExpansionTile(
+                    title=ft.Text(c["nombre"], weight="bold", color=COLORES["primario"]),
+                    subtitle=ft.Text(f"{len(c['estudiantes'])} Estudiantes | {len(c['tareas'])} Tareas", size=12),
+                    controls=[
+                        ft.Container(
+                            content=ft.Row([
+                                ft.Column([
+                                    ft.Text("Estudiantes en esta clase:", weight="bold", size=12),
+                                    ft.ListView([ft.Text(f"• {e['nombre']}", size=11) for e in c["estudiantes"]], height=100)
+                                ], expand=1),
+                                ft.VerticalDivider(),
+                                ft.Column([
+                                    ft.Text("Tareas asignadas:", weight="bold", size=12),
+                                    ft.ListView([ft.Text(f"• {t['title']}", size=11) for t in c["tareas"]], height=100)
+                                ], expand=1),
+                            ], height=150),
+                            padding=15, bgcolor=COLORES["accento"]
+                        ),
+                        ft.Row([
+                            ft.TextButton("Gestionar Miembros", icon=ft.Icons.EDIT, on_click=lambda e, cl=c: open_manage_class_dlg(cl)),
+                            ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, id=c["id"]: delete_class(id))
+                        ], alignment=ft.MainAxisAlignment.END)
+                    ]
+                )
+                
+                # 2. Lo envolvemos en un contenedor para darle el estilo
                 nuevas_clases.append(
-                    ft.ExpansionTile(
-                        title=ft.Text(c["nombre"], weight="bold", color=COLORES["primario"]),
-                        subtitle=ft.Text(f"{len(c['estudiantes'])} Estudiantes | {len(c['tareas'])} Tareas", size=12),
-                        controls=[
-                            ft.Container(
-                                content=ft.Row([
-                                    ft.Column([
-                                        ft.Text("Estudiantes en esta clase:", weight="bold", size=12),
-                                        ft.ListView([ft.Text(f"• {e['nombre']}", size=11) for e in c["estudiantes"]], height=100)
-                                    ], expand=1),
-                                    ft.VerticalDivider(),
-                                    ft.Column([
-                                        ft.Text("Tareas asignadas:", weight="bold", size=12),
-                                        ft.ListView([ft.Text(f"• {t['title']}", size=11) for t in c["tareas"]], height=100)
-                                    ], expand=1),
-                                ], height=150),
-                                padding=15, bgcolor=COLORES["accento"]
-                            ),
-                            ft.Row([
-                                ft.TextButton("Gestionar Miembros", icon=ft.Icons.EDIT, on_click=lambda e, cl=c: open_manage_class_dlg(cl)),
-                                ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, id=c["id"]: delete_class(id))
-                            ], alignment=ft.MainAxisAlignment.END)
-                        ],
+                    ft.Container(
+                        content=tile,
                         border=ft.border.all(1, COLORES["borde"]),
-                        border_radius=10
+                        border_radius=10,
+                        margin=ft.margin.only(bottom=10) # Separación visual entre clases
                     )
                 )
+                
             col_classes.controls = nuevas_clases if nuevas_clases else [ft.Text("No has creado clases aún.", italic=True)]
             page.update()
 
