@@ -13,3 +13,4 @@ gevent
 gevent-websocket
 pandas
 openpyxl==3.1.2
+PyPDF2

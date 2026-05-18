@@ -4,6 +4,7 @@ import pandas as pd
 import os, random, string, requests, json, threading
 import datetime as dt
 import warnings
+import PyPDF2
 from io import BytesIO
 from typing import List, Dict
 from flask import Flask, jsonify, request, send_file
@@ -117,6 +118,7 @@ class RespuestaUsuario(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("railway_usuario.id"), nullable=True)
     correo_identificacion = db.Column(db.String(128), nullable=True)
     practice_name = db.Column(db.String(255), nullable=True)
+    practica_id = db.Column(db.Integer, db.ForeignKey("railway_practica.id"), nullable=True)
     problema_id = db.Column(db.Integer, nullable=False)
     respuesta = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=hora_ensenada)
@@ -132,6 +134,7 @@ class ChatLog(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("railway_usuario.id"), nullable=True)
     correo_identificacion = db.Column(db.String(128), nullable=True)
     practice_name = db.Column(db.String(255), nullable=True)
+    practica_id = db.Column(db.Integer, db.ForeignKey("railway_practica.id"), nullable=True)
     problema_id = db.Column(db.Integer, nullable=False)
     role = db.Column(db.String(16), nullable=False)
     content = db.Column(db.Text, nullable=False)
@@ -154,6 +157,7 @@ class ListaClase(db.Model):
 class ListaEjercicios(db.Model):
     __tablename__ = "railway_lista_ejercicios"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    practica_id = db.Column(db.Integer, db.ForeignKey("railway_practica.id"), nullable=True)
     profesor_id = db.Column(db.Integer, db.ForeignKey("railway_profesor.id"), nullable=False)
     exercise_filename = db.Column(db.String(255), nullable=False)
     is_active = db.Column(db.Boolean, default=False)
@@ -174,6 +178,7 @@ class ReporteDesempeno(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     student_email = db.Column(db.String(128), nullable=False)
     practice_name = db.Column(db.String(255), nullable=False)
+    practica_id = db.Column(db.Integer, db.ForeignKey("railway_practica.id"), nullable=True)
     perfil_estudiante = db.Column(db.String(50), nullable=True)
     persistencia = db.Column(db.String(50), nullable=True)
     diagnostico_general = db.Column(db.Text, nullable=True)
@@ -204,8 +209,26 @@ class GrupoEstudiante(db.Model):
 class GrupoTarea(db.Model):
     __tablename__ = "railway_grupo_tarea"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    practica_id = db.Column(db.Integer, db.ForeignKey("railway_practica.id"), nullable=True)
     grupo_id = db.Column(db.Integer, db.ForeignKey("railway_grupo.id"), nullable=False)
     exercise_filename = db.Column(db.String(255), nullable=False)
+
+class Practica(db.Model):
+    __tablename__ = "railway_practica"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    profesor_id = db.Column(db.Integer, db.ForeignKey("railway_profesor.id"), nullable=True) # Null = Tarea global del sistema
+    titulo = db.Column(db.String(255), nullable=False)
+    descripcion = db.Column(db.Text, nullable=True)
+    max_time = db.Column(db.Integer, default=60)
+    rubricas = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, default=hora_ensenada)
+
+class Problema(db.Model):
+    __tablename__ = "railway_problema"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    practica_id = db.Column(db.Integer, db.ForeignKey("railway_practica.id"), nullable=False)
+    numero_ejercicio = db.Column(db.Integer, nullable=False)
+    enunciado = db.Column(db.Text, nullable=False)
 
 # ------------------------------------------------------------------------------------
 # System Prompts
@@ -1686,6 +1709,97 @@ def download_grades_report():
     output.seek(0)
     return send_file(output, download_name="Reporte_Calificaciones.xlsx", as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+@app.route("/api/teacher/exercises/upload", methods=["POST"])
+@jwt_required()
+def upload_exercise_pdf():
+    prof_id = int(get_jwt_identity())
+    
+    if 'file' not in request.files:
+        return jsonify({"error": "No se envió ningún archivo"}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "Archivo vacío"}), 400
+        
+    if file and file.filename.lower().endswith('.pdf'):
+        try:
+            pdf_reader = PyPDF2.PdfReader(file)
+            text = ""
+            for page in pdf_reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    text += extracted + "\n"
+                
+            # Prompt de Estructuración Pedagógica
+            prompt = f"""
+            Actúa como un diseñador instruccional experto en Sistemas de Tutoría Inteligente.
+            Analiza el siguiente documento de una práctica o examen y estructure su contenido en formato JSON.
+            El JSON debe tener EXACTAMENTE esta estructura:
+            {{
+                "titulo": "Nombre corto y claro de la práctica",
+                "descripcion": "Descripción general de los objetivos de aprendizaje de la práctica",
+                "max_time": 60,  // Tiempo estimado en minutos (número entero)
+                "problemas": [
+                    {{"numero": 1, "enunciado": "Texto completo del problema 1..."}},
+                    {{"numero": 2, "enunciado": "Texto completo del problema 2..."}}
+                ],
+                "rubricas": [
+                    {{"dimension": "Exactitud de la solución", "descripcion": "Evalúa si el resultado final de la operación es correcto."}},
+                    {{"dimension": "Completitud del procedimiento", "descripcion": "Evalúa si se mostró el proceso paso a paso."}}
+                ]
+            }}
+            
+            Extrae los problemas numerados y sugiere 3 rúbricas de evaluación adaptadas a este tema específico.
+            
+            DOCUMENTO CRUDO:
+            {text[:12000]} 
+            """
+            
+            response_text = call_mistral([
+                {"role": "system", "content": "Eres un pipeline de datos estructurados. Responde ÚNICAMENTE con un objeto JSON válido."},
+                {"role": "user", "content": prompt}
+            ], temperature=0.1, max_tokens=2500)
+            
+            import re
+            match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            parsed = json.loads(match.group(0)) if match else json.loads(response_text)
+            
+            # Guardar en Base de Datos (Estructura Relacional)
+            nueva_practica = Practica(
+                profesor_id=prof_id,
+                titulo=parsed.get("titulo", "Práctica sin título"),
+                descripcion=parsed.get("descripcion", "Sin descripción"),
+                max_time=int(parsed.get("max_time", 60)),
+                rubricas=parsed.get("rubricas", [])
+            )
+            db.session.add(nueva_practica)
+            db.session.flush() # Flush para obtener el ID generado sin hacer commit aún
+            
+            for prob in parsed.get("problemas", []):
+                nuevo_prob = Problema(
+                    practica_id=nueva_practica.id,
+                    numero_ejercicio=int(prob.get("numero", 1)),
+                    enunciado=prob.get("enunciado", "Sin enunciado")
+                )
+                db.session.add(nuevo_prob)
+                
+            # Asignar la práctica a la lista de tareas activas del profesor
+            db.session.add(ListaEjercicios(
+                profesor_id=prof_id, 
+                exercise_filename="MIGRADO", # Temporal por compatibilidad
+                practica_id=nueva_practica.id,
+                is_active=True
+            ))
+            
+            db.session.commit()
+            return jsonify({"msg": "Práctica procesada con IA y guardada correctamente", "practica_id": nueva_practica.id}), 201
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error procesando PDF: {e}")
+            return jsonify({"error": f"Error procesando el documento: {str(e)}"}), 500
+    else:
+        return jsonify({"error": "Formato no soportado. El archivo debe ser PDF."}), 400
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------
