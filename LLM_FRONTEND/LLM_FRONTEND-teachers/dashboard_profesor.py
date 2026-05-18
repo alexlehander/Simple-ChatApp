@@ -1121,9 +1121,8 @@ def main(page: ft.Page):
         def toggle_exercise_status(e, filename):
             e.control.disabled = True
             page.update()
-            headers = {"Authorization": f"Bearer {state['token']}"}
-            res = requests.put(f"{BASE}/api/teacher/my-exercises/toggle", headers=headers, json={"filename": filename})
-            if res.status_code == 200:
+            res = auth_request("PUT", "/api/teacher/my-exercises/toggle", json={"filename": filename})
+            if res and res.status_code == 200:
                 data = res.json()
                 is_active = data.get("is_active", False)
                 status_str = "Activo (visible para estudiantes)" if is_active else "Inactivo (oculto para estudiantes)"
@@ -1131,6 +1130,7 @@ def main(page: ft.Page):
                 load_exercises()
             else:
                 flash("Error al cambiar estado", ok=False)
+                page.update()
                 
         def render_exercises():
             with ui_lock:

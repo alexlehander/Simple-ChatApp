@@ -1758,7 +1758,7 @@ def upload_exercise_pdf():
             # Asignar la práctica a la lista de tareas activas del profesor
             db.session.add(ListaEjercicios(
                 profesor_id=prof_id, 
-                exercise_filename="MIGRADO", # Temporal por compatibilidad
+                exercise_filename=f"MIGRADO_{nueva_practica.id}", # String dinámico
                 practica_id=nueva_practica.id,
                 is_active=True
             ))
@@ -1830,7 +1830,7 @@ def add_my_exercise():
     pid = int(pid)
     existe = ListaEjercicios.query.filter_by(profesor_id=prof_id, practica_id=pid).first()
     if not existe:
-        db.session.add(ListaEjercicios(profesor_id=prof_id, practica_id=pid, exercise_filename="MIGRADO", is_active=True))
+        db.session.add(ListaEjercicios(profesor_id=prof_id, practica_id=pid, exercise_filename=f"MIGRADO_{pid}", is_active=True))
         db.session.commit()
     return jsonify({"msg": "Tarea agregada a tu lista"}), 200
 
