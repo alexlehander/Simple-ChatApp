@@ -1372,7 +1372,7 @@ def get_student_teachers():
     data = [{"nombre": p.nombre, "email": p.email} for p in profesores]
     return jsonify(data), 200
 
-@@app.route("/api/student/my-active-exercises", methods=["GET"])
+@app.route("/api/student/my-active-exercises", methods=["GET"])
 @jwt_required()
 def get_student_active_exercises():
     claims = get_jwt()
