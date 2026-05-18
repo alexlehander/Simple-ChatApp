@@ -4,16 +4,16 @@ import warnings
 import gevent.monkey
 gevent.monkey.patch_all()
 
-from app import app, db, Practica, Problema, ListaEjercicios, GrupoTarea, RespuestaUsuario, ChatLog
+# ¡NUEVO!: Importamos EXERCISES_PATH directamente desde app para usar su ruta inteligente
+from app import app, db, Practica, Problema, ListaEjercicios, GrupoTarea, RespuestaUsuario, ChatLog, EXERCISES_PATH
 warnings.simplefilter("ignore")
 
 def ejecutar_migracion():
     with app.app_context():
         print("🚀 Iniciando la migración de archivos .json a la estructura relacional...")
         
-        # Localizar la carpeta de ejercicios
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        exercises_dir = os.path.join(base_dir, "exercises")
+        # Usamos la ruta que app.py ya resolvió correctamente
+        exercises_dir = EXERCISES_PATH
         
         if not os.path.exists(exercises_dir):
             print(f"❌ No se encontró la carpeta 'exercises' en la ruta: {exercises_dir}")
