@@ -97,6 +97,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key-change-in-prod")
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = dt.timedelta(hours=12)
+app.config["JWT_TOKEN_LOCATION"] = ["headers", "query_string"]
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -278,16 +279,18 @@ def review_with_qc(original_answer: str, problem_text: str, system_rules: str, u
         return original_answer
 
 def get_problem_enunciado(practice_name: str, problema_id: int) -> str:
+    # practice_name ahora actúa como un "puente" que recibe el ID (ej. "15")
     try:
-        file_path = os.path.join(EXERCISES_PATH, practice_name)
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        for p in data.get("problemas", []):
-            if p.get("id") == problema_id:
-                return p.get("enunciado", "")
-    except Exception as e:
-        print(f"⚠️ Error leyendo {practice_name}: {e}")
-    return ""
+        pid = int(practice_name)
+        prob = Problema.query.filter_by(practica_id=pid, numero_ejercicio=problema_id).first()
+        if prob: return prob.enunciado
+    except ValueError:
+        # Fallback de seguridad para tareas históricas
+        prac = Practica.query.filter_by(titulo=practice_name).first()
+        if prac:
+            prob = Problema.query.filter_by(practica_id=prac.id, numero_ejercicio=problema_id).first()
+            if prob: return prob.enunciado
+    return "Enunciado no disponible."
 
 def get_or_create_user(correo_identificacion: str | None) -> Usuario:
     if not correo_identificacion:
@@ -324,10 +327,15 @@ def history_for_chat(correo_identificacion: str | None, problema_id: int, practi
     return messages
 
 def save_chat_turn(user: Usuario | None, correo: str | None, practice_name: str | None, problema_id: int, role: str, content: str):
+    pid = None
+    try: pid = int(practice_name)
+    except (ValueError, TypeError): pass
+        
     log = ChatLog(
         user_id=user.id if user else None,
         correo_identificacion=correo,
         practice_name=practice_name,
+        practica_id=pid,
         problema_id=problema_id,
         role=role,
         content=content,
@@ -396,26 +404,25 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
 
 def get_exercise_metadata(filename):
     try:
-        path = os.path.join(EXERCISES_PATH, filename)
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            return {
-                "filename": filename,
-                "title": data.get("title", filename),
-                "description": data.get("description", "Sin descripción disponible."),
-                "max_time": data.get("max_time", 0),
-                "num_problems": len(data.get("problemas", [])),
-                "problemas": data.get("problemas", [])
-            }
-    except Exception as e:
-        print(f"Error leyendo metadata de {filename}: {e}")
+        pid = int(filename)
+        p = Practica.query.get(pid)
+    except ValueError:
+        p = Practica.query.filter_by(titulo=filename).first()
+        
+    if p:
+        probs = Problema.query.filter_by(practica_id=p.id).order_by(Problema.numero_ejercicio).all()
         return {
-            "filename": filename, 
-            "title": filename, 
-            "description": "Error al leer archivo.", 
-            "max_time": 0, 
-            "num_problems": 0
+            "filename": str(p.id),
+            "title": p.titulo,
+            "description": p.descripcion,
+            "max_time": p.max_time * 60,
+            "num_problems": len(probs),
+            "problemas": [{"id": pr.numero_ejercicio, "enunciado": pr.enunciado} for pr in probs]
         }
+    return {
+        "filename": filename, "title": "Práctica Desconocida", "description": "Error leyendo de BD.", 
+        "max_time": 0, "num_problems": 0
+    }
 
 # 1. Semaphore Analysis Function (Fixed Context)
 def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
@@ -647,21 +654,39 @@ def verificar_respuesta(problema_id):
     correo = data.get("correo_identificacion")
     practice_name = data.get("practice_name", "unknown_session.json")
     prog_pct = float(data.get("progress_pct", 0.0))
+    
     if not respuesta or not correo:
         return jsonify({"error": "Datos incompletos"}), 400
+        
     usuario = get_or_create_user(correo)
+    
+    # --- EXTRACCIÓN Y VINCULACIÓN DEL ID RELACIONAL ---
+    pid = None
+    try:
+        # Intentamos convertir a entero si el frontend envió el ID como string (ej: "15")
+        pid = int(practice_name)
+    except ValueError:
+        # Fallback de compatibilidad: si llega el título de la práctica (ej: de un cliente viejo),
+        # buscamos su ID correspondiente en la base de datos
+        prac = Practica.query.filter_by(titulo=practice_name).first()
+        if prac:
+            pid = prac.id
+
     nueva_respuesta = RespuestaUsuario(
         user_id=usuario.id,
         problema_id=problema_id,
         correo_identificacion=correo,
         respuesta=respuesta,
         practice_name=practice_name,
+        practica_id=pid # <--- VINCULACIÓN RELACIONAL OBLIGATORIA
     )
     db.session.add(nueva_respuesta)
     db.session.commit()
+    
     import gevent
     problem_text = get_problem_enunciado(practice_name, problema_id)
     gevent.spawn(auto_grade_answer, nueva_respuesta.id, problem_text, respuesta, prog_pct)
+    
     return jsonify({"message": "Respuesta registrada y enviada a evaluación"}), 200
 
 @app.route("/chat/<int:problema_id>", methods=["POST"])
@@ -1347,10 +1372,9 @@ def get_student_teachers():
     data = [{"nombre": p.nombre, "email": p.email} for p in profesores]
     return jsonify(data), 200
 
-@app.route("/api/student/my-active-exercises", methods=["GET"])
+@@app.route("/api/student/my-active-exercises", methods=["GET"])
 @jwt_required()
 def get_student_active_exercises():
-    """Returns only ACTIVE exercises assigned by the specific teachers the student is registered to."""
     claims = get_jwt()
     if claims.get("role") != "student":
         return jsonify({"msg": "Acceso denegado. Rol incorrecto."}), 403
@@ -1368,9 +1392,9 @@ def get_student_active_exercises():
         ListaEjercicios.is_active == True
     ).all()
     
-    unique_filenames = {e.exercise_filename for e in ejercicios_activos}
+    unique_ids = {e.practica_id for e in ejercicios_activos if e.practica_id}
     
-    data = [get_exercise_metadata(f) for f in unique_filenames]
+    data = [get_exercise_metadata(str(pid)) for pid in unique_ids]
     return jsonify(data), 200
 
 @app.route("/api/teacher/my-exercises/toggle", methods=["PUT"])

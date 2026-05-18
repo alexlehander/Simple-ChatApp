@@ -654,6 +654,40 @@ def main(page: ft.Page):
             content_padding=10,
             on_change=lambda e: update_filter_class("tasks", e.control.value)
         )
+        
+        # ==========================================
+        # FILE PICKER: SUBIDA DE PDF A LA IA
+        # ==========================================
+        def on_upload_result(e: ft.FilePickerResultEvent):
+            if e.files:
+                # Mostrar barra superior indicando que la IA está pensando
+                page.splash = ft.ProgressBar()
+                page.update()
+                
+                # Pasamos el token por la URL
+                upload_url = f"{BASE}/api/teacher/exercises/upload?jwt={state['token']}"
+                
+                file_picker.upload([
+                    ft.FilePickerUploadFile(
+                        e.files[0].name,
+                        upload_url=upload_url,
+                        method="POST"
+                    )
+                ])
+
+        def on_upload_progress(e: ft.FilePickerUploadEvent):
+            if e.progress == 1.0: # Subida y análisis completado
+                page.splash = None
+                flash("PDF analizado y tarea creada exitosamente por la IA", ok=True)
+                load_exercises()
+                page.update()
+            elif e.error:
+                page.splash = None
+                flash(f"Error al procesar PDF", ok=False)
+                page.update()
+
+        file_picker = ft.FilePicker(on_result=on_upload_result, on_upload=on_upload_progress)
+        page.overlay.append(file_picker)
 
         def update_filter_class(target, value):
             if target == "students": state["filter_students_class"] = value
@@ -909,75 +943,124 @@ def main(page: ft.Page):
             ex_detail_dlg.open = False
             page.update()
             
-        def show_exercise_detail(filename):
-            ex_detail_dlg_title.value = "Cargando detalles..."
-            ex_detail_dlg_content.controls = [
-                ft.Container(
-                    content=ft.ProgressRing(color=COLORES["primario"], stroke_width=4),
-                    alignment=ft.alignment.center,
-                    height=200
-                )
-            ]
-            ex_detail_dlg.open = True
-            page.update()
+        def open_exercise_dialog(ex):
+            is_mine = ex.get("is_mine", False)
+            ex_id = ex["practica_id"]
             
-            def fetch_and_render_ex():
-                try:
-                    res = auth_request("GET", f"/api/exercises/detail/{filename}", timeout=10)
+            res = auth_request("GET", f"/api/exercises/detail/{ex_id}")
+            if not res or res.status_code != 200:
+                flash("Error al cargar la tarea", ok=False)
+                return
+                
+            data = res.json()
+            
+            if is_mine:
+                # --- MODO EDICIÓN (Tus tareas) ---
+                title_field = ft.TextField(label="Título de la Práctica", value=data.get("title", ""), expand=True)
+                desc_field = ft.TextField(label="Descripción general", value=data.get("description", ""), multiline=True, min_lines=2)
+                time_field = ft.TextField(label="Tiempo (min)", value=str(int(data.get("max_time", 3600)/60)), width=120)
+                
+                rubricas_list = data.get("rubricas", [])
+                problemas_list = data.get("problemas", [])
+                
+                col_rubricas = ft.Column(spacing=5, scroll="auto", height=150)
+                def render_r():
+                    col_rubricas.controls.clear()
+                    for i, r in enumerate(rubricas_list):
+                        dim_tf = ft.TextField(label="Dimensión", value=r.get("dimension",""), expand=1, text_size=12, on_change=lambda e, idx=i: r.update({"dimension": e.control.value}))
+                        desc_tf = ft.TextField(label="Descripción", value=r.get("descripcion",""), expand=2, text_size=12, on_change=lambda e, idx=i: r.update({"descripcion": e.control.value}))
+                        del_btn = ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, idx=i: delete_r(idx))
+                        col_rubricas.controls.append(ft.Row([dim_tf, desc_tf, del_btn]))
+                    page.update()
+                
+                def delete_r(idx):
+                    rubricas_list.pop(idx)
+                    render_r()
+                    
+                def add_r(e):
+                    rubricas_list.append({"dimension": "", "descripcion": ""})
+                    render_r()
+                    
+                render_r()
+                
+                col_problemas = ft.Column(spacing=5, scroll="auto", height=200)
+                def render_p():
+                    col_problemas.controls.clear()
+                    for i, p in enumerate(problemas_list):
+                        enun_tf = ft.TextField(label=f"Problema {i+1}", value=p.get("enunciado",""), expand=True, multiline=True, text_size=12, on_change=lambda e, idx=i: p.update({"enunciado": e.control.value, "id": idx+1}))
+                        del_btn = ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, idx=i: delete_p(idx))
+                        col_problemas.controls.append(ft.Row([enun_tf, del_btn]))
+                    page.update()
+                
+                def delete_p(idx):
+                    problemas_list.pop(idx)
+                    render_p()
+                    
+                def add_p(e):
+                    problemas_list.append({"id": len(problemas_list)+1, "enunciado": ""})
+                    render_p()
+                    
+                render_p()
+
+                def save_task(e):
+                    e.control.disabled = True
+                    page.update()
+                    payload = {
+                        "title": title_field.value,
+                        "description": desc_field.value,
+                        "max_time": int(time_field.value) if time_field.value.isdigit() else 60,
+                        "rubricas": rubricas_list,
+                        "problemas": problemas_list
+                    }
+                    res = auth_request("PUT", f"/api/teacher/exercises/{ex_id}", json=payload)
                     if res and res.status_code == 200:
-                        data = res.json()
-                        title = data.get("title", filename)
-                        desc = data.get("description", "Sin descripción")
-                        max_time = data.get("max_time", 0) // 60
-                        problemas = data.get("problemas", [])
-                        
-                        ex_detail_dlg_title.value = title
-                        
-                        info_col = ft.Container(
-                            content=ft.Column([
-                                ft.Text(desc, color=COLORES["texto"], text_align=ft.TextAlign.JUSTIFY),
-                                ft.Row([
-                                    ft.Icon(ft.Icons.TIMER, size=16, color=COLORES["subtitulo"]),
-                                    ft.Text(f"Tiempo límite para resolver la tarea: {max_time} minutos", color=COLORES["subtitulo"], italic=True)
-                                ], alignment=ft.MainAxisAlignment.CENTER),
-                                ft.Divider(color=COLORES["borde"], height=20),
-                                ft.Text(f"{len(problemas)} Ejercicios Incluidos", weight="bold", size=16, color=COLORES["primario"], text_align=ft.TextAlign.CENTER)
-                            ], 
-                            spacing=5, 
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                            margin=ft.margin.symmetric(horizontal=15)
-                        )
-                        prob_list = []
-                        if not problemas:
-                            prob_list.append(ft.Text("No hay ejercicios configurados en esta práctica", color=COLORES["subtitulo"], italic=True))
-                        else:
-                            for p in problemas:
-                                prob_list.append(
-                                    ft.Container(
-                                        content=ft.Column([
-                                            ft.Text(f"Problema {p.get('id', '?')}", weight="bold", color=COLORES["secundario"], size=14),
-                                            ft.Text(p.get("enunciado", "Sin enunciado"), color=COLORES["texto"], size=13, text_align=ft.TextAlign.JUSTIFY)
-                                        ], spacing=5),
-                                        bgcolor=COLORES["fondo"],
-                                        padding=ft.padding.only(left=10, top=5, right=20, bottom=5), 
-                                        border_radius=8,
-                                        border=ft.border.all(1, COLORES["borde"]),
-                                    )
-                                )
-                        ex_detail_dlg_content.controls = [info_col] + prob_list
+                        flash("Tarea actualizada exitosamente", ok=True)
+                        dlg.open = False
+                        load_exercises()
                     else:
-                        ex_detail_dlg_content.controls = [ft.Text("No se pudo cargar la información de la tarea.", color=COLORES["error"])]
-                except Exception as e:
-                    print(f"Error fetch detail: {e}")
-                    ex_detail_dlg_content.controls = [ft.Text("Error de conexión al cargar detalles.", color=COLORES["error"])]
-                    
-                try:
-                    if ex_detail_dlg.open:
-                        ex_detail_dlg.update()
-                except Exception:
-                    pass
-                    
-            threading.Thread(target=fetch_and_render_ex, daemon=True).start()
+                        flash("Error al guardar", ok=False)
+                        e.control.disabled = False
+                    page.update()
+
+                content = ft.Column([
+                    ft.Row([title_field, time_field]),
+                    desc_field,
+                    ft.Divider(),
+                    ft.Row([ft.Text("Rúbricas de Evaluación", weight="bold", color=COLORES["primario"]), ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"], on_click=add_r)], alignment="spaceBetween"),
+                    ft.Container(content=col_rubricas, padding=10, border=ft.border.all(1, COLORES["borde"]), border_radius=5),
+                    ft.Divider(),
+                    ft.Row([ft.Text("Ejercicios / Problemas", weight="bold", color=COLORES["primario"]), ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"], on_click=add_p)], alignment="spaceBetween"),
+                    ft.Container(content=col_problemas, padding=10, border=ft.border.all(1, COLORES["borde"]), border_radius=5),
+                ], scroll="auto", spacing=10)
+                
+                actions = [
+                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, 'open', False) or page.update()),
+                    ft.ElevatedButton("Guardar Cambios", bgcolor=COLORES["exito"], color=COLORES["fondo"], on_click=save_task)
+                ]
+            else:
+                # --- MODO LECTURA (Tareas Globales) ---
+                content = ft.Column([
+                    ft.Text(f"Título: {data.get('title')}", weight="bold", size=18, color=COLORES["primario"]),
+                    ft.Text(f"Descripción: {data.get('description')}"),
+                    ft.Text(f"Tiempo estimado: {int(data.get('max_time', 3600)/60)} minutos", italic=True),
+                    ft.Divider(),
+                    ft.Text("Rúbricas de Evaluación:", weight="bold", color=COLORES["primario"]),
+                    ft.Column([ft.Text(f"• {r.get('dimension')}: {r.get('descripcion')}", size=12) for r in data.get("rubricas",[])]),
+                    ft.Divider(),
+                    ft.Text("Problemas:", weight="bold", color=COLORES["primario"]),
+                    ft.Column([ft.Text(f"{p['id']}. {p['enunciado']}", size=12) for p in data.get("problemas",[])]),
+                ], scroll="auto", spacing=10)
+                
+                actions = [ft.TextButton("Cerrar", on_click=lambda e: setattr(dlg, 'open', False) or page.update())]
+
+            dlg = ft.AlertDialog(
+                title=ft.Text("Editor de Tareas" if is_mine else "Detalles de la Tarea"),
+                content=ft.Container(width=700, height=600, content=content),
+                actions=actions
+            )
+            page.overlay.append(dlg)
+            dlg.open = True
+            page.update()
         
         def update_task_filters(target, value):
             if target == "my": state["filter_my_tasks"] = value.lower()
@@ -1154,7 +1237,7 @@ def main(page: ft.Page):
                         border_radius=5, 
                         border=ft.border.all(1, borde_color),
                         ink=True, 
-                        on_click=lambda e, f=ex_data["filename"]: show_exercise_detail(f)
+                        on_click=lambda e, item=ex_data: open_exercise_dialog(item)
                     )
                     
                 # --- 1. Filtrar y Ordenar MIS TAREAS ---
@@ -1192,8 +1275,15 @@ def main(page: ft.Page):
                 page.update()
                 
         # 5. Layout (Arquitectura clonada de Mis Estudiantes)
+        header_tareas = ft.Row([
+            ft.Text("Repositorio de Tareas", size=24, weight="bold", color=COLORES["primario"]),
+            ft.ElevatedButton("Subir PDF con IA", icon=ft.Icons.AUTO_AWESOME, bgcolor=COLORES["accento"], color=COLORES["primario"], on_click=lambda _: file_picker.pick_files(allowed_extensions=["pdf"]))
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+        
         tab_exercises = ft.Container(
             content=ft.Column([
+                header_tareas,
+                ft.Divider(color=COLORES["borde"]),
                 # Columnas divididas
                 ft.Row([
                     # COLUMNA IZQUIERDA: MIS TAREAS
@@ -2306,7 +2396,7 @@ def main(page: ft.Page):
                                         color=COLORES["primario"]
                                     ),
                                     ft.Text(
-                                        f"{item['practica']} - P{item['problema_id']}",
+                                        f"{item.get('titulo_practica', item['practica'])} - P{item['problema_id']}",
                                         size=12,
                                         color=COLORES["primario"]
                                     ),
