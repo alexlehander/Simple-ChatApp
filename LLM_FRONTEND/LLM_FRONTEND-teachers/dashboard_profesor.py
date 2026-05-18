@@ -635,8 +635,11 @@ def main(page: ft.Page):
             label="Filtrar por Clase",
             options=[ft.dropdown.Option("Todas las clases")],
             value="Todas las clases",
-            width=200,
+            expand=1,
             text_size=12,
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            content_padding=10,
             on_change=lambda e: update_filter_class("students", e.control.value)
         )
         
@@ -644,8 +647,11 @@ def main(page: ft.Page):
             label="Filtrar por Clase",
             options=[ft.dropdown.Option("Todas las clases")],
             value="Todas las clases",
-            width=200,
+            expand=1,
             text_size=12,
+            border_color=COLORES["primario"],
+            color=COLORES["texto"],
+            content_padding=10,
             on_change=lambda e: update_filter_class("tasks", e.control.value)
         )
 
@@ -785,6 +791,11 @@ def main(page: ft.Page):
                         )
                 my_students_col.controls = nuevos_locales
                 global_students_col.controls = nuevos_globales
+                try:
+                    my_students_col.update()
+                    global_students_col.update()
+                except Exception:
+                    pass
                 page.update()
                 
         # Layout de la pestaña dividida
@@ -1173,6 +1184,11 @@ def main(page: ft.Page):
                 # ASIGNACIÓN ATÓMICA FINAL
                 col_mine.controls = nuevas_mias
                 col_available.controls = nuevas_disponibles
+                try:
+                    col_mine.update()
+                    col_available.update()
+                except Exception:
+                    pass
                 page.update()
                 
         # 5. Layout (Arquitectura clonada de Mis Estudiantes)
@@ -2773,10 +2789,16 @@ def main(page: ft.Page):
             page.update()
 
         def update_class_dropdowns():
-            opts = [ft.dropdown.Option("Todas las clases")] + [ft.dropdown.Option(c["nombre"]) for c in state["classes"]]
-            filter_students_class_dropdown.options = opts
-            filter_tasks_class_dropdown.options = opts
-            page.update()
+            opts_estudiantes = [ft.dropdown.Option("Todas las clases")] + [ft.dropdown.Option(c["nombre"]) for c in state["classes"]]
+            opts_tareas = [ft.dropdown.Option("Todas las clases")] + [ft.dropdown.Option(c["nombre"]) for c in state["classes"]]
+            
+            filter_students_class_dropdown.options = opts_estudiantes
+            filter_tasks_class_dropdown.options = opts_tareas
+            
+            try:
+                page.update()
+            except Exception:
+                pass
 
         tab_classes = ft.Container(
             content=ft.Column([
@@ -2858,6 +2880,7 @@ def main(page: ft.Page):
         load_students()
         load_exercises()
         load_grades()
+        load_classes()
         
     stored_token = load_k(page, "teacher_token")
     last_act_stored = load_k(page, "last_activity")
