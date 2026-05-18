@@ -386,6 +386,7 @@ def main(page: ft.Page):
             if "timeout" not in kwargs: kwargs["timeout"] = 30
             if method == "GET": return requests.get(url, **kwargs)
             if method == "POST": return requests.post(url, **kwargs)
+            if method == "PUT": return requests.put(url, **kwargs)
             if method == "DELETE": return requests.delete(url, **kwargs)
         except Exception as e:
             print(f"Error request: {e}")

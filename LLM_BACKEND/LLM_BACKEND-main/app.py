@@ -1814,7 +1814,7 @@ def get_my_exercises():
                 "max_time": p.max_time * 60,
                 "num_problems": num_probs,
                 "is_active": asig.is_active,
-                "is_mine": p.profesor_id == prof_id # CLAVE: Para saber si el profe puede editarla en la Fase 4
+                "is_mine": p.profesor_id == prof_id or p.profesor_id is None
             })
     return jsonify(data), 200
 
@@ -1893,8 +1893,8 @@ def edit_exercise(practica_id):
     if not p: return jsonify({"error": "Práctica no encontrada"}), 404
     
     # Bloqueo de seguridad: Solo el creador original puede modificarla
-    if p.profesor_id != prof_id:
-        return jsonify({"error": "No tienes permiso para editar esta tarea. Solo el creador original puede hacerlo."}), 403
+    if p.profesor_id != prof_id and p.profesor_id is not None:
+        return jsonify({"error": "No tienes permiso para editar esta tarea."}), 403
         
     data = request.get_json()
     p.titulo = data.get("title", p.titulo)
