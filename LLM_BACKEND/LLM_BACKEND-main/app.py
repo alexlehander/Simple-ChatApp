@@ -745,58 +745,6 @@ def manage_students():
         db.session.commit()
         return jsonify({"msg": "Eliminado"}), 200
 
-@app.route("/api/exercises/available", methods=["GET"])
-@jwt_required()
-def get_all_server_exercises():
-    try:
-        files = [f for f in os.listdir(EXERCISES_PATH) if f.endswith('.json')]
-        data = [get_exercise_metadata(f) for f in files]
-        return jsonify(data), 200
-    except Exception as e:
-        print(f"Error listando ejercicios: {e}")
-        return jsonify([]), 500
-        
-@app.route("/api/exercises/detail/<path:filename>", methods=["GET"])
-@jwt_required()
-def get_exercise_detail(filename):
-    try:
-        path = os.path.join(EXERCISES_PATH, filename)
-        if not os.path.exists(path):
-            return jsonify({"error": "Archivo no encontrado"}), 404
-        with open(path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        return jsonify(data), 200
-    except Exception as e:
-        print(f"Error leyendo los detalles del ejercicio {filename}: {e}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/api/teacher/my-exercises", methods=["GET", "POST", "DELETE"])
-@jwt_required()
-def manage_my_exercises():
-    prof_id = get_jwt_identity()
-    
-    if request.method == "GET":
-        exs = ListaEjercicios.query.filter_by(profesor_id=prof_id).all()
-        data = []
-        for e in exs:
-            meta = get_exercise_metadata(e.exercise_filename)
-            meta["is_active"] = e.is_active # INJECTING THE FLAG HERE
-            data.append(meta)
-        return jsonify(data), 200
-        
-    if request.method == "POST":
-        filename = request.get_json().get("filename")
-        if not ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=filename).first():
-            db.session.add(ListaEjercicios(profesor_id=prof_id, exercise_filename=filename))
-            db.session.commit()
-        return jsonify({"msg": "Agregado"}), 200
-        
-    if request.method == "DELETE":
-        filename = request.get_json().get("filename")
-        ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=filename).delete()
-        db.session.commit()
-        return jsonify({"msg": "Eliminado"}), 200
-
 @app.route("/api/teacher/send-alert", methods=["POST"])
 @jwt_required()
 def send_student_alert():
@@ -1800,6 +1748,152 @@ def upload_exercise_pdf():
             return jsonify({"error": f"Error procesando el documento: {str(e)}"}), 500
     else:
         return jsonify({"error": "Formato no soportado. El archivo debe ser PDF."}), 400
+
+# =========================================
+# RUTAS DE TAREAS / EJERCICIOS (NUEVA ARQUITECTURA RELACIONAL)
+# =========================================
+
+@app.route("/api/exercises/available", methods=["GET"])
+@jwt_required()
+def get_available_exercises():
+    prof_id = int(get_jwt_identity())
+    # Tareas globales (prof_id = None) o tareas creadas por otros profesores
+    practicas = Practica.query.filter((Practica.profesor_id == None) | (Practica.profesor_id != prof_id)).order_by(Practica.id.desc()).all()
+    data = []
+    for p in practicas:
+        num_probs = Problema.query.filter_by(practica_id=p.id).count()
+        data.append({
+            "filename": str(p.id), # Truco puente temporal para el frontend
+            "practica_id": p.id,
+            "title": p.titulo,
+            "description": p.descripcion,
+            "max_time": p.max_time * 60, # Frontend divide entre 60 para mostrar minutos
+            "num_problems": num_probs
+        })
+    return jsonify(data), 200
+
+@app.route("/api/teacher/my-exercises", methods=["GET"])
+@jwt_required()
+def get_my_exercises():
+    prof_id = int(get_jwt_identity())
+    asignaciones = ListaEjercicios.query.filter_by(profesor_id=prof_id).all()
+    data = []
+    for asig in asignaciones:
+        p = Practica.query.get(asig.practica_id)
+        if p:
+            num_probs = Problema.query.filter_by(practica_id=p.id).count()
+            data.append({
+                "filename": str(p.id), # Truco puente temporal
+                "practica_id": p.id,
+                "title": p.titulo,
+                "description": p.descripcion,
+                "max_time": p.max_time * 60,
+                "num_problems": num_probs,
+                "is_active": asig.is_active,
+                "is_mine": p.profesor_id == prof_id # CLAVE: Para saber si el profe puede editarla en la Fase 4
+            })
+    return jsonify(data), 200
+
+@app.route("/api/teacher/my-exercises", methods=["POST"])
+@jwt_required()
+def add_my_exercise():
+    prof_id = int(get_jwt_identity())
+    data = request.get_json()
+    # El front actual manda "filename", extraemos el ID de ahí
+    pid = data.get("practica_id") or data.get("filename") 
+    if not pid: return jsonify({"error": "ID de práctica faltante"}), 400
+    
+    pid = int(pid)
+    existe = ListaEjercicios.query.filter_by(profesor_id=prof_id, practica_id=pid).first()
+    if not existe:
+        db.session.add(ListaEjercicios(profesor_id=prof_id, practica_id=pid, exercise_filename="MIGRADO", is_active=True))
+        db.session.commit()
+    return jsonify({"msg": "Tarea agregada a tu lista"}), 200
+
+@app.route("/api/teacher/my-exercises", methods=["DELETE"])
+@jwt_required()
+def remove_my_exercise():
+    prof_id = int(get_jwt_identity())
+    data = request.get_json()
+    pid = data.get("practica_id") or data.get("filename")
+    if pid:
+        ListaEjercicios.query.filter_by(profesor_id=prof_id, practica_id=int(pid)).delete()
+        db.session.commit()
+    return jsonify({"msg": "Tarea removida de tu lista"}), 200
+
+@app.route("/api/teacher/my-exercises/toggle", methods=["PUT"])
+@jwt_required()
+def toggle_my_exercise():
+    prof_id = int(get_jwt_identity())
+    data = request.get_json()
+    pid = data.get("practica_id") or data.get("filename")
+    if pid:
+        asig = ListaEjercicios.query.filter_by(profesor_id=prof_id, practica_id=int(pid)).first()
+        if asig:
+            asig.is_active = not asig.is_active
+            db.session.commit()
+            return jsonify({"is_active": asig.is_active}), 200
+    return jsonify({"error": "Asignación no encontrada"}), 404
+
+@app.route("/api/exercises/detail/<identificador>", methods=["GET"])
+@jwt_required()
+def get_exercise_detail(identificador):
+    # Soporta tanto el nuevo ID numérico como el viejo formato .json si algún alumno lo pide
+    try:
+        pid = int(identificador)
+        p = Practica.query.get(pid)
+    except ValueError:
+        p = Practica.query.filter_by(titulo=identificador).first() # Fallback
+
+    if not p: return jsonify({"error": "Práctica no encontrada"}), 404
+    
+    probs = Problema.query.filter_by(practica_id=p.id).order_by(Problema.numero_ejercicio).all()
+    prob_list = [{"id": pr.numero_ejercicio, "enunciado": pr.enunciado} for pr in probs]
+    
+    return jsonify({
+        "id": p.id,
+        "filename": str(p.id),
+        "title": p.titulo,
+        "description": p.descripcion,
+        "max_time": p.max_time * 60,
+        "rubricas": p.rubricas or [],
+        "problemas": prob_list
+    }), 200
+
+# NUEVO ENDPOINT PARA FASE 4: Editar Tareas
+@app.route("/api/teacher/exercises/<int:practica_id>", methods=["PUT"])
+@jwt_required()
+def edit_exercise(practica_id):
+    prof_id = int(get_jwt_identity())
+    p = Practica.query.get(practica_id)
+    if not p: return jsonify({"error": "Práctica no encontrada"}), 404
+    
+    # Bloqueo de seguridad: Solo el creador original puede modificarla
+    if p.profesor_id != prof_id:
+        return jsonify({"error": "No tienes permiso para editar esta tarea. Solo el creador original puede hacerlo."}), 403
+        
+    data = request.get_json()
+    p.titulo = data.get("title", p.titulo)
+    p.descripcion = data.get("description", p.descripcion)
+    
+    max_t = data.get("max_time")
+    if max_t is not None:
+        p.max_time = int(max_t) # El frontend enviará minutos directamente
+        
+    p.rubricas = data.get("rubricas", p.rubricas)
+    
+    # Actualizar problemas (borrado y recreación limpia)
+    Problema.query.filter_by(practica_id=p.id).delete()
+    for prob in data.get("problemas", []):
+        nuevo_prob = Problema(
+            practica_id=p.id,
+            numero_ejercicio=int(prob.get("id", 1)),
+            enunciado=prob.get("enunciado", "")
+        )
+        db.session.add(nuevo_prob)
+        
+    db.session.commit()
+    return jsonify({"msg": "Tarea actualizada correctamente"}), 200
 # ------------------------------------------------------------------------------------
 # Entrypoint
 # ------------------------------------------------------------------------------------
