@@ -2763,13 +2763,17 @@ def main(page: ft.Page):
         # PESTAÑA: Gestión de Clases
         # =========================================
         col_classes = ft.ListView(expand=True, spacing=10)
-        def delete_class(class_id):
+        def delete_class(e, class_id):
+            e.control.disabled = True
+            page.update()
             res = auth_request("DELETE", f"/api/teacher/classes/{class_id}")
             if res and res.status_code == 200:
                 flash("Clase eliminada exitosamente", ok=True)
                 load_classes()
             else:
                 flash("Error al eliminar la clase", ok=False)
+                e.control.disabled = False
+                page.update()
 
         def open_create_class_dlg():
             nombre_input = ft.TextField(label="Nombre de la Clase (Ej: Grupo A)", expand=True)
@@ -2861,7 +2865,7 @@ def main(page: ft.Page):
                         ),
                         ft.Row([
                             ft.TextButton("Gestionar Miembros", icon=ft.Icons.EDIT, on_click=lambda e, cl=c: open_manage_class_dlg(cl)),
-                            ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, id=c["id"]: delete_class(id))
+                            ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, id=c["id"]: delete_class(e, id))
                         ], alignment=ft.MainAxisAlignment.END)
                     ]
                 )

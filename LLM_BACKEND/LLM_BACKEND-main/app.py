@@ -378,6 +378,7 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
         try:
             last_user_msg = ChatLog.query.filter_by(
                 correo_identificacion=correo, 
+                practice_name=practice_name,
                 problema_id=problema_id, 
                 role="user"
             ).order_by(ChatLog.id.desc()).first()
@@ -810,61 +811,47 @@ def teacher_send_message():
 @jwt_required()
 def dashboard_data():
     profesor_id = int(get_jwt_identity())
-    
     target_student = request.args.get('student_email')
     target_practice = request.args.get('practice_name')
 
-    # 1. Obtener la lista de MIS estudiantes
     student_records = ListaClase.query.filter_by(profesor_id=profesor_id).all()
     my_student_emails = [s.student_email for s in student_records]
     
-    # 2. Obtener la lista de MIS tareas (ESTA ES LA CORRECCIÓN CLAVE)
-    # Esto evita que veas tareas que el alumno hizo para otros profesores
     exercise_records = ListaEjercicios.query.filter_by(profesor_id=profesor_id).all()
-    my_exercise_filenames = [e.exercise_filename for e in exercise_records]
+    my_practicas_ids = [e.practica_id for e in exercise_records if e.practica_id is not None]
 
-    # Si no tienes estudiantes o no tienes tareas asignadas, no mostramos nada por seguridad
-    if not my_student_emails or not my_exercise_filenames:
+    if not my_student_emails or not my_practicas_ids:
         return jsonify({"respuestas": [], "chats": []}), 200
     
-    # 3. Determinar qué estudiantes consultar
     if target_student:
-        # Validación de seguridad: ¿Este estudiante es mío?
         if target_student not in my_student_emails:
              return jsonify({"msg": "Acceso denegado a este estudiante"}), 403
         emails_to_query = [target_student]
     else:
         emails_to_query = my_student_emails
 
-    # --- CONSULTA DE RESPUESTAS ---
-    # Filtro base: Estudiantes míos Y Tareas mías
     resp_query = RespuestaUsuario.query.filter(
         RespuestaUsuario.correo_identificacion.in_(emails_to_query),
-        RespuestaUsuario.practice_name.in_(my_exercise_filenames) # <--- FILTRO AGREGADO
+        RespuestaUsuario.practica_id.in_(my_practicas_ids) # <--- AHORA FILTRA POR ID DE PRÁCTICA
     )
-    
-    # Filtro opcional: Tarea específica seleccionada en el dropdown
     if target_practice:
-        # (Aunque el frontend envíe el nombre, el filtro base 'in_(my_exercise_filenames)' 
-        # ya nos protege si intentan pedir una tarea ajena)
-        resp_query = resp_query.filter(RespuestaUsuario.practice_name == target_practice)
-    
+        try: pid = int(target_practice)
+        except: pid = -1
+        resp_query = resp_query.filter(RespuestaUsuario.practica_id == pid)
+        
     respuestas_db = resp_query.order_by(RespuestaUsuario.created_at.desc()).all()
     
-    # --- CONSULTA DE CHATS ---
-    # Filtro base: Estudiantes míos Y Tareas mías
     chat_query = ChatLog.query.filter(
         ChatLog.correo_identificacion.in_(emails_to_query),
-        ChatLog.practice_name.in_(my_exercise_filenames) # <--- FILTRO AGREGADO
+        ChatLog.practica_id.in_(my_practicas_ids) # <--- AHORA FILTRA POR ID DE PRÁCTICA
     )
-
-    # Filtro opcional: Tarea específica
     if target_practice:
-        chat_query = chat_query.filter(ChatLog.practice_name == target_practice)
+        try: pid = int(target_practice)
+        except: pid = -1
+        chat_query = chat_query.filter(ChatLog.practica_id == pid)
         
     chats_db = chat_query.order_by(ChatLog.created_at.desc()).limit(500).all()
 
-    # --- SERIALIZACIÓN (Igual que antes) ---
     respuestas_data = [{
         "correo": r.correo_identificacion,
         "problema_id": r.problema_id,
@@ -882,10 +869,7 @@ def dashboard_data():
         "fecha": c.created_at.isoformat()
     } for c in chats_db]
     
-    return jsonify({
-        "respuestas": respuestas_data,
-        "chats": chat_data
-    }), 200
+    return jsonify({"respuestas": respuestas_data, "chats": chat_data}), 200
     
 @app.route("/api/teacher/all-users", methods=["GET"])
 @jwt_required()
@@ -984,24 +968,23 @@ def delete_teacher_class(class_id):
 
 # --- HELPER PARA FILTRAR EVALUACIONES DEL PROFESOR ---
 def get_teacher_filtered_responses(prof_id, status_filter):
-    # 1. Obtener lista estricta de mis estudiantes
     student_records = ListaClase.query.filter_by(profesor_id=prof_id).all()
     my_students = [s.student_email for s in student_records]
     
-    # 2. Obtener lista estricta de mis tareas (activas o inactivas)
     exercise_records = ListaEjercicios.query.filter_by(profesor_id=prof_id).all()
-    my_exercises = [e.exercise_filename for e in exercise_records]
+    my_practicas_ids = [e.practica_id for e in exercise_records if e.practica_id is not None]
     
-    # Si no tiene alumnos o tareas, no devolvemos nada
-    if not my_students or not my_exercises:
+    if not my_students or not my_practicas_ids:
         return []
         
-    # 3. Consultar cruzando Respuestas con Usuarios para obtener el Nombre
-    query = db.session.query(RespuestaUsuario, Usuario.nombre).outerjoin(
+    # 3. Consultar cruzando Respuestas con Usuarios y Prácticas para obtener el Título Real
+    query = db.session.query(RespuestaUsuario, Usuario.nombre, Practica.titulo).outerjoin(
         Usuario, RespuestaUsuario.correo_identificacion == Usuario.correo_identificacion
+    ).outerjoin(
+        Practica, RespuestaUsuario.practica_id == Practica.id # <--- NUEVO JOIN
     ).filter(
         RespuestaUsuario.correo_identificacion.in_(my_students),
-        RespuestaUsuario.practice_name.in_(my_exercises)
+        RespuestaUsuario.practica_id.in_(my_practicas_ids)
     )
     
     if isinstance(status_filter, list):
@@ -1012,12 +995,13 @@ def get_teacher_filtered_responses(prof_id, status_filter):
     results = query.order_by(RespuestaUsuario.created_at.desc()).all()
     
     data = []
-    for r, nombre in results:
+    for r, nombre, titulo in results:
         data.append({
             "id": r.id,
             "nombre": nombre or "Estudiante",
             "correo": r.correo_identificacion,
             "practica": r.practice_name,
+            "titulo_practica": titulo or r.practice_name, # <--- ENVIAMOS EL TÍTULO REAL
             "problema_id": r.problema_id,
             "respuesta": r.respuesta,
             "llm_score": r.llm_score,
@@ -1152,25 +1136,29 @@ def get_student_profile(student_email):
         return jsonify({"error": "Estudiante no autorizado"}), 403
 
     exercise_records = ListaEjercicios.query.filter_by(profesor_id=profesor_id).all()
-    my_exercise_filenames = [e.exercise_filename for e in exercise_records]
+    my_practicas_ids = [e.practica_id for e in exercise_records if e.practica_id is not None]
 
-    if not my_exercise_filenames:
+    if not my_practicas_ids:
         return jsonify({}), 200
 
     respuestas = RespuestaUsuario.query.filter(
         RespuestaUsuario.correo_identificacion == student_email,
-        RespuestaUsuario.practice_name.in_(my_exercise_filenames)
+        RespuestaUsuario.practica_id.in_(my_practicas_ids) # <--- AHORA FILTRA POR ID DE PRÁCTICA
     ).order_by(RespuestaUsuario.problema_id.asc()).all()
 
     chats = ChatLog.query.filter(
         ChatLog.correo_identificacion == student_email,
-        ChatLog.practice_name.in_(my_exercise_filenames)
+        ChatLog.practica_id.in_(my_practicas_ids) # <--- AHORA FILTRA POR ID DE PRÁCTICA
     ).order_by(ChatLog.created_at.asc()).all()
 
     profile_data = {}
     
+    # Pre-cargar títulos de la BD para que el acordeón muestre texto real
+    practica_titles = {p.id: p.titulo for p in Practica.query.all()}
+    
     for r in respuestas:
-        p_name = r.practice_name
+        # Intenta traducir el ID a su Título Real, si falla usa el original
+        p_name = practica_titles.get(r.practica_id, r.practice_name)
         if p_name not in profile_data:
             profile_data[p_name] = {"problemas": {}}
         
@@ -1189,7 +1177,7 @@ def get_student_profile(student_email):
         }
 
     for c in chats:
-        p_name = c.practice_name
+        p_name = practica_titles.get(c.practica_id, c.practice_name)
         prob_id = str(c.problema_id)
         if p_name not in profile_data:
             profile_data[p_name] = {"problemas": {}}
@@ -1651,7 +1639,7 @@ def download_grades_report():
         data_plana.append({
             "Nombre": r["nombre"],
             "Correo": r["correo"],
-            "Práctica": r["practica"],
+            "Práctica": r.get("titulo_practica", r["practica"]), # <--- USA LA LLAVE CREADA EN EL PASO 2
             "Problema": f"Ejercicio {r['problema_id']}",
             "Calificación": float(final_score)
         })
