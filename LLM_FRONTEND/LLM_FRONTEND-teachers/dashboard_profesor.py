@@ -678,25 +678,38 @@ def main(page: ft.Page):
         def on_upload_progress(e: ft.FilePickerUploadEvent):
             if e.error:
                 page.splash = None
-                flash(f"Error de red al subir el archivo: {e.error}", ok=False)
+                flash(f"Error HTTP: El servidor rechazó el archivo.", ok=False)
                 page.update()
                 return
                 
             if e.progress == 1.0:
-                page.splash = None
-                # Verificar con el backend que el proceso fue exitoso
-                def verify_upload():
-                    try:
-                        res = auth_request("GET", "/api/teacher/my-exercises")
-                        if res and res.status_code == 200:
-                            flash("✅ PDF analizado y tarea creada por la IA", ok=True)
-                            load_exercises()
-                        else:
-                            flash("El servidor procesó el archivo pero devolvió un error. Revisa la consola.", ok=False)
-                    except Exception:
-                        flash("Error al verificar resultado del upload", ok=False)
+                page.splash = ft.ProgressBar(color=COLORES["advertencia"])
+                flash("Archivo en el servidor. La IA lo está leyendo, espera por favor...", ok=True, ms=4000)
+                page.update()
+                
+                def check_backend_success():
+                    old_count = len(state.get("my_exercises", []))
+                    
+                    for _ in range(40): 
+                        time.sleep(3)
+                        try:
+                            res = auth_request("GET", "/api/teacher/my-exercises")
+                            if res and res.status_code == 200:
+                                current_exercises = res.json()
+                                if len(current_exercises) > old_count:
+                                    state["my_exercises"] = current_exercises
+                                    page.splash = None
+                                    flash("✅ ¡PDF procesado! Tarea generada correctamente.", ok=True, ms=5000)
+                                    load_exercises()
+                                    return
+                        except Exception:
+                            pass
+                            
+                    page.splash = None
+                    flash("❌ Tiempo de espera agotado o error al procesar el PDF.", ok=False, ms=6000)
                     page.update()
-                threading.Thread(target=verify_upload, daemon=True).start()
+
+                threading.Thread(target=check_backend_success, daemon=True).start()
                 
         file_picker = ft.FilePicker(on_result=on_upload_result, on_upload=on_upload_progress)
         page.overlay.append(file_picker)
