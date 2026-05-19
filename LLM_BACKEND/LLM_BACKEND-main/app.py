@@ -78,7 +78,7 @@ def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", tem
         "max_tokens": max_tokens,
     }
 
-    r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
+    r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=120)
     r.raise_for_status()
     data = r.json()
     return data["choices"][0]["message"]["content"].strip()
