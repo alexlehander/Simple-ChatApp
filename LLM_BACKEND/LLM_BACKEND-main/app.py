@@ -788,25 +788,6 @@ def send_student_alert():
     
     return jsonify({"msg": "Alerta enviada"}), 200
 
-@app.route("/api/teacher/send-message", methods=["POST"])
-@jwt_required()
-def teacher_send_message():
-    data = request.get_json()
-    student_email = data.get("student_email")
-    practice_name = data.get("practice_name")
-    problema_id = data.get("problema_id")
-    message = data.get("message")
-    
-    if not all([student_email, practice_name, problema_id, message]):
-        return jsonify({"msg": "Faltan datos (incluyendo ID del problema)"}), 400
-    
-    usuario = get_or_create_user(student_email)
-    save_chat_turn(usuario, student_email, practice_name, int(problema_id), "teacher", message)
-    
-    print(f" Mensaje enviado a {student_email} [Práctica: {practice_name} | ID: {problema_id}]")
-    
-    return jsonify({"msg": "Mensaje enviado"}), 200
-
 @app.route("/api/teacher/dashboard-data", methods=["GET"])
 @jwt_required()
 def dashboard_data():
@@ -1207,9 +1188,20 @@ def get_student_profile(student_email):
 def generate_student_report():
     data = request.get_json()
     email = data.get('student_email')
-    practice = data.get('practice_name')
-    chats = ChatLog.query.filter_by(correo_identificacion=email, practice_name=practice).order_by(ChatLog.id.asc()).all()
-    respuestas = RespuestaUsuario.query.filter_by(correo_identificacion=email, practice_name=practice).order_by(RespuestaUsuario.problema_id.asc()).all()
+    practice_title = data.get('practice_name') # El frontend envía el Título
+    
+    # 1. Traducir el Título al ID relacional
+    prac_obj = Practica.query.filter_by(titulo=practice_title).first()
+    
+    if prac_obj:
+        # Búsqueda moderna por ID
+        chats = ChatLog.query.filter_by(correo_identificacion=email, practica_id=prac_obj.id).order_by(ChatLog.id.asc()).all()
+        respuestas = RespuestaUsuario.query.filter_by(correo_identificacion=email, practica_id=prac_obj.id).order_by(RespuestaUsuario.problema_id.asc()).all()
+    else:
+        # Fallback histórico para .json viejos
+        chats = ChatLog.query.filter_by(correo_identificacion=email, practice_name=practice_title).order_by(ChatLog.id.asc()).all()
+        respuestas = RespuestaUsuario.query.filter_by(correo_identificacion=email, practice_name=practice_title).order_by(RespuestaUsuario.problema_id.asc()).all()
+        
     interacciones = AnalisisInteraccion.query.filter_by(correo_identificacion=email).all()
     
     if not chats and not respuestas:
@@ -1275,9 +1267,10 @@ def generate_student_report():
             parsed = json.loads(match.group(0)) if match else {}
 
         # 4. Guardar o Actualizar en la Base de Datos
-        reporte = ReporteDesempeno.query.filter_by(student_email=email, practice_name=practice).first()
+        reporte = ReporteDesempeno.query.filter_by(student_email=email, practice_name=practice_title).first()
         if not reporte:
-            reporte = ReporteDesempeno(student_email=email, practice_name=practice)
+            # Ahora guardamos también el ID relacional
+            reporte = ReporteDesempeno(student_email=email, practice_name=practice_title, practica_id=prac_obj.id if prac_obj else None)
             db.session.add(reporte)
         
         reporte.perfil_estudiante = parsed.get("perfil_estudiante", "No determinado")

@@ -1275,22 +1275,15 @@ def main(page: ft.Page):
                     pass
                 page.update()
                 
-        # 5. Layout (Arquitectura clonada de Mis Estudiantes)
-        header_tareas = ft.Row([
-            ft.Text("Repositorio de Tareas", size=24, weight="bold", color=COLORES["primario"]),
-            ft.ElevatedButton("Subir PDF con IA", icon=ft.Icons.AUTO_AWESOME, bgcolor=COLORES["accento"], color=COLORES["primario"], on_click=lambda _: file_picker.pick_files(allowed_extensions=["pdf"]))
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        
         tab_exercises = ft.Container(
             content=ft.Column([
-                header_tareas,
-                ft.Divider(color=COLORES["borde"]),
                 # Columnas divididas
                 ft.Row([
                     # COLUMNA IZQUIERDA: MIS TAREAS
                     ft.Container(
                         content=ft.Column([
                             ft.Row([
+                                ft.ElevatedButton("Subir PDF con IA", icon=ft.Icons.AUTO_AWESOME, bgcolor=COLORES["accento"], color=COLORES["primario"], on_click=lambda _: file_picker.pick_files(allowed_extensions=["pdf"])),
                                 ft.Text("Catálogo local de tareas seleccionadas", size=20, color=COLORES["primario"], expand=True, text_align=ft.TextAlign.CENTER),
                                 ft.IconButton(ft.Icons.REFRESH, icon_color=COLORES["primario"], icon_size=20, tooltip="Refrescar", on_click=refresh_exercises)
                             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
