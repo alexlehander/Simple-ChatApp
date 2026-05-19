@@ -2908,8 +2908,9 @@ def main(page: ft.Page):
                 save_k(page, "current_tab_index", e.control.selected_index),
                 reset_inactivity_timer(),
                 load_exercises() if e.control.selected_index == 1 else None,
-                load_grades() if e.control.selected_index == 2 else None,
-                load_full_dashboard() if e.control.selected_index == 5 else None
+                load_classes() if e.control.selected_index == 2 else None,
+                load_grades() if e.control.selected_index == 3 else None,
+                load_full_dashboard() if e.control.selected_index == 6 else None
             ),
             tabs=[
                 ft.Tab(text="Estudiantes", icon=ft.Icons.GROUPS, content=tab_students),
