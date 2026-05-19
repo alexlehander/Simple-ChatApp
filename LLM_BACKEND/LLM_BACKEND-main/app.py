@@ -1023,22 +1023,16 @@ def delete_grade(resp_id):
 def submit_teacher_grade():
     data = request.get_json()
     resp_id = data.get("id")
-    action = data.get("action") # "approve" or "edit"
+    action = data.get("action")
     
     resp = RespuestaUsuario.query.get(resp_id)
     if not resp: return jsonify({"msg": "Not found"}), 404
     
     if action == "approve":
         resp.teacher_score = resp.llm_score
-        resp.teacher_comment = resp.llm_comment
+        resp.teacher_comment = data.get("comment") 
         resp.status = "approved"
     elif action == "edit":
-        resp.teacher_score = float(data.get("score"))
-        resp.teacher_comment = data.get("comment")
-        resp.status = "edited"
-        
-    db.session.commit()
-    return jsonify({"msg": "Grade updated"}), 200
     
 @app.route("/api/teacher/status", methods=["GET"])
 @jwt_required()

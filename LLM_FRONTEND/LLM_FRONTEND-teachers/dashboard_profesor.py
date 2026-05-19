@@ -2122,6 +2122,13 @@ def main(page: ft.Page):
                 lbl_nav_practice = ft.Text("", size=16, color=COLORES["primario"])
                 lbl_nav_problem = ft.Text("", size=14, weight="bold", color=COLORES["texto"])
                 lbl_nav_date = ft.Text("", size=12, color=COLORES["subtitulo"])
+                
+                status_badge = ft.Container(
+                    content=ft.Text("PENDIENTE", weight="bold", size=12, color=COLORES["fondo"]),
+                    bgcolor=COLORES["error"],
+                    padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                    border_radius=5
+                )
 
                 def nav_change(level, delta):
                     nonlocal sel_student_idx, sel_practice_idx, sel_problem_id
@@ -2146,7 +2153,10 @@ def main(page: ft.Page):
                     create_nav_row(lbl_nav_student, "student"),
                     create_nav_row(lbl_nav_practice, "practice"),
                     create_nav_row(lbl_nav_problem, "problem"),
-                    ft.Container(content=lbl_nav_date, alignment=ft.alignment.center, padding=ft.padding.only(top=5))
+                    ft.Container(
+                        content=ft.Row([lbl_nav_date, status_badge], alignment=ft.MainAxisAlignment.CENTER, spacing=15), 
+                        padding=ft.padding.only(top=5)
+                    )
                 ], spacing=0, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
                 center_grading_content = ft.Container(
@@ -2227,7 +2237,9 @@ def main(page: ft.Page):
 
                         raw_llm = item.get('llm_score', 0)
                         grade_llm_score_field.value = f"{raw_llm}/10"
-                        grade_score_field.value = str(item.get('teacher_score', ""))
+                        
+                        t_score = item.get('teacher_score')
+                        grade_score_field.value = str(t_score) if t_score is not None else ""
                         
                         is_revised = item["id"] in state["revised_evals"] or item.get("status") in ["approved", "edited"]
                         if is_revised:
@@ -2260,7 +2272,18 @@ def main(page: ft.Page):
                         except:
                             llm_rubric_list.controls.append(ft.Text("Evaluación general, sin desglose de rúbricas.", size=12, color=COLORES["texto"], italic=True))
 
-                        grade_comment_field.value = item.get('teacher_comment', comentario_general) if is_revised else comentario_general
+                        t_comment = item.get('teacher_comment')
+                        if t_comment and not str(t_comment).strip().startswith("{") and not str(t_comment).strip().startswith("["):
+                            grade_comment_field.value = t_comment if is_revised else comentario_general
+                        else:
+                            grade_comment_field.value = comentario_general
+                            
+                        if is_revised:
+                            status_badge.content.value = "REVISADO"
+                            status_badge.bgcolor = COLORES["exito"]
+                        else:
+                            status_badge.content.value = "PENDIENTE"
+                            status_badge.bgcolor = COLORES["error"]
 
                     render_clipboard()
                     page.update()
