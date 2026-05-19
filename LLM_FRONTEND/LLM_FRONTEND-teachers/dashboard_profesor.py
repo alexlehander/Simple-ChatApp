@@ -2021,7 +2021,9 @@ def main(page: ft.Page):
                 try:
                     sel_practice_idx = next(i for i, p in enumerate(master_practices) if p["title"] == initial_item["practica"] or p["filename"] == initial_item["practica"])
                 except StopIteration: sel_practice_idx = 0
-                sel_problem_id = int(initial_item.get("problema_id", 1))
+                all_evals = state.get("pending_grades", []) + state.get("completed_grades", [])
+                entregas = sorted([int(ev["problema_id"]) for ev in all_evals if ev["correo"] == initial_item["correo"]])
+                sel_problem_id = entregas[0] if entregas else 1
                 status_msg_dlg = ft.Text("", weight="bold", size=14, text_align=ft.TextAlign.CENTER)
                 if "revised_evals" not in state:
                     state["revised_evals"] = set()
@@ -2134,13 +2136,40 @@ def main(page: ft.Page):
                     nonlocal sel_student_idx, sel_practice_idx, sel_problem_id
                     if level == "student":
                         sel_student_idx = (sel_student_idx + delta) % len(master_students)
+                        sync_hierarchical_view()
                     elif level == "practice":
                         sel_practice_idx = (sel_practice_idx + delta) % len(master_practices)
-                        sel_problem_id = 1
+                        # Al cambiar de práctica, empezamos buscando el primer problema entregado de la nueva
+                        sel_problem_id = get_next_available_problem(0, 1) 
+                        sync_hierarchical_view()
                     elif level == "problem":
-                        num_probs = master_practices[sel_practice_idx].get("num_problems", 1)
-                        sel_problem_id = ((sel_problem_id - 1 + delta) % num_probs) + 1
-                    sync_hierarchical_view()
+                        # Saltamos al siguiente/anterior problema que REALMENTE tenga respuesta
+                        sel_problem_id = get_next_available_problem(sel_problem_id, delta)
+                        sync_hierarchical_view()
+
+                def get_next_available_problem(current_id, delta):
+                    # 1. Obtener todas las respuestas de este alumno en esta práctica
+                    student = master_students[sel_student_idx]
+                    practice = master_practices[sel_practice_idx]
+                    
+                    # Buscamos en la lista de evaluaciones precargadas
+                    all_evals = state.get("pending_grades", []) + state.get("completed_grades", [])
+                    # Filtramos solo las que pertenecen a este alumno y esta práctica
+                    entregas = [
+                        int(ev["problema_id"]) for ev in all_evals 
+                        if ev["correo"] == student["email"] 
+                        and (ev["practica"] == practice["title"] or ev["practica"] == practice["filename"])
+                    ]
+                    entregas = sorted(list(set(entregas))) # Ordenados y sin duplicados
+                    
+                    if not entregas: return current_id
+                    
+                    if delta > 0: # Buscando siguiente
+                        siguientes = [p for p in entregas if p > current_id]
+                        return siguientes[0] if siguientes else current_id
+                    else: # Buscando anterior
+                        anteriores = [p for p in entregas if p < current_id]
+                        return anteriores[-1] if anteriores else current_id
 
                 def create_nav_row(label_ctrl, level):
                     return ft.Row([
