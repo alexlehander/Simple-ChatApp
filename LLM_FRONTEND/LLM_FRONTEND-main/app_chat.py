@@ -94,16 +94,26 @@ def update_map(page, key, problem_id, item):
     
 def reset_progress(page):
     try:
-        claves_protegidas = ["student_token", "correo_identificacion", "student_name", "theme", "last_heartbeat"]
-        keys = page.client_storage.get_keys("")
-        print(f"🧹 Eliminando datos temporales de la práctica...")
-        for k in keys:
-            if k not in claves_protegidas:
-                try:
-                    page.client_storage.remove(k)
-                except Exception as err:
-                    print(f"⚠️ No se pudo borrar clave {k}: {err}")
-                    
+        claves_a_borrar = [
+            STATE_KEYS["screen"],
+            STATE_KEYS["current_problem"],
+            STATE_KEYS["answers"],
+            STATE_KEYS["chat"],
+            STATE_KEYS["timer_start"],
+            STATE_KEYS["pending_queue"],
+            "selected_session_meta",
+            "selected_session_title",
+            "selected_session_problems",
+            "selected_session_filename",
+            "finish_epoch",
+            "current_tab_index",
+        ]
+        for k in claves_a_borrar:
+            try:
+                page.client_storage.remove(k)
+            except Exception:
+                pass
+
         if hasattr(page, "_is_loading_problem"):
             delattr(page, "_is_loading_problem")
         page.clean()
@@ -112,7 +122,7 @@ def reset_progress(page):
             page.session.clear()
         except Exception:
             pass
-        print("✅ Limpieza interna completada. Sesión conservada.")
+        print("✅ Limpieza completada. Sesión conservada.")
     except Exception as e:
         print("❌ Error durante reset_progress:", e)
         
@@ -650,25 +660,28 @@ def main(page: ft.Page):
                                         ft.Icon(ft.Icons.FORMAT_LIST_NUMBERED, size=14, color=COLORES["subtitulo"]),
                                         ft.Text(f"{ex.get('num_problems', 0)} ejercicios", size=12, color=COLORES["subtitulo"]),
                                     ]),
-                                    ft.ElevatedButton(
-                                        "Comenzar Práctica", 
-                                        icon=ft.Icons.PLAY_ARROW, 
-                                        bgcolor=COLORES["boton"], 
-                                        color=COLORES["texto"], 
-                                        width=float("inf"), 
-                                        # Al hacer click aquí, lanzamos la práctica. Flet previene la propagación del click al contenedor padre.
-                                        on_click=lambda e, f=filename, t=title: iniciar_practica(f, t)
-                                    )
+                                    ft.Row([
+                                        ft.ElevatedButton(
+                                            "Comenzar Práctica",
+                                            icon=ft.Icons.PLAY_ARROW,
+                                            bgcolor=COLORES["boton"],
+                                            color=COLORES["texto"],
+                                            expand=True,
+                                            on_click=lambda e, f=filename, t=title: iniciar_practica(f, t)
+                                        ),
+                                        ft.IconButton(
+                                            icon=ft.Icons.INFO_OUTLINE,
+                                            icon_color=COLORES["primario"],
+                                            tooltip="Ver detalles",
+                                            on_click=lambda e, f=filename: show_exercise_detail(f)
+                                        )
+                                    ])
                                 ]),
                                 bgcolor=COLORES["accento"], 
                                 padding=20, 
                                 border_radius=10, 
                                 border=ft.border.all(1, COLORES["borde"]),
                                 shadow=ft.BoxShadow(blur_radius=5, color=COLORES["borde"]),
-                                # ✅ NUEVO: Hacemos el contenedor clicable
-                                ink=True, 
-                                on_click=lambda e, f=filename: show_exercise_detail(f),
-                                tooltip="Haz clic para ver detalles del ejercicio"
                             )
                             exercises_grid.controls.append(card)
                 else:

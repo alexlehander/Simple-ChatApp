@@ -1,16 +1,14 @@
 import gevent.monkey
 gevent.monkey.patch_all()
 import pandas as pd
-import os, random, string, requests, json, threading
 import datetime as dt
-import warnings
-import PyPDF2
+import os, random, string, requests, json, threading, re, traceback, warnings, PyPDF2, gevent
 from io import BytesIO
 from typing import List, Dict
 from flask import Flask, jsonify, request, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit
-from sqlalchemy import text, inspect
+from sqlalchemy import text, inspect, func
 from flask_cors import CORS
 from pinecone import Pinecone
 from datetime import datetime, timedelta
@@ -296,11 +294,16 @@ def get_or_create_user(correo_identificacion: str | None) -> Usuario:
     if not correo_identificacion:
         return None
     u = Usuario.query.filter_by(correo_identificacion=correo_identificacion).first()
-    if u: return u
-    u = Usuario(correo_identificacion=correo_identificacion)
-    db.session.add(u)
-    db.session.commit()
-    return u
+    if u:
+        return u
+    try:
+        u = Usuario(correo_identificacion=correo_identificacion)
+        db.session.add(u)
+        db.session.commit()
+        return u
+    except Exception:
+        db.session.rollback()
+        return Usuario.query.filter_by(correo_identificacion=correo_identificacion).first()
 
 def history_for_chat(correo_identificacion: str | None, problema_id: int, practice_name: str | None, rag_context: str = "") -> List[Dict]:
     limite_tiempo = hora_ensenada() - dt.timedelta(hours=24)
@@ -425,14 +428,8 @@ def get_exercise_metadata(filename):
         "max_time": 0, "num_problems": 0
     }
 
-# 1. Semaphore Analysis Function (Fixed Context)
 def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
-    """
-    Classifies intent and assigns a color based on the Article's heuristics.
-    """
-    # We must wrap the ENTIRE execution in the app context to query DB
     with app.app_context():
-        # Prompt derived from your Article/Colab logic
         sys_prompt = (
             "Eres un experto en Learning Analytics. Clasifica la interacción del estudiante.\n"
             "CATEGORÍAS:\n"
@@ -448,66 +445,42 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
             "10. Otro (Neutro)\n\n"
             "Devuelve SOLO un JSON: {\"intent\": \"...\", \"dimension\": \"Productivo/Improductivo/Neutro\"}"
         )
-        
         try:
-            # LLM Call
             response_text = call_mistral([
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_message}
             ], temperature=0.2, max_tokens=100)
-            
-            # Parse JSON
-            import json, re
             try:
                 data = json.loads(response_text)
             except:
                 match = re.search(r'\{.*\}', response_text, re.DOTALL)
                 data = json.loads(match.group(0)) if match else {"intent": "Otro", "dimension": "Neutro"}
-
             intent = data.get("intent", "Otro")
-            
-            # --- TRAFFIC LIGHT HEURISTICS ---
-            color = "green" # Default
-            
-            # RED: Direct Answer or Aggression
+            color = "green"
             if intent in ["Demanda por Respuesta", "Comportamiento Negativo"]:
                 color = "red"
-                
-            # YELLOW: Confusion or Off-Topic (>2 recent occurrences)
             elif intent in ["Expresion de Incomprension", "Fuera del Tema"]:
                 since = hora_ensenada() - dt.timedelta(minutes=5)
-                # Now this query works because we are inside app.app_context()
                 recent_issues = AnalisisInteraccion.query.filter(
                     AnalisisInteraccion.correo_identificacion == correo,
                     AnalisisInteraccion.intent.in_(["Expresion de Incomprension", "Fuera del Tema"]),
                     AnalisisInteraccion.created_at >= since
                 ).count()
-                
                 if recent_issues >= 2: 
                     color = "yellow"
-            
             intent_raw = data.get("intent", "Otro")
-            dimension_safe = str(data.get("dimension", "Neutro"))[:50]
-            
-            # Save to DB
+            dimension_safe = str(data.get("dimension", "Neutro"))[:50]          
+            calculated_color = calculate_sliding_window_color(correo)
             analysis = AnalisisInteraccion(
                 chat_id=chat_log_id,
                 correo_identificacion=correo,
                 intent=intent_raw,
                 dimension=dimension_safe,
-                color_asignado="green" 
+                analysis.color_asignado = calculated_color
             )
             db.session.add(analysis)
-            db.session.commit()           
-            calculated_color = calculate_sliding_window_color(correo)
-            
-            # Update the record with the calculated color
-            analysis.color_asignado = calculated_color
             db.session.commit()
-
             print(f"🚦 Semaphore ({SEMAPHORE_WINDOW_MINUTES}m window): {correo} -> {intent_raw} | State: {calculated_color}")
-            
-            # Emit the CALCULATED color based on history
             socketio.emit('student_activity', {
                 'type': 'chat',
                 'student_email': correo,
@@ -518,7 +491,6 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
                 'timestamp': hora_ensenada().isoformat(),
                 'analysis_id': analysis.id
             })
-            
         except Exception as e:
             print(f"❌ Error in Semaphore Analysis: {e}")
             
@@ -575,7 +547,6 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
             {"role": "user", "content": user_prompt}
         ], temperature=0.2)
         
-        import json, re
         try:
             data = json.loads(response_text)
         except:
@@ -683,8 +654,6 @@ def verificar_respuesta(problema_id):
     )
     db.session.add(nueva_respuesta)
     db.session.commit()
-    
-    import gevent
     problem_text = get_problem_enunciado(practice_name, problema_id)
     gevent.spawn(auto_grade_answer, nueva_respuesta.id, problem_text, respuesta, prog_pct)
     
@@ -701,7 +670,6 @@ def chat(problema_id: int):
         return jsonify({"status": "error", "message": "Mensaje vacío"}), 400
     usuario = get_or_create_user(correo)
     chat_id = save_chat_turn(usuario, correo, practice_name, problema_id, "user", user_msg)
-    import gevent
     gevent.spawn(background_llm_task, app, usuario.id, correo, practice_name, problema_id)
     gevent.spawn(analyze_interaction_semaphore, chat_id, user_msg, correo, prog_pct)
     return jsonify({"status": "processing", "message": "Procesando..."})
@@ -932,20 +900,38 @@ def create_teacher_class():
 @jwt_required()
 def delete_teacher_class(class_id):
     prof_id = int(get_jwt_identity())
-    
     grupo = Grupo.query.filter_by(id=class_id, profesor_id=prof_id).first()
     if not grupo:
         return jsonify({"error": "Clase no encontrada o acceso denegado"}), 404
-        
-    # Eliminar relaciones primero (para evitar errores de foreign key si la DB no tiene CASCADE)
     GrupoEstudiante.query.filter_by(grupo_id=class_id).delete()
     GrupoTarea.query.filter_by(grupo_id=class_id).delete()
-    
-    # Eliminar el grupo
     db.session.delete(grupo)
     db.session.commit()
-    
     return jsonify({"msg": "Clase eliminada correctamente"}), 200
+
+@app.route("/api/teacher/classes/<int:class_id>", methods=["PUT"])
+@jwt_required()
+def update_teacher_class(class_id):
+    prof_id = int(get_jwt_identity())
+    grupo = Grupo.query.filter_by(id=class_id, profesor_id=prof_id).first()
+    if not grupo:
+        return jsonify({"error": "Clase no encontrada o acceso denegado"}), 404
+    data = request.get_json()
+    nuevo_nombre = data.get("nombre")
+    if nuevo_nombre:
+        grupo.nombre = nuevo_nombre
+    nuevos_emails = data.get("estudiantes")
+    if nuevos_emails is not None:
+        GrupoEstudiante.query.filter_by(grupo_id=class_id).delete()
+        for email in nuevos_emails:
+            db.session.add(GrupoEstudiante(grupo_id=class_id, student_email=email))
+    nuevas_tareas = data.get("tareas")
+    if nuevas_tareas is not None:
+        GrupoTarea.query.filter_by(grupo_id=class_id).delete()
+        for fname in nuevas_tareas:
+            db.session.add(GrupoTarea(grupo_id=class_id, exercise_filename=fname))
+    db.session.commit()
+    return jsonify({"msg": "Clase actualizada"}), 200
 
 # --- HELPER PARA FILTRAR EVALUACIONES DEL PROFESOR ---
 def get_teacher_filtered_responses(prof_id, status_filter):
@@ -997,25 +983,31 @@ def get_teacher_filtered_responses(prof_id, status_filter):
 @app.route("/api/teacher/grades/pending", methods=["GET"])
 @jwt_required()
 def get_pending_grades():
-    prof_id = get_jwt_identity()
+    prof_id = int(get_jwt_identity())
     data = get_teacher_filtered_responses(prof_id, "pending")
     return jsonify(data), 200
 
 @app.route("/api/teacher/grades/completed", methods=["GET"])
 @jwt_required()
 def get_completed_grades():
-    prof_id = get_jwt_identity()
+    prof_id = int(get_jwt_identity())
     data = get_teacher_filtered_responses(prof_id, ["approved", "edited"])
     return jsonify(data), 200
 
 @app.route("/api/teacher/grades/<int:resp_id>", methods=["DELETE"])
 @jwt_required()
 def delete_grade(resp_id):
-    prof_id = get_jwt_identity()
+    prof_id = int(get_jwt_identity())
     resp = RespuestaUsuario.query.get(resp_id)
-    if resp:
-        db.session.delete(resp)
-        db.session.commit()
+    if not resp:
+        return jsonify({"msg": "No encontrado"}), 404
+    asig = ListaEjercicios.query.filter_by(
+        profesor_id=prof_id, practica_id=resp.practica_id
+    ).first()
+    if not asig:
+        return jsonify({"error": "No autorizado para eliminar esta evaluación"}), 403
+    db.session.delete(resp)
+    db.session.commit()
     return jsonify({"msg": "Evaluación eliminada"}), 200
 
 @app.route("/api/teacher/grades/submit", methods=["POST"])
@@ -1033,7 +1025,14 @@ def submit_teacher_grade():
         resp.teacher_comment = data.get("comment") 
         resp.status = "approved"
     elif action == "edit":
-        resp.teacher_score = data.get("score")
+        raw_score = data.get("score")
+        try:
+            score = float(raw_score)
+            if not (0 <= score <= 10):
+                return jsonify({"error": "La calificación debe estar entre 0 y 10"}), 400
+        except (TypeError, ValueError):
+            return jsonify({"error": "Calificación inválida"}), 400
+        resp.teacher_score = score
         resp.teacher_comment = data.get("comment")
         resp.status = "edited"
     db.session.commit()
@@ -1042,10 +1041,6 @@ def submit_teacher_grade():
 @app.route("/api/teacher/status", methods=["GET"])
 @jwt_required()
 def get_student_statuses():
-    # Returns the latest color for each student
-    from sqlalchemy import func
-    
-    # Subquery to find the timestamp of the latest analysis per student
     subq = db.session.query(
         AnalisisInteraccion.correo_identificacion,
         func.max(AnalisisInteraccion.created_at).label('max_date')
@@ -1132,9 +1127,10 @@ def get_student_profile(student_email):
     ).order_by(ChatLog.created_at.asc()).all()
 
     profile_data = {}
-    
-    # Pre-cargar títulos de la BD para que el acordeón muestre texto real
-    practica_titles = {p.id: p.titulo for p in Practica.query.all()}
+    practica_titles = {
+        p.id: p.titulo
+        for p in Practica.query.filter(Practica.id.in_(my_practicas_ids)).all()
+    }
     
     for r in respuestas:
         # Intenta traducir el ID a su Título Real, si falla usa el original
@@ -1188,19 +1184,13 @@ def generate_student_report():
     data = request.get_json()
     email = data.get('student_email')
     practice_title = data.get('practice_name') # El frontend envía el Título
-    
-    # 1. Traducir el Título al ID relacional
     prac_obj = Practica.query.filter_by(titulo=practice_title).first()
-    
     if prac_obj:
-        # Búsqueda moderna por ID
         chats = ChatLog.query.filter_by(correo_identificacion=email, practica_id=prac_obj.id).order_by(ChatLog.id.asc()).all()
         respuestas = RespuestaUsuario.query.filter_by(correo_identificacion=email, practica_id=prac_obj.id).order_by(RespuestaUsuario.problema_id.asc()).all()
     else:
-        # Fallback histórico para .json viejos
         chats = ChatLog.query.filter_by(correo_identificacion=email, practice_name=practice_title).order_by(ChatLog.id.asc()).all()
         respuestas = RespuestaUsuario.query.filter_by(correo_identificacion=email, practice_name=practice_title).order_by(RespuestaUsuario.problema_id.asc()).all()
-        
     interacciones = AnalisisInteraccion.query.filter_by(correo_identificacion=email).all()
     
     if not chats and not respuestas:
@@ -1257,27 +1247,32 @@ def generate_student_report():
             {"role": "system", "content": "Eres un investigador educativo experto. Responde sólo en JSON."},
             {"role": "user", "content": prompt}
         ], temperature=0.2, max_tokens=1000)
-
-        import re
         try:
             parsed = json.loads(response_text)
         except:
             match = re.search(r'\{.*\}', response_text, re.DOTALL)
             parsed = json.loads(match.group(0)) if match else {}
-
-        # 4. Guardar o Actualizar en la Base de Datos
-        reporte = ReporteDesempeno.query.filter_by(student_email=email, practice_name=practice_title).first()
+        practica_id_para_buscar = prac_obj.id if prac_obj else None
+        if practica_id_para_buscar:
+            reporte = ReporteDesempeno.query.filter_by(
+                student_email=email, practica_id=practica_id_para_buscar
+            ).first()
+        else:
+            reporte = ReporteDesempeno.query.filter_by(
+                student_email=email, practice_name=practice_title
+            ).first()
         if not reporte:
-            # Ahora guardamos también el ID relacional
-            reporte = ReporteDesempeno(student_email=email, practice_name=practice_title, practica_id=prac_obj.id if prac_obj else None)
+            reporte = ReporteDesempeno(
+                student_email=email,
+                practice_name=practice_title,
+                practica_id=practica_id_para_buscar
+            )
             db.session.add(reporte)
-        
         reporte.perfil_estudiante = parsed.get("perfil_estudiante", "No determinado")
         reporte.persistencia = parsed.get("persistencia", "No determinada")
         reporte.diagnostico_general = parsed.get("diagnostico_general", "Error al procesar el diagnóstico.")
         reporte.created_at = hora_ensenada()
         db.session.commit()
-
         return jsonify({"msg": "Reporte generado"}), 200
     except Exception as e:
         print(f"Error generando reporte: {e}")
@@ -1473,48 +1468,41 @@ def generate_live_session_report():
 
     # 5. Generar Prompts Masivos (Por Estudiante y Uno General)
     final_report = []
-    
-    # Iterar por estudiante activo para generar su resumen
-    for email, data in estudiantes_data.items():
-        # Limitar la transcripción para no reventar el token limit (ej. últimos 15 msgs)
-        transcripcion_corta = "\n".join(data["transcripcion_chats"][-15:]) 
+    results_map = {}
+
+    def analizar_estudiante(email, data):
+        transcripcion_corta = "\n".join(data["transcripcion_chats"][-15:])
         respuestas_texto = "\n".join(data["respuestas_finales"])
-        
         prompt_estudiante = f"""
-        Actúa como un profesor experto evaluando el desempeño de un estudiante específico en una sesión en vivo de laboratorio.
-        Aquí están los datos de lo que hizo el estudiante '{email}' durante este tiempo exacto:
-        
-        Métricas de Semáforo (Riesgo): Verdes: {data['semaforo']['green']}, Amarillas: {data['semaforo']['yellow']}, Rojas: {data['semaforo']['red']}
-        
-        Respuestas Entregadas:
-        {respuestas_texto}
-        
-        Transcripción de Chat (Muestra representativa):
-        {transcripcion_corta}
-        
-        Genera un análisis cualitativo estricto y en español. Debes detallar:
-        1. Puntos fuertes del estudiante.
-        2. Debilidades conceptuales o técnicas detectadas en base a sus respuestas y chat.
-        3. Si requiere intervención humana obligatoria antes de la próxima clase.
-        
-        Devuelve tu análisis en formato de párrafo. No uses markdown. No saludes.
+        Actúa como un profesor experto evaluando el desempeño del estudiante '{email}'.
+        Métricas de Semáforo: Verdes: {data['semaforo']['green']}, Amarillas: {data['semaforo']['yellow']}, Rojas: {data['semaforo']['red']}
+        Respuestas Entregadas:\n{respuestas_texto}
+        Transcripción de Chat:\n{transcripcion_corta}
+        Genera un análisis cualitativo en español con: 1. Puntos fuertes. 2. Debilidades. 3. Si requiere intervención.
+        Devuelve solo párrafos, sin markdown, sin saludo.
         """
-        
         try:
-            analisis_ia = call_mistral([
+            analisis = call_mistral([
                 {"role": "system", "content": "Eres un analista académico estricto."},
                 {"role": "user", "content": prompt_estudiante}
             ], temperature=0.3, max_tokens=300)
         except Exception as e:
             print(f"Error evaluando a {email}: {e}")
-            analisis_ia = "Error al conectar con IA para este estudiante."
-            
+            analisis = "Error al conectar con IA para este estudiante."
+        results_map[email] = analisis
+
+    # Lanzar todos en paralelo con gevent
+    greenlets = [gevent.spawn(analizar_estudiante, email, data) for email, data in estudiantes_data.items()]
+    gevent.joinall(greenlets, timeout=90)  # Espera máximo 90s al total
+
+    final_report = []
+    for email, data in estudiantes_data.items():
         final_report.append({
             "Estudiante": email,
             "Interacciones (Verde)": data["semaforo"]["green"],
             "Alertas (Amarillo)": data["semaforo"]["yellow"],
             "Riesgo (Rojo)": data["semaforo"]["red"],
-            "Análisis Cualitativo IA": analisis_ia
+            "Análisis Cualitativo IA": results_map.get(email, "Sin análisis generado.")
         })
 
     # 6. Generar el Párrafo General del Grupo
@@ -1769,7 +1757,6 @@ Responde ÚNICAMENTE con JSON válido, sin texto extra, con este formato exacto:
         return jsonify({"error": "La IA devolvió una respuesta con formato inválido. Intenta de nuevo."}), 500
     except Exception as e:
         print(f"❌ [Upload] ERROR CRÍTICO: {str(e)}")
-        import traceback
         traceback.print_exc()
         return jsonify({"error": f"Error interno al procesar PDF: {str(e)}"}), 500
 

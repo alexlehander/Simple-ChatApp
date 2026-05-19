@@ -281,8 +281,7 @@ def main(page: ft.Page):
     @sio.event
     def student_activity(data):
         """Handles real-time updates from backend servers."""
-        if not is_session_active: return
-    
+        if not load_k(page, "is_live_session_active", False): return
         email = data.get('student_email')
         status_color = data.get('status', 'green')
         prog_pct = data.get('progress_pct', 0.0)
@@ -675,21 +674,33 @@ def main(page: ft.Page):
                         method="POST"
                     )
                 ])
-
+                
         def on_upload_progress(e: ft.FilePickerUploadEvent):
-            if e.progress == 1.0: # Subida y análisis completado
+            if e.error:
                 page.splash = None
-                flash("PDF analizado y tarea creada exitosamente por la IA", ok=True)
-                load_exercises()
+                flash(f"Error de red al subir el archivo: {e.error}", ok=False)
                 page.update()
-            elif e.error:
+                return
+                
+            if e.progress == 1.0:
                 page.splash = None
-                flash(f"Error al procesar PDF", ok=False)
-                page.update()
-
+                # Verificar con el backend que el proceso fue exitoso
+                def verify_upload():
+                    try:
+                        res = auth_request("GET", "/api/teacher/my-exercises")
+                        if res and res.status_code == 200:
+                            flash("✅ PDF analizado y tarea creada por la IA", ok=True)
+                            load_exercises()
+                        else:
+                            flash("El servidor procesó el archivo pero devolvió un error. Revisa la consola.", ok=False)
+                    except Exception:
+                        flash("Error al verificar resultado del upload", ok=False)
+                    page.update()
+                threading.Thread(target=verify_upload, daemon=True).start()
+                
         file_picker = ft.FilePicker(on_result=on_upload_result, on_upload=on_upload_progress)
         page.overlay.append(file_picker)
-
+        
         def update_filter_class(target, value):
             if target == "students": state["filter_students_class"] = value
             else: state["filter_tasks_class"] = value
@@ -708,13 +719,15 @@ def main(page: ft.Page):
             render_students()
             
         def load_students():
-            headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                res_my = requests.get(f"{BASE}/api/teacher/students", headers=headers)
-                if res_my.status_code == 200:
+                res_my = auth_request("GET", "/api/teacher/students")
+                if res_my and res_my.status_code == 200:
                     state["students"] = res_my.json()
-                res_all = requests.get(f"{BASE}/api/teacher/all-users", headers=headers)
-                if res_all.status_code == 200:
+                elif res_my and res_my.status_code == 401:
+                    flash("Sesión expirada. Por favor inicia sesión de nuevo.", ok=False)
+                    return
+                res_all = auth_request("GET", "/api/teacher/all-users")
+                if res_all and res_all.status_code == 200:
                     state["all_users_global"] = res_all.json()
                 render_students()
                 update_dropdowns()
@@ -1076,13 +1089,15 @@ def main(page: ft.Page):
             render_exercises()
         
         def load_exercises():
-            headers = {"Authorization": f"Bearer {state['token']}"}
             try:
-                r1 = requests.get(f"{BASE}/api/teacher/my-exercises", headers=headers)
-                if r1.status_code == 200:
+                r1 = auth_request("GET", "/api/teacher/my-exercises")
+                if r1 and r1.status_code == 200:
                     state["my_exercises"] = r1.json()
-                r2 = requests.get(f"{BASE}/api/exercises/available", headers=headers)
-                if r2.status_code == 200:
+                elif r1 and r1.status_code == 401:
+                    flash("Sesión expirada. Por favor inicia sesión de nuevo.", ok=False)
+                    return
+                r2 = auth_request("GET", "/api/exercises/available")
+                if r2 and r2.status_code == 200:
                     state["all_exercises"] = r2.json()
                 render_exercises()
                 update_dropdowns()
