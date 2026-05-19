@@ -1384,23 +1384,7 @@ def get_student_active_exercises():
     
     data = [get_exercise_metadata(str(pid)) for pid in unique_ids]
     return jsonify(data), 200
-
-@app.route("/api/teacher/my-exercises/toggle", methods=["PUT"])
-@jwt_required()
-def toggle_exercise_visibility():
-    prof_id = get_jwt_identity()
-    filename = request.get_json().get("filename")
-    
-    ejercicio = ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=filename).first()
-    if not ejercicio:
-        return jsonify({"msg": "Ejercicio no encontrado en tu lista"}), 404
-        
-    ejercicio.is_active = not ejercicio.is_active
-    db.session.commit()
-    
-    status_str = "Activo" if ejercicio.is_active else "Oculto"
-    return jsonify({"msg": f"Ejercicio ahora está {status_str}", "is_active": ejercicio.is_active}), 200
-    
+  
 # --- REPORTE DE SESIÓN EN VIVO ---
 
 @app.route("/api/teacher/live-session/generate", methods=["POST"])
