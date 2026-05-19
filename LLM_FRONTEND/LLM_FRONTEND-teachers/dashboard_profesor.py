@@ -2321,15 +2321,17 @@ def main(page: ft.Page):
                     e.control.disabled = True
                     page.update()
                     item = state["current_eval_item"]
-                    raw_score = item.get('llm_score')
-                    score = float(raw_score) if raw_score is not None else 0.0
-                    
-                    exito = submit_grade(item['id'], "approve", score, grade_comment_field.value)
+                    raw_score = grade_score_field.value
+                    score = float(raw_score) if raw_score else 0.0
+                    comentario_actual = grade_comment_field.value
+                    exito = submit_grade(item['id'], "approve", score, comentario_actual)
                     if exito:
                         state["revised_evals"].add(item["id"])
                         item['teacher_score'] = score
-                        item['teacher_comment'] = grade_comment_field.value
-                        sync_hierarchical_view()
+                        item['teacher_comment'] = comentario_actual
+                        item['status'] = "approved"
+                        status_badge.content.value = "REVISADO"
+                        status_badge.bgcolor = COLORES["exito"]
                         show_dialog_feedback("✅ Calificación aprobada correctamente", COLORES["exito"])
                     else:
                         show_dialog_feedback("❌ Error al guardar en el servidor", COLORES["error"])
