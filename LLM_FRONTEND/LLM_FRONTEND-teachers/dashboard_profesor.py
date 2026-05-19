@@ -1180,7 +1180,7 @@ def main(page: ft.Page):
                             icon_color=btn_color,
                             tooltip=btn_tooltip,
                             icon_size=20,
-                            on_click=lambda e, f=ex_data["filename"]: toggle_exercise_status(e, f)
+                            on_click=lambda e, f=ex_data.get("practica_id") or ex_data.get("filename"): toggle_exercise_status(e, f)
                         )
                         top_row_controls.append(toggle_btn)
                         

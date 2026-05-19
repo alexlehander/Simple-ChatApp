@@ -1837,14 +1837,30 @@ def remove_my_exercise():
 @jwt_required()
 def toggle_my_exercise():
     prof_id = int(get_jwt_identity())
-    data = request.get_json()
+    data = request.get_json() or {}
+    
+    # Extraer el ID o nombre de forma segura
     pid = data.get("practica_id") or data.get("filename")
-    if pid:
-        asig = ListaEjercicios.query.filter_by(profesor_id=prof_id, practica_id=int(pid)).first()
-        if asig:
-            asig.is_active = not asig.is_active
-            db.session.commit()
-            return jsonify({"is_active": asig.is_active}), 200
+    if not pid:
+        return jsonify({"error": "Identificador faltante"}), 400
+        
+    try:
+        # 1. Intentar buscar por ID relacional (Nuevo estándar)
+        pid_int = int(pid)
+        asig = ListaEjercicios.query.filter_by(profesor_id=prof_id, practica_id=pid_int).first()
+    except ValueError:
+        # 2. Fallback: buscar por texto si es un archivo histórico sin migrar
+        asig = ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=str(pid)).first()
+        
+    # 3. Si no lo encuentra por ID, intentar buscar por nombre de archivo por seguridad
+    if not asig:
+        asig = ListaEjercicios.query.filter_by(profesor_id=prof_id, exercise_filename=str(pid)).first()
+        
+    if asig:
+        asig.is_active = not asig.is_active
+        db.session.commit()
+        return jsonify({"is_active": asig.is_active, "msg": "Estado actualizado"}), 200
+        
     return jsonify({"error": "Asignación no encontrada"}), 404
 
 @app.route("/api/exercises/detail/<identificador>", methods=["GET"])
