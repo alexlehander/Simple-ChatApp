@@ -585,6 +585,14 @@ def main(page: ft.Page):
                     
             threading.Thread(target=fetch_practica, daemon=True).start()
 
+        def ejecutar_logout(e):
+            keys = page.client_storage.get_keys("")
+            for k in keys:
+                if k != "theme":
+                    page.client_storage.remove(k)
+            state.update({"token": None, "correo": None, "nombre": None})
+            show_login_register()
+
         def load_dashboard_data():
             exercises_grid.controls.clear()
             teachers_row.controls.clear()
@@ -682,13 +690,6 @@ def main(page: ft.Page):
                 ft.Row([ft.Icon(ft.Icons.SCHOOL, color=COLORES["primario"], size=30), ft.Text(f"Portal de Alumnos - {state['nombre']}", size=24, weight="bold", color=COLORES["texto"])]),
                 ft.Row([
                     ft.IconButton(icon=ft.Icons.LIGHT_MODE if theme_name == "dark" else ft.Icons.DARK_MODE, icon_color=COLORES["primario"], on_click=toggle_theme, tooltip="Cambiar Tema"),
-                    def ejecutar_logout(e):
-                        keys = page.client_storage.get_keys("")
-                        for k in keys:
-                            if k != "theme":
-                                page.client_storage.remove(k)
-                        state.update({"token": None, "correo": None, "nombre": None})
-                        show_login_register()
                     ft.IconButton(icon=ft.Icons.LOGOUT, icon_color=COLORES["error"], tooltip="Cerrar Sesión", on_click=ejecutar_logout)
                 ])
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),

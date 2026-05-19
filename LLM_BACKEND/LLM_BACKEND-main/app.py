@@ -1033,6 +1033,11 @@ def submit_teacher_grade():
         resp.teacher_comment = data.get("comment") 
         resp.status = "approved"
     elif action == "edit":
+        resp.teacher_score = data.get("score")
+        resp.teacher_comment = data.get("comment")
+        resp.status = "edited"
+    db.session.commit()
+    return jsonify({"msg": "Evaluación actualizada"}), 200
     
 @app.route("/api/teacher/status", methods=["GET"])
 @jwt_required()
