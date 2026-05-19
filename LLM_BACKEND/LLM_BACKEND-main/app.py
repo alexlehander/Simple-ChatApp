@@ -1238,7 +1238,7 @@ def generate_student_report():
     
     prompt = f"""
     Actúa como un investigador educativo que analiza interacciones entre estudiantes y un Tutor Inteligente potenciado por LLMs.
-    Busca patrones generales de aprendizaje en la conversación del estudiante durante la práctica '{practice}'.
+    Busca patrones generales de aprendizaje en la conversación del estudiante durante la práctica '{practice_title}'.
     Identifica:
     1. **perfil_estudiante**: Elige UNO: "Autorregulado", "Dependiente de pistas", o "Abuso del sistema (gaming)".
     2. **persistencia**: Elige UNA: "Alta (productiva)", "Media (mixta)", "Baja (rendición temprana)", o "Improductiva (insistente en error)".
