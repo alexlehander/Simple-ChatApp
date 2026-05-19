@@ -1,0 +1,27 @@
+{
+  "title": "Práctica 7: El Ecosistema CRUD Completo y Evolución Arquitectónica",
+  "description": "Integración final del ciclo de vida de la información: modificación (UPDATE), purga (DELETE) y alteración dinámica de la estructura de tablas (ALTER TABLE) desde el servidor PHP.",
+  "max_time": 10800,
+  "problemas": [
+    {
+      "id": 1,
+      "enunciado": "Para la actualización de registros: ¿Por qué es un riesgo de seguridad catastrófico omitir la cláusula 'WHERE' en una sentencia UPDATE ejecutada desde PHP, y cómo asegura la consulta preparada que los datos se escriban únicamente en el registro objetivo?"
+    },
+    {
+      "id": 2,
+      "enunciado": "En la implementación del botón de eliminación (DELETE), se solicita utilizar el método POST en lugar de GET. Explique los riesgos técnicos de permitir operaciones destructivas mediante parámetros en la URL y cómo afecta esto a la integridad del sistema frente a rastreadores web."
+    },
+    {
+      "id": 3,
+      "enunciado": "Sobre la alteración arquitectónica (DDL): Describa el proceso para añadir una nueva columna a una tabla existente mediante un script PHP usando el comando ALTER TABLE. ¿Por qué este script debe ser un archivo aislado sin interfaz gráfica?"
+    },
+    {
+      "id": 4,
+      "enunciado": "Describa la importancia de utilizar Consultas Preparadas en los controladores de edición y borrado. Compare el flujo de ejecución de una consulta concatenada contra una consulta preparada respecto a la separación del plano de control y el plano de datos."
+    },
+    {
+      "id": 5,
+      "enunciado": "Reflexión de Ingeniería: ¿Qué impacto tiene la ejecución de comandos DDL (como ALTER TABLE) en una aplicación en producción que está siendo utilizada simultáneamente por múltiples usuarios? Justifique por qué este tipo de operaciones debe realizarse bajo protocolos de mantenimiento."
+    }
+  ]
+}
