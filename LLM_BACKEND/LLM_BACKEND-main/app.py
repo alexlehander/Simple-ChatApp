@@ -1651,12 +1651,13 @@ def upload_exercise_pdf():
     prof_id = int(get_jwt_identity())
     print("🚀 [Upload] Iniciando recepción de archivo...")
     
-    if 'file' not in request.files:
-        print("❌ [Upload] No se encontró el campo 'file'")
+    # Buscamos cualquier archivo enviado, sin importar el nombre del campo del formulario
+    if not request.files:
         return jsonify({"error": "No se envió ningún archivo"}), 400
         
-    file = request.files['file']
-    print(f"📄 [Upload] Procesando archivo: {file.filename}")
+    # Esto toma el primer archivo que haya llegado en la petición
+    file = list(request.files.values())[0]
+    print(f"📄 [Upload] Procesando archivo detectado: {file.filename}")
     
     if file and file.filename.lower().endswith('.pdf'):
         try:
