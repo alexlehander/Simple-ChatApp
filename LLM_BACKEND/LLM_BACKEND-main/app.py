@@ -1649,93 +1649,49 @@ def download_grades_report():
 @jwt_required()
 def upload_exercise_pdf():
     prof_id = int(get_jwt_identity())
+    print("🚀 [Upload] Iniciando recepción de archivo...")
     
     if 'file' not in request.files:
+        print("❌ [Upload] No se encontró el campo 'file'")
         return jsonify({"error": "No se envió ningún archivo"}), 400
         
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "Archivo vacío"}), 400
-        
+    print(f"📄 [Upload] Procesando archivo: {file.filename}")
+    
     if file and file.filename.lower().endswith('.pdf'):
         try:
-            pdf_reader = PyPDF2.PdfReader(file)
+            # 1. Leer el archivo a un stream de bytes
+            stream = BytesIO(file.read())
+            print("📖 [Upload] Iniciando lectura de PDF con PyPDF2...")
+            pdf_reader = PyPDF2.PdfReader(stream)
+            
             text = ""
-            for page in pdf_reader.pages:
+            for i, page in enumerate(pdf_reader.pages):
                 extracted = page.extract_text()
                 if extracted:
                     text += extracted + "\n"
-                
-            # Prompt de Estructuración Pedagógica
-            prompt = f"""
-            Actúa como un diseñador instruccional experto en Sistemas de Tutoría Inteligente.
-            Analiza el siguiente documento de una práctica o examen y estructure su contenido en formato JSON.
-            El JSON debe tener EXACTAMENTE esta estructura:
-            {{
-                "titulo": "Nombre corto y claro de la práctica",
-                "descripcion": "Descripción general de los objetivos de aprendizaje de la práctica",
-                "max_time": 60,  // Tiempo estimado en minutos (número entero)
-                "problemas": [
-                    {{"numero": 1, "enunciado": "Texto completo del problema 1..."}},
-                    {{"numero": 2, "enunciado": "Texto completo del problema 2..."}}
-                ],
-                "rubricas": [
-                    {{"dimension": "Exactitud de la solución", "descripcion": "Evalúa si el resultado final de la operación es correcto."}},
-                    {{"dimension": "Completitud del procedimiento", "descripcion": "Evalúa si se mostró el proceso paso a paso."}}
-                ]
-            }}
+                else:
+                    print(f"⚠️ [Upload] La página {i+1} no tiene texto extraíble.")
             
-            Extrae los problemas numerados y sugiere 3 rúbricas de evaluación adaptadas a este tema específico.
+            print(f"📝 [Upload] Texto extraído (longitud: {len(text)})")
             
-            DOCUMENTO CRUDO:
-            {text[:12000]} 
-            """
+            if len(text) < 50:
+                return jsonify({"error": "El PDF parece estar vacío o ser una imagen. Por favor sube un PDF con texto seleccionable."}), 400
+
+            # 2. Llamada al LLM
+            print("🤖 [Upload] Enviando a IA para estructura...")
+            # ... (tu código del prompt de IA sigue aquí) ...
             
-            response_text = call_mistral([
-                {"role": "system", "content": "Eres un pipeline de datos estructurados. Responde ÚNICAMENTE con un objeto JSON válido."},
-                {"role": "user", "content": prompt}
-            ], temperature=0.1, max_tokens=2500)
-            
-            import re
-            match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            parsed = json.loads(match.group(0)) if match else json.loads(response_text)
-            
-            # Guardar en Base de Datos (Estructura Relacional)
-            nueva_practica = Practica(
-                profesor_id=prof_id,
-                titulo=parsed.get("titulo", "Práctica sin título"),
-                descripcion=parsed.get("descripcion", "Sin descripción"),
-                max_time=int(parsed.get("max_time", 60)),
-                rubricas=parsed.get("rubricas", [])
-            )
-            db.session.add(nueva_practica)
-            db.session.flush() # Flush para obtener el ID generado sin hacer commit aún
-            
-            for prob in parsed.get("problemas", []):
-                nuevo_prob = Problema(
-                    practica_id=nueva_practica.id,
-                    numero_ejercicio=int(prob.get("numero", 1)),
-                    enunciado=prob.get("enunciado", "Sin enunciado")
-                )
-                db.session.add(nuevo_prob)
-                
-            # Asignar la práctica a la lista de tareas activas del profesor
-            db.session.add(ListaEjercicios(
-                profesor_id=prof_id, 
-                exercise_filename=f"MIGRADO_{nueva_practica.id}", # String dinámico
-                practica_id=nueva_practica.id,
-                is_active=True
-            ))
-            
-            db.session.commit()
-            return jsonify({"msg": "Práctica procesada con IA y guardada correctamente", "practica_id": nueva_practica.id}), 201
+            # (Asegúrate de dejar el resto de tu código igual hasta el db.session.commit())
             
         except Exception as e:
-            db.session.rollback()
-            print(f"Error procesando PDF: {e}")
-            return jsonify({"error": f"Error procesando el documento: {str(e)}"}), 500
+            # ESTO ES LO QUE VEREMOS EN LOS LOGS DE RAILWAY
+            print(f"❌ [Upload] ERROR CRÍTICO: {str(e)}")
+            import traceback
+            traceback.print_exc() 
+            return jsonify({"error": f"Error interno al procesar PDF: {str(e)}"}), 500
     else:
-        return jsonify({"error": "Formato no soportado. El archivo debe ser PDF."}), 400
+        return jsonify({"error": "Formato no soportado."}), 400
 
 # =========================================
 # RUTAS DE TAREAS / EJERCICIOS (NUEVA ARQUITECTURA RELACIONAL)
