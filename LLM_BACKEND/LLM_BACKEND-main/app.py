@@ -1746,18 +1746,18 @@ def upload_exercise_pdf():
 @jwt_required()
 def get_available_exercises():
     prof_id = int(get_jwt_identity())
-    # Tareas globales (prof_id = None) o tareas creadas por otros profesores
     practicas = Practica.query.filter((Practica.profesor_id == None) | (Practica.profesor_id != prof_id)).order_by(Practica.id.desc()).all()
     data = []
     for p in practicas:
-        num_probs = Problema.query.filter_by(practica_id=p.id).count()
+        probs = Problema.query.filter_by(practica_id=p.id).order_by(Problema.numero_ejercicio).all()
         data.append({
-            "filename": str(p.id), # Truco puente temporal para el frontend
+            "filename": str(p.id),
             "practica_id": p.id,
             "title": p.titulo,
             "description": p.descripcion,
-            "max_time": p.max_time * 60, # Frontend divide entre 60 para mostrar minutos
-            "num_problems": num_probs
+            "max_time": p.max_time * 60,
+            "num_problems": len(probs),
+            "problemas": [{"id": pr.numero_ejercicio, "enunciado": pr.enunciado} for pr in probs]
         })
     return jsonify(data), 200
 
@@ -1770,14 +1770,15 @@ def get_my_exercises():
     for asig in asignaciones:
         p = Practica.query.get(asig.practica_id)
         if p:
-            num_probs = Problema.query.filter_by(practica_id=p.id).count()
+            probs = Problema.query.filter_by(practica_id=p.id).order_by(Problema.numero_ejercicio).all()
             data.append({
-                "filename": str(p.id), # Truco puente temporal
+                "filename": str(p.id),
                 "practica_id": p.id,
                 "title": p.titulo,
                 "description": p.descripcion,
                 "max_time": p.max_time * 60,
-                "num_problems": num_probs,
+                "num_problems": len(probs),
+                "problemas": [{"id": pr.numero_ejercicio, "enunciado": pr.enunciado} for pr in probs], # <--- AGREGADO
                 "is_active": asig.is_active,
                 "is_mine": p.profesor_id == prof_id or p.profesor_id is None
             })
