@@ -1650,49 +1650,128 @@ def download_grades_report():
 def upload_exercise_pdf():
     prof_id = int(get_jwt_identity())
     print("🚀 [Upload] Iniciando recepción de archivo...")
-    
-    # Buscamos cualquier archivo enviado, sin importar el nombre del campo del formulario
+
     if not request.files:
         return jsonify({"error": "No se envió ningún archivo"}), 400
-        
-    # Esto toma el primer archivo que haya llegado en la petición
-    file = list(request.files.values())[0]
-    print(f"📄 [Upload] Procesando archivo detectado: {file.filename}")
-    
-    if file and file.filename.lower().endswith('.pdf'):
-        try:
-            # 1. Leer el archivo a un stream de bytes
-            stream = BytesIO(file.read())
-            print("📖 [Upload] Iniciando lectura de PDF con PyPDF2...")
-            pdf_reader = PyPDF2.PdfReader(stream)
-            
-            text = ""
-            for i, page in enumerate(pdf_reader.pages):
-                extracted = page.extract_text()
-                if extracted:
-                    text += extracted + "\n"
-                else:
-                    print(f"⚠️ [Upload] La página {i+1} no tiene texto extraíble.")
-            
-            print(f"📝 [Upload] Texto extraído (longitud: {len(text)})")
-            
-            if len(text) < 50:
-                return jsonify({"error": "El PDF parece estar vacío o ser una imagen. Por favor sube un PDF con texto seleccionable."}), 400
 
-            # 2. Llamada al LLM
-            print("🤖 [Upload] Enviando a IA para estructura...")
-            # ... (tu código del prompt de IA sigue aquí) ...
-            
-            # (Asegúrate de dejar el resto de tu código igual hasta el db.session.commit())
-            
-        except Exception as e:
-            # ESTO ES LO QUE VEREMOS EN LOS LOGS DE RAILWAY
-            print(f"❌ [Upload] ERROR CRÍTICO: {str(e)}")
-            import traceback
-            traceback.print_exc() 
-            return jsonify({"error": f"Error interno al procesar PDF: {str(e)}"}), 500
-    else:
+    file = list(request.files.values())[0]
+    print(f"📄 [Upload] Procesando archivo: {file.filename}")
+
+    if not (file and file.filename.lower().endswith('.pdf')):
         return jsonify({"error": "Formato no soportado."}), 400
+
+    try:
+        # 1. Extraer texto del PDF
+        stream = BytesIO(file.read())
+        print("📖 [Upload] Leyendo PDF con PyPDF2...")
+        pdf_reader = PyPDF2.PdfReader(stream)
+
+        text = ""
+        for i, page in enumerate(pdf_reader.pages):
+            extracted = page.extract_text()
+            if extracted:
+                text += extracted + "\n"
+            else:
+                print(f"⚠️ [Upload] Página {i+1} sin texto extraíble.")
+
+        print(f"📝 [Upload] Texto extraído ({len(text)} caracteres)")
+
+        if len(text) < 50:
+            return jsonify({"error": "El PDF parece estar vacío o ser una imagen. Sube un PDF con texto seleccionable."}), 400
+
+        # 2. Llamada al LLM para estructurar la tarea
+        print("🤖 [Upload] Enviando a IA...")
+        prompt_sistema = """Eres un asistente que convierte documentos académicos en tareas estructuradas.
+Dado el texto de un PDF, extrae:
+- Un título corto para la práctica
+- Una descripción breve (1-2 oraciones)
+- Los problemas/ejercicios individuales (máximo 10)
+- Un tiempo máximo sugerido en minutos (entre 20 y 120)
+
+Responde ÚNICAMENTE con JSON válido, sin texto extra, con este formato exacto:
+{
+  "titulo": "...",
+  "descripcion": "...",
+  "max_time": 60,
+  "problemas": [
+    {"numero": 1, "enunciado": "..."},
+    {"numero": 2, "enunciado": "..."}
+  ]
+}"""
+
+        messages = [
+            {"role": "system", "content": prompt_sistema},
+            {"role": "user",   "content": f"Aquí está el contenido del PDF:\n\n{text[:6000]}"}
+        ]
+
+        raw_json = call_mistral(messages, temperature=0.3, max_tokens=1500)
+        print(f"🤖 [Upload] Respuesta IA recibida: {raw_json[:200]}...")
+
+        # 3. Parsear el JSON devuelto por el LLM
+        # Limpiamos posibles bloques de código markdown
+        clean_json = raw_json.strip()
+        if clean_json.startswith("```"):
+            clean_json = clean_json.split("```")[1]
+            if clean_json.startswith("json"):
+                clean_json = clean_json[4:]
+        clean_json = clean_json.strip()
+
+        data_ia = json.loads(clean_json)
+
+        titulo     = data_ia.get("titulo", file.filename.replace(".pdf", ""))
+        descripcion= data_ia.get("descripcion", "")
+        max_time   = int(data_ia.get("max_time", 60))
+        problemas  = data_ia.get("problemas", [])
+
+        if not problemas:
+            return jsonify({"error": "La IA no pudo identificar problemas en el documento."}), 422
+
+        # 4. Guardar en base de datos
+        nueva_practica = Practica(
+            titulo=titulo,
+            descripcion=descripcion,
+            max_time=max_time,
+            profesor_id=prof_id,
+            rubricas=[]
+        )
+        db.session.add(nueva_practica)
+        db.session.flush()  # para obtener el ID antes del commit
+
+        for prob in problemas:
+            nuevo_prob = Problema(
+                practica_id=nueva_practica.id,
+                numero_ejercicio=int(prob.get("numero", 1)),
+                enunciado=prob.get("enunciado", "")
+            )
+            db.session.add(nuevo_prob)
+
+        # También agregar a la lista del profesor automáticamente
+        nueva_asig = ListaEjercicios(
+            profesor_id=prof_id,
+            practica_id=nueva_practica.id,
+            exercise_filename=f"PDF_{nueva_practica.id}",
+            is_active=False
+        )
+        db.session.add(nueva_asig)
+        db.session.commit()
+
+        print(f"✅ [Upload] Práctica #{nueva_practica.id} creada con {len(problemas)} problemas.")
+        return jsonify({
+            "msg": "Tarea creada exitosamente",
+            "practica_id": nueva_practica.id,
+            "titulo": titulo,
+            "num_problems": len(problemas),
+            "problemas": [{"id": p.get("numero"), "enunciado": p.get("enunciado")} for p in problemas]
+        }), 201
+
+    except json.JSONDecodeError as e:
+        print(f"❌ [Upload] Error parseando JSON de IA: {e}")
+        return jsonify({"error": "La IA devolvió una respuesta con formato inválido. Intenta de nuevo."}), 500
+    except Exception as e:
+        print(f"❌ [Upload] ERROR CRÍTICO: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Error interno al procesar PDF: {str(e)}"}), 500
 
 # =========================================
 # RUTAS DE TAREAS / EJERCICIOS (NUEVA ARQUITECTURA RELACIONAL)
