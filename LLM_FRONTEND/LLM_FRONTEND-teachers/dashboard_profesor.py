@@ -660,13 +660,9 @@ def main(page: ft.Page):
         # ==========================================
         def on_upload_result(e: ft.FilePickerResultEvent):
             if e.files:
-                # Mostrar barra superior indicando que la IA está pensando
                 page.splash = ft.ProgressBar()
                 page.update()
-                
-                # Pasamos el token por la URL
                 upload_url = f"{BASE}/api/teacher/exercises/upload?jwt={state['token']}"
-                
                 file_picker.upload([
                     ft.FilePickerUploadFile(
                         e.files[0].name,
@@ -678,7 +674,7 @@ def main(page: ft.Page):
         def on_upload_progress(e: ft.FilePickerUploadEvent):
             if e.error:
                 page.splash = None
-                flash(f"Error HTTP: El servidor rechazó el archivo.", ok=False)
+                flash(f"Error al subir: {e.error}", ok=False)
                 page.update()
                 return
                 
@@ -690,8 +686,8 @@ def main(page: ft.Page):
                 def check_backend_success():
                     old_count = len(state.get("my_exercises", []))
                     
-                    for _ in range(40): 
-                        time.sleep(3)
+                    for _ in range(60): 
+                        time.sleep(5)
                         try:
                             res = auth_request("GET", "/api/teacher/my-exercises")
                             if res and res.status_code == 200:

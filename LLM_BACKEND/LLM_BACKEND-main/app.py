@@ -78,7 +78,7 @@ def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", tem
         "max_tokens": max_tokens,
     }
 
-    r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=120)
+    r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=180)
     r.raise_for_status()
     data = r.json()
     return data["choices"][0]["message"]["content"].strip()
@@ -88,6 +88,8 @@ def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", tem
 # ------------------------------------------------------------------------------------
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config["JWT_QUERY_STRING_NAME"] = "jwt"
 CORS(app)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
     "DATABASE_URL",
@@ -1634,6 +1636,80 @@ def download_grades_report():
     output.seek(0)
     return send_file(output, download_name="Reporte_Calificaciones.xlsx", as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+def process_pdf_background(app_obj, file_bytes, filename, prof_id):
+    """Esta función corre en segundo plano sin que el servidor la mate por tiempo"""
+    with app_obj.app_context():
+        try:
+            stream = BytesIO(file_bytes)
+            text = ""
+            print("📖 [Upload] Leyendo con pdfplumber...")
+            with pdfplumber.open(stream) as pdf:
+                for i, page in enumerate(pdf.pages):
+                    extracted = page.extract_text()
+                    if extracted:
+                        text += extracted + "\n"
+
+            if len(text.strip()) < 50:
+                print("⚠️ [Upload] PDF sin texto. Activando OCR fallback...")
+                images = convert_from_bytes(stream.getvalue())
+                for img in images:
+                    text += pytesseract.image_to_string(img, lang="spa") + "\n"
+
+            if len(text.strip()) < 50:
+                print("❌ [Upload] PDF ilegible.")
+                return
+
+            print("🤖 [Upload] Enviando a Mistral...")
+            sys_prompt = "Eres un asistente experto en pedagogía. Extrae los ejercicios del documento provisto y devuelve EXCLUSIVAMENTE un JSON válido con esta estructura: {\"titulo\": \"...\", \"descripcion\": \"...\", \"max_time\": 60, \"problemas\": [{\"id\": 1, \"enunciado\": \"...\"}]}"
+
+            messages = [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": f"DOCUMENTO:\n{text[:15000]}"}
+            ]
+
+            raw_json = call_mistral(messages, temperature=0.1, max_tokens=2500)
+
+            import re
+            match = re.search(r'\{.*\}', raw_json, re.DOTALL)
+            if not match:
+                print(f"❌ [Upload] IA no devolvió JSON válido.")
+                return
+
+            data_ia = json.loads(match.group(0))
+
+            nueva_practica = Practica(
+                titulo=data_ia.get("titulo", filename.replace(".pdf", "")),
+                descripcion=data_ia.get("descripcion", ""),
+                max_time=int(data_ia.get("max_time", 60)),
+                profesor_id=prof_id,
+                rubricas=[]
+            )
+            db.session.add(nueva_practica)
+            db.session.flush()
+
+            for prob in data_ia.get("problemas", []):
+                nuevo_prob = Problema(
+                    practica_id=nueva_practica.id,
+                    numero_ejercicio=int(prob.get("id", prob.get("numero", 1))),
+                    enunciado=str(prob.get("enunciado", ""))
+                )
+                db.session.add(nuevo_prob)
+
+            db.session.add(ListaEjercicios(
+                profesor_id=prof_id,
+                exercise_filename=f"MIGRADO_{nueva_practica.id}",
+                practica_id=nueva_practica.id,
+                is_active=True
+            ))
+
+            db.session.commit()
+            print("✅ [Upload] Tarea guardada con éxito.")
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"❌ [Upload] Error interno: {str(e)}")
+
 @app.route("/api/teacher/exercises/upload", methods=["POST"])
 @jwt_required()
 def upload_exercise_pdf():
@@ -1643,83 +1719,17 @@ def upload_exercise_pdf():
         return jsonify({"error": "No se recibió el archivo"}), 400
     
     file = list(request.files.values())[0]
-    if not file.filename.lower().endswith('.pdf'):
+    filename = file.filename or "documento.pdf"
+
+    if not filename.lower().endswith('.pdf'):
         return jsonify({"error": "Solo se permiten PDFs"}), 400
 
-    try:
-        stream = BytesIO(file.read())
-        text = ""
-        
-        # 1. INTENTO PRIMARIO: Leer texto nativo con pdfplumber (Mucho mejor que PyPDF2)
-        print("📖 [Upload] Leyendo con pdfplumber...")
-        with pdfplumber.open(stream) as pdf:
-            for i, page in enumerate(pdf.pages):
-                extracted = page.extract_text()
-                if extracted:
-                    text += extracted + "\n"
+    # Extraemos los bytes y mandamos el trabajo pesado al hilo de fondo
+    file_bytes = file.read()
+    gevent.spawn(process_pdf_background, app, file_bytes, filename, prof_id)
 
-        # 2. FALLBACK A OCR: Si el PDF era una imagen o un escaneo (menos de 50 caracteres)
-        if len(text.strip()) < 50:
-            print("⚠️ [Upload] PDF sin texto detectado. Activando OCR fallback...")
-            images = convert_from_bytes(stream.getvalue())
-            for img in images:
-                # lang="spa" fuerza a reconocer español (tildes, eñes)
-                text += pytesseract.image_to_string(img, lang="spa") + "\n"
-
-        if len(text.strip()) < 50:
-            return jsonify({"error": "El PDF es completamente ilegible o está vacío."}), 400
-
-        # 3. LLAMADA AL LLM (Truncando a 15,000 en vez de 6,000 para no perder datos)
-        print("🤖 [Upload] Enviando a Mistral...")
-        sys_prompt = "Eres un asistente experto en pedagogía. Extrae los ejercicios del documento provisto y devuelve EXCLUSIVAMENTE un JSON válido con esta estructura: {\"titulo\": \"...\", \"descripcion\": \"...\", \"max_time\": 60, \"problemas\": [{\"id\": 1, \"enunciado\": \"...\"}]}"
-        
-        messages = [
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": f"DOCUMENTO:\n{text[:15000]}"}
-        ]
-        
-        # Aumentamos tokens y bajamos temperatura para hacer la salida más estricta y larga
-        raw_json = call_mistral(messages, temperature=0.1, max_tokens=2500)
-        
-        # 4. BLINDAJE JSON: Extraer solo el bloque de código aunque la IA haya hablado de más
-        match = re.search(r'\{.*\}', raw_json, re.DOTALL)
-        if not match:
-            print(f"❌ [Upload] Error: IA no devolvió JSON. Respuesta cruda: {raw_json}")
-            return jsonify({"error": "La IA no pudo formatear la respuesta."}), 500
-            
-        try:
-            data_ia = json.loads(match.group(0))
-        except Exception as ex:
-            print(f"❌ [Upload] Error de Parseo JSON: {ex}")
-            return jsonify({"error": "La IA devolvió un formato corrupto."}), 500
-
-        # 5. GUARDADO EN BD
-        nueva_practica = Practica(
-            titulo=data_ia.get("titulo", file.filename.replace(".pdf", "")),
-            descripcion=data_ia.get("descripcion", ""),
-            max_time=int(data_ia.get("max_time", 60)),
-            profesor_id=prof_id,
-            rubricas=[]
-        )
-        db.session.add(nueva_practica)
-        db.session.flush()
-
-        for prob in data_ia.get("problemas", []):
-            nuevo_prob = Problema(
-                practica_id=nueva_practica.id,
-                numero_ejercicio=int(prob.get("id", prob.get("numero", 1))),
-                enunciado=str(prob.get("enunciado", ""))
-            )
-            db.session.add(nuevo_prob)
-
-        db.session.commit()
-        print("✅ [Upload] Tarea guardada con éxito.")
-        return jsonify({"msg": "Generado correctamente"}), 201
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": f"Error interno: {str(e)}"}), 500
+    # Contestamos rápido para que el servidor no corte la conexión de Flet
+    return jsonify({"msg": "Recibido. Procesando en segundo plano"}), 202
 
 # =========================================
 # RUTAS DE TAREAS / EJERCICIOS (NUEVA ARQUITECTURA RELACIONAL)
