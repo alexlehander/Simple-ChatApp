@@ -477,7 +477,7 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
                 correo_identificacion=correo,
                 intent=intent_raw,
                 dimension=dimension_safe,
-                analysis.color_asignado = calculated_color
+                color_asignado=calculated_color
             )
             db.session.add(analysis)
             db.session.commit()
