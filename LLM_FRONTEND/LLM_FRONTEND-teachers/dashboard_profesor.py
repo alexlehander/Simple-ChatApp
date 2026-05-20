@@ -662,10 +662,14 @@ def main(page: ft.Page):
             if e.files:
                 page.splash = ft.ProgressBar()
                 page.update()
-                upload_url = f"{BASE}/api/teacher/exercises/upload?jwt={state['token']}"
+                filename = e.files[0].name
+                upload_url = (
+                    f"{BASE}/api/teacher/exercises/upload"
+                    f"?jwt={state['token']}&filename={filename}"
+                )
                 file_picker.upload([
                     ft.FilePickerUploadFile(
-                        e.files[0].name,
+                        filename,
                         upload_url=upload_url,
                         method="POST"
                     )

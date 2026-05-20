@@ -1714,21 +1714,18 @@ def process_pdf_background(app_obj, file_bytes, filename, prof_id):
 @jwt_required()
 def upload_exercise_pdf():
     prof_id = int(get_jwt_identity())
-    
-    if not request.files:
+    filename = request.args.get("filename", "documento.pdf")
+    if request.files:
+        file = list(request.files.values())[0]
+        filename = file.filename or filename
+        file_bytes = file.read()
+    elif request.data:
+        file_bytes = request.data
+    else:
         return jsonify({"error": "No se recibió el archivo"}), 400
-    
-    file = list(request.files.values())[0]
-    filename = file.filename or "documento.pdf"
-
     if not filename.lower().endswith('.pdf'):
         return jsonify({"error": "Solo se permiten PDFs"}), 400
-
-    # Extraemos los bytes y mandamos el trabajo pesado al hilo de fondo
-    file_bytes = file.read()
     gevent.spawn(process_pdf_background, app, file_bytes, filename, prof_id)
-
-    # Contestamos rápido para que el servidor no corte la conexión de Flet
     return jsonify({"msg": "Recibido. Procesando en segundo plano"}), 202
 
 # =========================================
