@@ -1546,7 +1546,7 @@ def main(page: ft.Page):
                     titulo_label,
                     barra_progreso,
                     temporizador_text,
-                    restart_btn,
+                    reiniciar_button,
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
