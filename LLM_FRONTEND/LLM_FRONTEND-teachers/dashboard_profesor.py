@@ -248,15 +248,20 @@ def main(page: ft.Page):
                         shape=ft.Border(),
                     )
                     nuevos_controles.append(item_tile)
-                    
             detail_dlg_content.controls = nuevos_controles
             try:
-                if detail_dlg.open: detail_dlg_content.update()
-            except Exception: pass
+                if detail_dlg_content.page:
+                    detail_dlg_content.update()
+            except Exception:
+                pass
                 
         def trigger_load(e=None):
             detail_dlg_content.controls = [ft.Container(content=ft.ProgressRing(), alignment=ft.alignment.center, height=100)]
-            if detail_dlg.open: detail_dlg_content.update()
+            try:
+                if detail_dlg_content.page:
+                    detail_dlg_content.update()
+            except Exception:
+                pass
             threading.Thread(target=fetch_and_render_timeline, daemon=True).start()
 
         def on_switch_change(e):
@@ -2207,8 +2212,6 @@ def main(page: ft.Page):
             
         def close_grade_dlg():
             grade_dlg.open = False
-            if grade_dlg in page.overlay:
-                page.overlay.remove(grade_dlg)
             page.update()
             
         def open_delete_eval_dlg(eval_id):
@@ -2218,8 +2221,6 @@ def main(page: ft.Page):
             
         def close_delete_eval_dlg():
             delete_eval_dlg.open = False
-            if delete_eval_dlg in page.overlay:
-                page.overlay.remove(delete_eval_dlg)
             page.update()
             
         def confirm_delete_eval(e):
@@ -2271,8 +2272,7 @@ def main(page: ft.Page):
                     sel_practice_idx = next(i for i, p in enumerate(master_practices) if p["title"] == initial_item["practica"] or p["filename"] == initial_item["practica"])
                 except StopIteration: sel_practice_idx = 0
                 all_evals = state.get("pending_grades", []) + state.get("completed_grades", [])
-                entregas = sorted([int(ev["problema_id"]) for ev in all_evals if ev["correo"] == initial_item["correo"]])
-                sel_problem_id = entregas[0] if entregas else 1
+                sel_problem_id = int(initial_item["problema_id"])
                 status_msg_dlg = ft.Text("", weight="bold", size=14, text_align=ft.TextAlign.CENTER)
                 if "revised_evals" not in state:
                     state["revised_evals"] = set()

@@ -1556,7 +1556,14 @@ def main(page: ft.Page):
                     theme_icon_btn,
                     titulo_label,
                     barra_progreso,
-                    temporizador_text,
+                    ft.GestureDetector(
+                        content=ft.Container(
+                            content=temporizador_text,
+                            padding=ft.padding.symmetric(horizontal=12),
+                        ),
+                        on_tap=toggle_timer,
+                        mouse_cursor=ft.MouseCursor.CLICK,
+                    ),
                     reiniciar_button,
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
