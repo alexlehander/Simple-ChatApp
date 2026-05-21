@@ -440,7 +440,16 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
         except Exception as e:
             print(f"❌ [Background] Error generando respuesta: {e}")
             usuario = db.session.get(Usuario, usuario_id)
-            save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", "Lo siento, tuve un error técnico al pensar mi respuesta.")
+            error_msg = "Lo siento, tuve un error técnico al pensar mi respuesta. ¿Puedes intentar de nuevo?"
+            save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", error_msg)
+            
+            # ---> AGREGA ESTO PARA DESTRABAR LA PANTALLA <---
+            safe_emit('nuevo_mensaje_bot', {
+                'correo': correo,
+                'problema_id': problema_id,
+                'role': 'assistant',
+                'content': error_msg
+            })
 
 def get_exercise_metadata(filename):
     try:

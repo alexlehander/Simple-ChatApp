@@ -864,15 +864,16 @@ def main(page: ft.Page):
             if e.key and len(e.key) == 1 and not page.input_is_focused: user_input.focus()
             
         def handle_bot_message(data):
-            if data['problema_id'] == problema_actual_id:
-                if getattr(page, "burbuja_carga", None) in chat_area.controls:
-                    try:
-                        chat_area.controls.remove(page.burbuja_carga)
-                    except Exception:
-                        pass
-                    page.burbuja_carga = None
+            pid_recibido = int(data['problema_id'])
+            update_map(page, STATE_KEYS["chat"], pid_recibido, {"role": data['role'], "text": data['content']})
+            if getattr(page, "burbuja_carga", None) in chat_area.controls:
+                try:
+                    chat_area.controls.remove(page.burbuja_carga)
+                except Exception:
+                    pass
+                page.burbuja_carga = None
+            if pid_recibido == int(problema_actual_id):
                 add_chat_bubble(data['role'], data['content'])
-                update_map(page, STATE_KEYS["chat"], problema_actual_id, {"role": data['role'], "text": data['content']})
                 page.polling_speed = "slow"
                 try:
                     if page.is_alive:
