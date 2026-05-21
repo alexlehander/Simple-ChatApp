@@ -173,7 +173,18 @@ def main(page: ft.Page):
         threading.Thread(target=procesar_mensaje, daemon=True).start()
     @sio.event
     def disconnect():
-        print("⚠️ [Student] Socket desconectado. El cliente intentará reconectar automáticamente.")
+        print("⚠️ Socket desconectado.")
+        def reconnect():
+            for i in range(5):
+                try:
+                    time.sleep(2)
+                    if not sio.connected:
+                        sio.connect(BASE, wait_timeout=10)
+                        print("✅ Socket reconectado")
+                        return
+                except Exception as e:
+                    print(f"Reconnect error: {e}")
+        threading.Thread(target=reconnect, daemon=True).start()
     try:
         last_heartbeat = page.client_storage.get("last_heartbeat")
         now = time.time()
@@ -1329,6 +1340,22 @@ def main(page: ft.Page):
                             threading.Timer(2.0, show_login_register).start()
                         return
                     resp.raise_for_status()
+                    data = resp.json()
+                    if data.get("status") == "ok":
+                        bot_response = data.get("response", "")
+                        if getattr(page, "burbuja_carga", None) in chat_area.controls:
+                            chat_area.controls.remove(page.burbuja_carga)
+                        add_chat_bubble("assistant", bot_response)
+                        update_map(
+                            page,
+                            STATE_KEYS["chat"],
+                            problema_actual_id,
+                            {
+                                "role": "assistant",
+                                "text": bot_response
+                            }
+                        )
+                        page.update()
                 except requests.exceptions.RequestException as ex:
                     print(f"❌ Error al enviar mensaje: {ex}")
                     add_to_pending_queue(page, {
@@ -1343,6 +1370,16 @@ def main(page: ft.Page):
                         flash("Sin conexión. Se guardó en la cola.", ok=False)
                     chat_area.update()
                     
+            if not sio.connected:
+                flash("Reconectando al chat...", ok=False)
+                try:
+                    sio.connect(BASE, wait_timeout=10)
+                except Exception as e:
+                    flash("No se pudo conectar al servidor.", ok=False)
+                    if getattr(page, "burbuja_carga", None) in chat_area.controls:
+                        chat_area.controls.remove(page.burbuja_carga)
+                    page.update()
+                    return
             threading.Thread(target=send_request_thread, daemon=True).start()
             
         user_input = ft.TextField(

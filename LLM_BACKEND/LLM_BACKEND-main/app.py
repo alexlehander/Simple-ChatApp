@@ -113,7 +113,13 @@ app.config["JWT_ACCESS_TOKEN_EXPIRES"] = dt.timedelta(hours=12)
 app.config["JWT_TOKEN_LOCATION"] = ["headers", "query_string"]
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode="gevent",
+    ping_timeout=60,
+    ping_interval=20
+)
 def safe_emit(event, data, room=None):
     try:
         if room:
@@ -712,12 +718,72 @@ def chat(problema_id: int):
         return jsonify({"error": "No autorizado"}), 403
     user_msg = (data.get("message") or "").strip()
     if not user_msg:
-        return jsonify({"status": "error", "message": "Mensaje vacío"}), 400
+        return jsonify({
+            "status": "error",
+            "message": "Mensaje vacío"
+        }), 400
     usuario = get_or_create_user(correo)
-    chat_id = save_chat_turn(usuario, correo, practice_name, problema_id, "user", user_msg)
-    gevent.spawn(background_llm_task, app, usuario.id, correo, practice_name, problema_id)
-    gevent.spawn(analyze_interaction_semaphore, chat_id, user_msg, correo, prog_pct)
-    return jsonify({"status": "processing", "message": "Procesando..."})
+    chat_id = save_chat_turn(
+        usuario,
+        correo,
+        practice_name,
+        problema_id,
+        "user",
+        user_msg
+    )
+    socketio.start_background_task(
+        analyze_interaction_semaphore,
+        chat_id,
+        user_msg,
+        correo,
+        prog_pct
+    )
+    try:
+        messages = history_for_chat(
+            correo,
+            problema_id,
+            practice_name
+        )
+        bot_response = call_mistral(messages)
+        if QC_ENABLED:
+            problem_text = get_problem_enunciado(
+                practice_name,
+                problema_id
+            )
+            bot_response = review_with_qc(
+                bot_response,
+                problem_text,
+                DEFAULT_SYSTEM_PROMPT,
+                user_msg
+            )
+        save_chat_turn(
+            usuario,
+            correo,
+            practice_name,
+            problema_id,
+            "assistant",
+            bot_response
+        )
+        safe_emit(
+            'nuevo_mensaje_bot',
+            {
+                'correo': correo,
+                'problema_id': problema_id,
+                'role': 'assistant',
+                'content': bot_response
+            }
+        )
+        return jsonify({
+            "status": "ok",
+            "response": bot_response
+        })
+    except Exception as e:
+        print(f"❌ Chat Error: {e}")
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": "Error generando respuesta"
+        }), 500
     
 @app.route("/api/teacher/register", methods=["POST"])
 def teacher_register():
