@@ -144,6 +144,8 @@ def main(page: ft.Page):
 
     def close_detail_dlg():
         detail_dlg.open = False
+        if detail_dlg in page.overlay:
+            page.overlay.remove(detail_dlg)
         page.update()
 
     def show_student_detail(email):
@@ -171,7 +173,7 @@ def main(page: ft.Page):
             title=ft.Row([ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=COLORES["advertencia"]), ft.Text("Enviar Alerta")]),
             content=ft.Container(content=alert_msg_field, width=400, height=100),
             actions=[
-                ft.TextButton("Cancelar", on_click=lambda e: setattr(alert_dlg, 'open', False) or page.update()),
+                ft.TextButton("Cancelar", on_click=lambda e: (setattr(alert_dlg, 'open', False), page.overlay.remove(alert_dlg) if alert_dlg in page.overlay else None, page.update())),
                 ft.ElevatedButton("Enviar", bgcolor=COLORES["error"], color=COLORES["fondo"], on_click=send_alert_action)
             ]
         )
@@ -872,6 +874,7 @@ def main(page: ft.Page):
                         "Cancelar",
                         on_click=lambda _: (
                             setattr(params_dlg, "open", False),
+                            page.overlay.remove(params_dlg) if params_dlg in page.overlay else None,
                             page.update(),
                         ),
                     ),
@@ -1179,6 +1182,8 @@ def main(page: ft.Page):
         
         def close_ex_detail_dlg():
             ex_detail_dlg.open = False
+            if ex_detail_dlg in page.overlay:
+                page.overlay.remove(ex_detail_dlg)
             page.update()
             
         def open_exercise_dialog(ex):
@@ -1272,7 +1277,7 @@ def main(page: ft.Page):
                 ], scroll="auto", spacing=10)
                 
                 actions = [
-                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, 'open', False) or page.update()),
+                    ft.TextButton("Cancelar", on_click=lambda e: (setattr(dlg, 'open', False), page.overlay.remove(dlg) if dlg in page.overlay else None, page.update())),
                     ft.ElevatedButton("Guardar Cambios", bgcolor=COLORES["exito"], color=COLORES["fondo"], on_click=save_task)
                 ]
             else:
@@ -1288,8 +1293,7 @@ def main(page: ft.Page):
                     ft.Text("Problemas:", weight="bold", color=COLORES["primario"]),
                     ft.Column([ft.Text(f"{p['id']}. {p['enunciado']}", size=12) for p in data.get("problemas",[])]),
                 ], scroll="auto", spacing=10)
-                
-                actions = [ft.TextButton("Cerrar", on_click=lambda e: setattr(dlg, 'open', False) or page.update())]
+                actions = [ft.TextButton("Cerrar", on_click=lambda e: (setattr(dlg, 'open', False), page.overlay.remove(dlg) if dlg in page.overlay else None, page.update()))]
 
             dlg = ft.AlertDialog(
                 title=ft.Text("Editor de Tareas" if is_mine else "Detalles de la Tarea"),
@@ -1823,6 +1827,8 @@ def main(page: ft.Page):
 
         def close_stop_session_dlg():
             stop_session_dlg.open = False
+            if stop_session_dlg in page.overlay:
+                page.overlay.remove(stop_session_dlg)
             page.update()
 
         def confirm_stop_session(e):
@@ -2201,6 +2207,8 @@ def main(page: ft.Page):
             
         def close_grade_dlg():
             grade_dlg.open = False
+            if grade_dlg in page.overlay:
+                page.overlay.remove(grade_dlg)
             page.update()
             
         def open_delete_eval_dlg(eval_id):
@@ -2210,6 +2218,8 @@ def main(page: ft.Page):
             
         def close_delete_eval_dlg():
             delete_eval_dlg.open = False
+            if delete_eval_dlg in page.overlay:
+                page.overlay.remove(delete_eval_dlg)
             page.update()
             
         def confirm_delete_eval(e):
@@ -3109,7 +3119,7 @@ def main(page: ft.Page):
                     ], scroll=ft.ScrollMode.AUTO, spacing=10)
                 ),
                 actions=[
-                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, 'open', False) or page.update()),
+                    ft.TextButton("Cancelar", on_click=lambda e: (setattr(dlg, 'open', False), page.overlay.remove(dlg) if dlg in page.overlay else None, page.update())),
                     ft.ElevatedButton("Guardar Clase", on_click=save_class, bgcolor=COLORES["exito"], color=COLORES["fondo"])
                 ]
             )

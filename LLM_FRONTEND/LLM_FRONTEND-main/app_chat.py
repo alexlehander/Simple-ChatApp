@@ -173,25 +173,7 @@ def main(page: ft.Page):
         threading.Thread(target=procesar_mensaje, daemon=True).start()
     @sio.event
     def disconnect():
-        print("⚠️ [Student] Socket desconectado")
-        def _reconnect():
-            import time as _t
-            for attempt in range(1, 6):
-                _t.sleep(3 * attempt)
-                if not page.is_alive:
-                    return
-                if not state.get("token"):
-                    return  # logged out, don't reconnect
-                try:
-                    if not sio.connected:
-                        sio.connect(BASE, wait_timeout=5)
-                        print(f"✅ [Student] Socket reconectado (intento {attempt})")
-                        return
-                except Exception as ex:
-                    if "already connected" in str(ex).lower():
-                        return
-                    print(f"⚠️ [Student] Reintento {attempt}/5: {ex}")
-    threading.Thread(target=_reconnect, daemon=True).start()
+        print("⚠️ [Student] Socket desconectado. El cliente intentará reconectar automáticamente.")
     try:
         last_heartbeat = page.client_storage.get("last_heartbeat")
         now = time.time()

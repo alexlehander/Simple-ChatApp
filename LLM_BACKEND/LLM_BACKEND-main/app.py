@@ -532,88 +532,88 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
             
 # 2. Automated Grading Function
 def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
-    example_json = """{
-        "calificación": 8,
-        "comentario": "La lógica general es adecuada, pero el desarrollo carece de pasos intermedios y la explicación es muy superficial.",
-        "rubricas": [
-            {"dimension": "Exactitud de la solución", "observacion": "El resultado final de la operación coincide con el esperado."},
-            {"dimension": "Completitud del procedimiento", "observacion": "Se saltó la declaración de variables y no mostró el proceso paso a paso."},
-            {"dimension": "Nivel de detalle de la explicación", "observacion": "Solo indicó el resultado sin argumentar el razonamiento analítico."}
-        ]
-    }"""
-    user_prompt = f"""
-        Actúa como un profesor experto de ciencias computacionales que evalúa una práctica universitaria.
-        A continuación se presenta un ejercicio realizado por el estudiante.
-        El bloque contiene la **Descripción del Problema** y la **Respuesta del Estudiante**.
+    with app.app_context():
+        example_json = """{
+            "calificación": 8,
+            "comentario": "La lógica general es adecuada, pero el desarrollo carece de pasos intermedios y la explicación es muy superficial.",
+            "rubricas": [
+                {"dimension": "Exactitud de la solución", "observacion": "El resultado final de la operación coincide con el esperado."},
+                {"dimension": "Completitud del procedimiento", "observacion": "Se saltó la declaración de variables y no mostró el proceso paso a paso."},
+                {"dimension": "Nivel de detalle de la explicación", "observacion": "Solo indicó el resultado sin argumentar el razonamiento analítico."}
+            ]
+        }"""
+        user_prompt = f"""
+            Actúa como un profesor experto de ciencias computacionales que evalúa una práctica universitaria.
+            A continuación se presenta un ejercicio realizado por el estudiante.
+            El bloque contiene la **Descripción del Problema** y la **Respuesta del Estudiante**.
 
-        Tu tarea consiste en:
-        1. Leer la descripción del problema para entender qué se pedía.
-        2. Evaluar la respuesta basándote EXCLUSIVAMENTE en estas 3 dimensiones:
-           - Exactitud de la solución: ¿Es correcta la respuesta final conceptual o matemáticamente?
-           - Completitud del procedimiento: ¿El estudiante mostró y desarrolló todos los pasos técnicos necesarios?
-           - Nivel de detalle de la explicación: ¿El estudiante justificó adecuadamente su razonamiento?
-        3. Asignar una calificación global (0-10) basada en las dimensiones anteriores.
-        4. Redactar un 'comentario' general corto, que se le mostrara posteriormente al estudiante junto con la calificación del profesor.
-        5. Generar una 'observacion' específica y detallada para cada una de las 3 'rubricas'.
+            Tu tarea consiste en:
+            1. Leer la descripción del problema para entender qué se pedía.
+            2. Evaluar la respuesta basándote EXCLUSIVAMENTE en estas 3 dimensiones:
+               - Exactitud de la solución: ¿Es correcta la respuesta final conceptual o matemáticamente?
+               - Completitud del procedimiento: ¿El estudiante mostró y desarrolló todos los pasos técnicos necesarios?
+               - Nivel de detalle de la explicación: ¿El estudiante justificó adecuadamente su razonamiento?
+            3. Asignar una calificación global (0-10) basada en las dimensiones anteriores.
+            4. Redactar un 'comentario' general corto, que se le mostrara posteriormente al estudiante junto con la calificación del profesor.
+            5. Generar una 'observacion' específica y detallada para cada una de las 3 'rubricas'.
 
-        Usa esta rúbrica para asignar la calificación y guiar tu comentario (puedes usar tambien numeros impares si la respuesta proporcionada por el estudiante cae entre 2 items):
-        - 10: Solución correcta, cuenta con el procedimiento completo y una explicación exhaustiva.
-        - 8: Solución correcta y explicación exhaustiva, pero el procedimiento es incomplelto.
-        - 8: Solución correcta y procedimiento completo, pero la explicación no es exhaustiva.
-        - 6: Solución incorecta, pero el procedimiento es completo y la explicación es exhaustiva.
-        - 4: Solución incorecta, procedimiento incompleto pero la explicación es exhaustiva.
-        - 4: Solución incorecta, explicación no exhaustiva pero el procedimiento es completo.
-        - 2: Solución incorecta, explicación no exhaustiva y procedimiento incompleto.
-        - 0: Estudiante no proporciono ninguna informacion para responder este ejercicio.
+            Usa esta rúbrica para asignar la calificación y guiar tu comentario (puedes usar tambien numeros impares si la respuesta proporcionada por el estudiante cae entre 2 items):
+            - 10: Solución correcta, cuenta con el procedimiento completo y una explicación exhaustiva.
+            - 8: Solución correcta y explicación exhaustiva, pero el procedimiento es incomplelto.
+            - 8: Solución correcta y procedimiento completo, pero la explicación no es exhaustiva.
+            - 6: Solución incorecta, pero el procedimiento es completo y la explicación es exhaustiva.
+            - 4: Solución incorecta, procedimiento incompleto pero la explicación es exhaustiva.
+            - 4: Solución incorecta, explicación no exhaustiva pero el procedimiento es completo.
+            - 2: Solución incorecta, explicación no exhaustiva y procedimiento incompleto.
+            - 0: Estudiante no proporciono ninguna informacion para responder este ejercicio.
 
-        Devuelve **únicamente** un JSON válido con esta estructura:
-        --- INICIO DEL EJEMPLO ---
-        {example_json}
-        --- FIN DEL EJEMPLO ---
+            Devuelve **únicamente** un JSON válido con esta estructura:
+            --- INICIO DEL EJEMPLO ---
+            {example_json}
+            --- FIN DEL EJEMPLO ---
 
-        --- INICIO DE LA RESPUESTA ---
-        Descripción del Problema: {problem_text}
-        Respuesta del Estudiante: {student_answer}
-        --- FIN DE LA RESPUESTA ---
-    """
+            --- INICIO DE LA RESPUESTA ---
+            Descripción del Problema: {problem_text}
+            Respuesta del Estudiante: {student_answer}
+            --- FIN DE LA RESPUESTA ---
+        """
 
-    try:
-        response_text = call_mistral([
-            {"role": "system", "content": "Eres un evaluador académico estricto y justo que responde solo en JSON."},
-            {"role": "user", "content": user_prompt}
-        ], temperature=0.2)
-        
         try:
-            data = json.loads(response_text)
-        except:
-            match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            data = json.loads(match.group(0)) if match else {"calificación": 0, "comentario": "Error al procesar la evaluación del LLM"}
-
-        nota = float(data.get("calificación", data.get("score", 0)))
-        comentario_completo = json.dumps(data, ensure_ascii=False)
-
-        resp_record = db.session.get(RespuestaUsuario, respuesta_id)
-        if resp_record:
-            resp_record.llm_score = nota
-            resp_record.llm_comment = comentario_completo
-            resp_record.status = "pending"
-            db.session.commit()
-            print(f"📝 Evaluado ID {respuesta_id}: {resp_record.llm_score}/10")
-            color = "green" if nota >= 7 else "yellow" if nota >= 4 else "red"
-            safe_emit('student_activity', {
-                'type': 'answer',
-                'student_email': resp_record.correo_identificacion,
-                'status': color,
-                'score': nota,
-                'practice': resp_record.practice_name,
-                'problem_id': resp_record.problema_id,
-                'progress_pct': prog_pct,
-                'timestamp': hora_ensenada().isoformat(),
-                'answer_id': resp_record.id
-            })
+            response_text = call_mistral([
+                {"role": "system", "content": "Eres un evaluador académico estricto y justo que responde solo en JSON."},
+                {"role": "user", "content": user_prompt}
+            ], temperature=0.2)
             
-    except Exception as e:
-        print(f"❌ Error en Auto-Grading: {e}")
+            try:
+                data = json.loads(response_text)
+            except:
+                match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                data = json.loads(match.group(0)) if match else {"calificación": 0, "comentario": "Error al procesar la evaluación del LLM"}
+            nota = float(data.get("calificación", data.get("calificacion", data.get("score", 0))))
+            comentario_completo = json.dumps(data, ensure_ascii=False)
+
+            resp_record = db.session.get(RespuestaUsuario, respuesta_id)
+            if resp_record:
+                resp_record.llm_score = nota
+                resp_record.llm_comment = comentario_completo
+                resp_record.status = "pending"
+                db.session.commit()
+                print(f"📝 Evaluado ID {respuesta_id}: {resp_record.llm_score}/10")
+                color = "green" if nota >= 7 else "yellow" if nota >= 4 else "red"
+                safe_emit('student_activity', {
+                    'type': 'answer',
+                    'student_email': resp_record.correo_identificacion,
+                    'status': color,
+                    'score': nota,
+                    'practice': resp_record.practice_name,
+                    'problem_id': resp_record.problema_id,
+                    'progress_pct': prog_pct,
+                    'timestamp': hora_ensenada().isoformat(),
+                    'answer_id': resp_record.id
+                })
+                
+        except Exception as e:
+            print(f"❌ Error en Auto-Grading: {e}")
 
 # --- app.py (Helper functions section) ---
 def calculate_sliding_window_color(student_email):
