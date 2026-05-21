@@ -1470,23 +1470,6 @@ def main(page: ft.Page):
             size=20, color=COLORES["primario"], weight="bold",
         )
         
-        session_meta = load_k(page, "selected_session_meta", {}) or {}
-        desc_sesion = session_meta.get("description", "")
-
-        if desc_sesion:
-            desc_label = ft.Text(
-                desc_sesion,
-                size=13,
-                color=COLORES["subtitulo"],
-                italic=True,
-                text_align=ft.TextAlign.CENTER,
-                max_lines=3,
-                overflow=ft.TextOverflow.ELLIPSIS,
-            )
-        else:
-            desc_label = ft.Container()  # invisible placeholder
-        
-        # (opcional) pre-inicializar antes del primer cargar_problema:
         estado_text.value = "Estado: ⏳ Pendiente"
         progreso_text.value = f"Completados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
         
@@ -1556,49 +1539,19 @@ def main(page: ft.Page):
             on_click = toggle_theme,
         )
         
-        header_group_1 = ft.Container(
-            content=ft.Column([
-                ft.Row([theme_icon_btn, titulo_label], spacing=8),
-                desc_label,
-            ], spacing=2),
-            col={"xs": 12, "md": 4},
-            alignment=ft.alignment.center_left,
-        )
-        
-        # Group 2: Progress Bar (Center)
-        header_group_2 = ft.Container(
-            content=barra_progreso,
-            col={"xs": 12, "md": 4}, # Full width on mobile, 1/3 on PC
-            alignment=ft.alignment.center,
-        )
-
-        # Group 3: Timer & Restart (Right)
-        header_group_3 = ft.Container(
+        header_row = ft.Container(
             content=ft.Row(
                 [
-                    ft.GestureDetector(
-                        content=ft.Container(
-                            temporizador_text,
-                            alignment=ft.alignment.center,
-                            padding=ft.padding.symmetric(horizontal=12),
-                        ),
-                        on_tap=toggle_timer,
-                    ),
-                    reiniciar_button,
-                ], 
-                spacing=10, 
-                alignment=ft.MainAxisAlignment.END # Internal alignment
+                    theme_icon_btn,
+                    titulo_label,
+                    barra_progreso,
+                    temporizador_text,
+                    restart_btn,
+                ],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            col={"xs": 12, "md": 4}, # Full width on mobile, 1/3 on PC
-            alignment=ft.alignment.center_right, # Container alignment
-        )
-
-        # The Main Responsive Header
-        header_row = ft.ResponsiveRow(
-            [header_group_1, header_group_2, header_group_3],
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=10,
-            run_spacing=10,
+            padding=ft.padding.symmetric(horizontal=10, vertical=4),
         )
         
         page.clean()
