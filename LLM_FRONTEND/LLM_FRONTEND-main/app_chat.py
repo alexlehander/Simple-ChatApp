@@ -3,8 +3,6 @@ import requests, time, threading, os, json
 import socketio
 
 BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
-BACKEND_URL_CHAT        = f"{BASE}/chat"
-BACKEND_URL_VERIFICAR   = f"{BASE}/verificar_respuesta"
 
 def encontrar_raiz_proyecto(marcador="assets"):
     ruta_actual = os.path.dirname(os.path.abspath(__file__))
@@ -157,10 +155,11 @@ def main(page: ft.Page):
             if "timeout" not in kwargs: kwargs["timeout"] = 30
             if method == "GET": return requests.get(url, **kwargs)
             if method == "POST": return requests.post(url, **kwargs)
+            if method == "PUT":    return requests.put(url, **kwargs)
+            if method == "DELETE": return requests.delete(url, **kwargs)
         except Exception as e:
             print(f"Error request: {e}")
             return None
-            
     page.on_bot_message = lambda data: None
     @sio.on('nuevo_mensaje_bot')
     def on_nuevo_mensaje(data):
@@ -172,7 +171,27 @@ def main(page: ft.Page):
             except Exception as e:
                 print(f"Error procesando mensaje de socket: {e}")
         threading.Thread(target=procesar_mensaje, daemon=True).start()
-        
+    @sio.event
+    def disconnect():
+        print("⚠️ [Student] Socket desconectado")
+        def _reconnect():
+            import time as _t
+            for attempt in range(1, 6):
+                _t.sleep(3 * attempt)
+                if not page.is_alive:
+                    return
+                if not state.get("token"):
+                    return  # logged out, don't reconnect
+                try:
+                    if not sio.connected:
+                        sio.connect(BASE, wait_timeout=5)
+                        print(f"✅ [Student] Socket reconectado (intento {attempt})")
+                        return
+                except Exception as ex:
+                    if "already connected" in str(ex).lower():
+                        return
+                    print(f"⚠️ [Student] Reintento {attempt}/5: {ex}")
+    threading.Thread(target=_reconnect, daemon=True).start()
     try:
         last_heartbeat = page.client_storage.get("last_heartbeat")
         now = time.time()
@@ -277,14 +296,15 @@ def main(page: ft.Page):
         if not state.get("token"):
             show_login_register()
             return
-            
         try:
             if not sio.connected:
-                sio.connect(BASE)
-                print("🔌 SocketIO Conectado exitosamente")
+                sio.connect(BASE, wait_timeout=5)
+                print("🔌 SocketIO conectado exitosamente")
         except Exception as e:
-            print(f"⚠️ Error conectando socket: {e}")
-            
+            if "already connected" in str(e).lower():
+                pass
+            else:
+                print(f"⚠️ Error conectando socket: {e}")
         screen = load_k(page, STATE_KEYS["screen"], "dashboard")
         
         if screen == "dashboard":
@@ -359,14 +379,26 @@ def main(page: ft.Page):
         )
         
         if is_register:
-            try:
-                res = requests.get(f"{BASE}/api/public/teachers", timeout=10)
-                if res.status_code == 200:
-                    state["teachers_list"] = res.json()
-                    teacher_dropdown.options = [ft.dropdown.Option(key=str(t["id"]), text=f"{t['nombre']} ({t['email']})") for t in state["teachers_list"]]
-            except Exception as e:
-                print("Error cargando profesores:", e)
-
+            teacher_dropdown.hint_text = "Cargando profesores..."
+            def _fetch_teachers():
+                try:
+                    res = requests.get(f"{BASE}/api/public/teachers", timeout=10)
+                    if res.status_code == 200:
+                        state["teachers_list"] = res.json()
+                        teacher_dropdown.options = [
+                            ft.dropdown.Option(key=str(t["id"]), text=f"{t['nombre']} ({t['email']})")
+                            for t in state["teachers_list"]
+                        ]
+                        teacher_dropdown.hint_text = "Selecciona a tu Profesor"
+                        try:
+                            if page.is_alive:
+                                teacher_dropdown.update()
+                        except Exception:
+                            pass
+                except Exception as e:
+                    print("Error cargando profesores:", e)
+            threading.Thread(target=_fetch_teachers, daemon=True).start()
+            
         def submit_action(e):
             if is_register:
                 if not email_field.value or not pass_field.value or not name_field.value or not teacher_dropdown.value:
@@ -596,13 +628,28 @@ def main(page: ft.Page):
             threading.Thread(target=fetch_practica, daemon=True).start()
 
         def ejecutar_logout(e):
-            keys = page.client_storage.get_keys("")
-            for k in keys:
-                if k != "theme":
+            _keys_to_clear = [
+                "student_token", "correo_identificacion", "student_name",
+                STATE_KEYS["screen"], STATE_KEYS["current_problem"],
+                STATE_KEYS["answers"], STATE_KEYS["chat"],
+                STATE_KEYS["timer_start"], STATE_KEYS["pending_queue"],
+                "selected_session_meta", "selected_session_title",
+                "selected_session_problems", "selected_session_filename",
+                "finish_epoch", "respuestas_enviadas", "last_heartbeat",
+            ]
+            for k in _keys_to_clear:
+                try:
                     page.client_storage.remove(k)
+                except Exception:
+                    pass
             state.update({"token": None, "correo": None, "nombre": None})
+            try:
+                if sio.connected:
+                    sio.disconnect()
+            except Exception:
+                pass
             show_login_register()
-
+            
         def load_dashboard_data():
             exercises_grid.controls.clear()
             teachers_row.controls.clear()
@@ -690,14 +737,11 @@ def main(page: ft.Page):
                 print("Dashboard load error:", e)
                 exercises_grid.controls.clear()
                 exercises_grid.controls.append(ft.Text("Error de conexión", color=COLORES["error"]))
-                
-            if not hasattr(page, "session_id") or not page.session_id:
-                return
             try:
-                page.update()
-            except AssertionError:
-                print("Advertencia: Intento de actualizar un componente destruido.")
-            
+                if page.is_alive:
+                    page.update()
+            except Exception:
+                pass
         header = ft.Container(
             content=ft.Row([
                 ft.Row([ft.Icon(ft.Icons.SCHOOL, color=COLORES["primario"], size=30), ft.Text(f"Portal de Alumnos - {state['nombre']}", size=24, weight="bold", color=COLORES["texto"])]),
@@ -863,8 +907,14 @@ def main(page: ft.Page):
         last_timer_color = COLORES["primario"]
         is_retransmiting = False
         prev = load_k(page, "respuestas_enviadas", [])
-        if not isinstance(prev, list) or len(prev) != NUM_PROBLEMAS: respuestas_enviadas = [False] * NUM_PROBLEMAS
-        else: respuestas_enviadas = prev
+        if not isinstance(prev, list):
+            respuestas_enviadas = [False] * NUM_PROBLEMAS
+        elif len(prev) < NUM_PROBLEMAS:
+            respuestas_enviadas = list(prev) + [False] * (NUM_PROBLEMAS - len(prev))
+        elif len(prev) > NUM_PROBLEMAS:
+            respuestas_enviadas = list(prev[:NUM_PROBLEMAS])
+        else:
+            respuestas_enviadas = list(prev)
         save_k(page, "respuestas_enviadas", respuestas_enviadas)
         debounce_timers = {}
         DEBOUNCE_DELAY_SECONDS = 1.0
@@ -883,10 +933,7 @@ def main(page: ft.Page):
                     alignment=ft.alignment.center,
                     content=ft.Text(str(i), size=12, color=COLORES["fondo"], weight="bold"),
                     tooltip=f"Problema {i}: {'Entregado' if respuestas_enviadas[i - 1] else 'Pendiente'}",
-                    on_click=lambda e, pid=i: (
-                        None if getattr(page, "_is_loading_problem", False)
-                        else cargar_problema(pid)
-                    )
+                    on_click=lambda e, pid=i: _debounced_cargar(pid)
                 )
                 progress_squares.append(square)
             return ft.Row(
@@ -949,7 +996,11 @@ def main(page: ft.Page):
             for msg in chats.get(str(id_problema), []):
                 add_chat_bubble(msg["role"], msg["text"])
             chat_area.auto_scroll = True
-            chat_area.update()
+            try:
+                if chat_area.page:
+                    chat_area.update()
+            except Exception:
+                pass
             chat_area.auto_scroll = False
 
         # 🔹 Restore last open problem
@@ -981,6 +1032,33 @@ def main(page: ft.Page):
                 ejercicio_text.text_align = ft.TextAlign.JUSTIFY
                 # ✅ Crear campo de respuesta
                 respuesta_container.controls.clear()
+                # Show rubrics if the practice has them defined
+                session_meta = load_k(page, "selected_session_meta", {}) or {}
+                rubricas = session_meta.get("rubricas", [])
+
+                if rubricas:
+                    rubrica_items = [
+                        ft.Text(
+                            f"• {r}" if isinstance(r, str) else f"• {r.get('dimension', str(r))}",
+                            size=12,
+                            color=COLORES["subtitulo"],
+                            italic=True,
+                        )
+                        for r in rubricas
+                    ]
+                    rubrica_box = ft.Container(
+                        content=ft.Column(
+                            [ft.Text("Criterios de evaluación:", size=12, weight="bold",
+                                    color=COLORES["primario"])] + rubrica_items,
+                            spacing=3,
+                        ),
+                        bgcolor=COLORES["fondo"],
+                        padding=ft.padding.symmetric(horizontal=10, vertical=8),
+                        border_radius=8,
+                        border=ft.border.all(1, COLORES["borde"]),
+                        margin=ft.margin.only(bottom=6),
+                    )
+                    respuesta_container.controls.append(rubrica_box)
                 tf = ft.TextField(
                     hint_text="Escribe tu respuesta aquí, presionando «Enter» para realizar salto de línea",
                     expand=True, multiline=True, min_lines=1, max_lines=10,
@@ -1031,7 +1109,14 @@ def main(page: ft.Page):
                 barra_progreso.controls.clear()
                 barra_progreso.controls.extend(construir_barra_progreso().controls)
                 page.update()
-        
+                
+        def _debounced_cargar(pid):
+            if pid in debounce_timers and debounce_timers[pid].is_alive():
+                debounce_timers[pid].cancel()
+            t = threading.Timer(DEBOUNCE_DELAY_SECONDS, lambda: cargar_problema(pid))
+            debounce_timers[pid] = t
+            t.start()
+            
         def mostrar_aviso(mensaje):
             feedback_text.value = mensaje
             feedback_text.color = COLORES["advertencia"]
@@ -1106,11 +1191,15 @@ def main(page: ft.Page):
 
                 # 2. INTENTO DE ENVÍO y MANEJO de FALLO (AQUÍ ES DONDE FALTABA EL MANEJO DE LA COLA)
                 try:
-                    resp = requests.post(
-                        f"{BACKEND_URL_VERIFICAR}/{problema_actual_id}",
+                    resp = auth_request(
+                        "POST",
+                        f"/verificar_respuesta/{problema_actual_id}",
                         json=payload,
                         timeout=5,
                     )
+                    # auth_request returns None on token failure, so handle that:
+                    if resp is None:
+                        raise requests.exceptions.RequestException("Token missing or session expired")
                     resp.raise_for_status()
                     is_success = True
                     
@@ -1245,8 +1334,19 @@ def main(page: ft.Page):
 
             def send_request_thread():
                 try:
-                    requests.post(f"{BACKEND_URL_CHAT}/{problema_actual_id}", json=payload, timeout=60)
-                except Exception as ex:
+                    resp = auth_request("POST", f"/chat/{problema_actual_id}", json=payload, timeout=60)
+                    if resp is None:
+                        if page.is_alive:
+                            flash("Sesión expirada. Por favor inicia sesión nuevamente.", ok=False, ms=4000)
+                            threading.Timer(2.0, show_login_register).start()
+                        return
+                    if resp.status_code == 401:
+                        if page.is_alive:
+                            flash("Tu sesión expiró. Por favor inicia sesión nuevamente.", ok=False, ms=4000)
+                            threading.Timer(2.0, show_login_register).start()
+                        return
+                    resp.raise_for_status()
+                except requests.exceptions.RequestException as ex:
                     print(f"❌ Error al enviar mensaje: {ex}")
                     add_to_pending_queue(page, {
                         "type": "chat",
@@ -1254,15 +1354,12 @@ def main(page: ft.Page):
                         "data": payload
                     })
                     page.polling_speed = "slow"
-                    
                     if getattr(page, "burbuja_carga", None) in chat_area.controls:
                         chat_area.controls.remove(page.burbuja_carga)
-                        
                     if page.is_alive:
                         flash("Sin conexión. Se guardó en la cola.", ok=False)
-                        
                     chat_area.update()
-            
+                    
             threading.Thread(target=send_request_thread, daemon=True).start()
             
         user_input = ft.TextField(
@@ -1353,6 +1450,22 @@ def main(page: ft.Page):
             size=20, color=COLORES["primario"], weight="bold",
         )
         
+        session_meta = load_k(page, "selected_session_meta", {}) or {}
+        desc_sesion = session_meta.get("description", "")
+
+        if desc_sesion:
+            desc_label = ft.Text(
+                desc_sesion,
+                size=13,
+                color=COLORES["subtitulo"],
+                italic=True,
+                text_align=ft.TextAlign.CENTER,
+                max_lines=3,
+                overflow=ft.TextOverflow.ELLIPSIS,
+            )
+        else:
+            desc_label = ft.Container()  # invisible placeholder
+        
         # (opcional) pre-inicializar antes del primer cargar_problema:
         estado_text.value = "Estado: ⏳ Pendiente"
         progreso_text.value = f"Completados: {sum(1 for x in respuestas_enviadas if x)} de {NUM_PROBLEMAS}"
@@ -1423,13 +1536,15 @@ def main(page: ft.Page):
             on_click = toggle_theme,
         )
         
-        # Layout principal con el botón de reinicio en la esquina
         header_group_1 = ft.Container(
-            content=ft.Row([theme_icon_btn, titulo_label], spacing=8),
-            col={"xs": 12, "md": 4}, # Full width on mobile, 1/3 on PC
+            content=ft.Column([
+                ft.Row([theme_icon_btn, titulo_label], spacing=8),
+                desc_label,
+            ], spacing=2),
+            col={"xs": 12, "md": 4},
             alignment=ft.alignment.center_left,
         )
-
+        
         # Group 2: Progress Bar (Center)
         header_group_2 = ft.Container(
             content=barra_progreso,
@@ -1490,18 +1605,13 @@ def main(page: ft.Page):
             if start_epoch is None:
                 start_epoch = now
                 save_k(page, STATE_KEYS["timer_start"], start_epoch)
-
-            # 🔹 Leer tiempo máximo de la práctica o de un problema
-            session_data = load_k(page, "selected_session_problems", [])
             session_meta = load_k(page, "selected_session_meta", {}) or {}
-
-            # Por defecto, 10 minutos (600 s)
             TOTAL_SECONDS = session_meta.get("max_time", 600)
-
-            # O si lo defines por problema:
-            current_problem = next((p for p in PROBLEMAS if p.get("id") == problema_actual_id), {})
-            TOTAL_SECONDS = current_problem.get("max_time", TOTAL_SECONDS)
-
+            if TOTAL_SECONDS <= 0:
+                temporizador_text.value = "∞  Sin límite"
+                temporizador_text.color = COLORES["exito"]
+                page.update()
+                return
             elapsed = max(0, now - int(start_epoch))
             remaining = max(0, TOTAL_SECONDS - elapsed)
             m, s = divmod(remaining, 60)            # mejor usar remaining para reanudar correctamente
@@ -1523,10 +1633,8 @@ def main(page: ft.Page):
                     next_value = f"{m:02}:{s:02}"
                     last_timer_color = next_color
                     last_timer_string = next_value
-                    if timer_hidden:
-                        temporizador_text.color = next_color
-                    else:
-                        temporizador_text.color = next_color
+                    temporizador_text.color = next_color
+                    if not timer_hidden:
                         temporizador_text.value = next_value
                     try:
                         page.update()
@@ -1578,13 +1686,16 @@ def main(page: ft.Page):
                         
                         try:
                             if item["type"] == "answer":
-                                resp = requests.post(f"{BACKEND_URL_VERIFICAR}/{problema_id}", json=payload, timeout=60)
-                                resp.raise_for_status()
-                                is_success = True
+                                resp = auth_request("POST", f"/verificar_respuesta/{problema_id}", json=payload, timeout=60)
                             elif item["type"] == "chat":
-                                resp = requests.post(f"{BACKEND_URL_CHAT}/{problema_id}", json=payload, timeout=60)
+                                resp = auth_request("POST", f"/chat/{problema_id}", json=payload, timeout=60)
+                            else:
+                                resp = None
+                            if resp is not None:
                                 resp.raise_for_status()
                                 is_success = True
+                            else:
+                                raise requests.exceptions.RequestException("No token, skipping item")
                                 
                         except requests.exceptions.HTTPError as http_err:
                             item["retry_count"] = item.get("retry_count", 0) + 1 

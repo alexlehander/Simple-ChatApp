@@ -63,8 +63,8 @@ YELLOW_THRESHOLD = 2 # How many yellow flags trigger YELLOW state
 # If you want to implement a second layer of security / verification mechanism for LLM-generated answers - uncomment the next line and delete False (The quality of life improvement is very little)
 QC_ENABLED = False  #os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
-def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", temperature=0.5, max_tokens=1000):
-    """Send chat messages to OpenRouter’s Mistral API."""
+def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct",
+                 temperature=0.5, max_tokens=1000, _retries=3):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
@@ -77,11 +77,23 @@ def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", tem
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
-
-    r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=180)
-    r.raise_for_status()
-    data = r.json()
-    return data["choices"][0]["message"]["content"].strip()
+    last_exc = None
+    for attempt in range(1, _retries + 1):
+        try:
+            r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=180)
+            if r.status_code in (429, 503) and attempt < _retries:
+                wait = 2 ** attempt  # 2s, 4s, 8s
+                print(f"⚠️ [LLM] HTTP {r.status_code} — retrying in {wait}s (attempt {attempt}/{_retries})")
+                import time as _time; _time.sleep(wait)
+                continue
+            r.raise_for_status()
+            data = r.json()
+            return data["choices"][0]["message"]["content"].strip()
+        except Exception as exc:
+            last_exc = exc
+            if attempt < _retries:
+                import time as _time; _time.sleep(2 ** attempt)
+    raise last_exc
 
 # ------------------------------------------------------------------------------------
 # App & Config
@@ -102,6 +114,14 @@ app.config["JWT_TOKEN_LOCATION"] = ["headers", "query_string"]
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
+def safe_emit(event, data, room=None):
+    try:
+        if room:
+            socketio.emit(event, data, namespace='/', room=room)
+        else:
+            socketio.emit(event, data, namespace='/')
+    except Exception as e:
+        print(f"⚠️ [Socket] Emit failed for '{event}': {e}")
 
 # ------------------------------------------------------------------------------------
 # Data Models
@@ -310,13 +330,26 @@ def get_or_create_user(correo_identificacion: str | None) -> Usuario:
 
 def history_for_chat(correo_identificacion: str | None, problema_id: int, practice_name: str | None, rag_context: str = "") -> List[Dict]:
     limite_tiempo = hora_ensenada() - dt.timedelta(hours=24)
-    logs = (
-        ChatLog.query
-        .filter_by(correo_identificacion=correo_identificacion, practice_name=practice_name, problema_id=problema_id)
-        .filter(ChatLog.created_at >= limite_tiempo)
-        .order_by(ChatLog.created_at.asc())
-        .all()
-    )
+    try:
+        practica_id_int = int(practice_name) if practice_name else None
+    except (ValueError, TypeError):
+        practica_id_int = None
+    if practica_id_int:
+        logs = (
+            ChatLog.query
+            .filter_by(correo_identificacion=correo_identificacion, practica_id=practica_id_int, problema_id=problema_id)
+            .filter(ChatLog.created_at >= limite_tiempo)
+            .order_by(ChatLog.created_at.asc())
+            .all()
+        )
+    else:
+        logs = (
+            ChatLog.query
+            .filter_by(correo_identificacion=correo_identificacion, practice_name=practice_name, problema_id=problema_id)
+            .filter(ChatLog.created_at >= limite_tiempo)
+            .order_by(ChatLog.created_at.asc())
+            .all()
+        )
     if not practice_name:
         last_resp = RespuestaUsuario.query.filter_by(correo_identificacion=correo_identificacion, problema_id=problema_id).first()
         if last_resp: practice_name = last_resp.practice_name
@@ -397,7 +430,7 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
             bot_response = call_mistral(messages)
             usuario = db.session.get(Usuario, usuario_id)
             save_chat_turn(usuario, correo, practice_name, problema_id, "assistant", bot_response)
-            socketio.emit('nuevo_mensaje_bot', {
+            safe_emit('nuevo_mensaje_bot', {
                 'correo': correo,
                 'problema_id': problema_id,
                 'role': 'assistant',
@@ -422,7 +455,7 @@ def get_exercise_metadata(filename):
             "filename": str(p.id),
             "title": p.titulo,
             "description": p.descripcion,
-            "max_time": p.max_time * 60,
+            "max_time": p.max_time * 60,  # DB stores minutes; student widget expects seconds
             "num_problems": len(probs),
             "problemas": [{"id": pr.numero_ejercicio, "enunciado": pr.enunciado} for pr in probs]
         }
@@ -484,7 +517,7 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
             db.session.add(analysis)
             db.session.commit()
             print(f"🚦 Semaphore ({SEMAPHORE_WINDOW_MINUTES}m window): {correo} -> {intent_raw} | State: {calculated_color}")
-            socketio.emit('student_activity', {
+            safe_emit('student_activity', {
                 'type': 'chat',
                 'student_email': correo,
                 'status': calculated_color,
@@ -559,61 +592,52 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
         nota = float(data.get("calificación", data.get("score", 0)))
         comentario_completo = json.dumps(data, ensure_ascii=False)
 
-        with app.app_context():
-            resp_record = db.session.get(RespuestaUsuario, respuesta_id)
-            if resp_record:
-                resp_record.llm_score = nota
-                resp_record.llm_comment = comentario_completo
-                resp_record.status = "pending"
-                db.session.commit()
-                
-                print(f"📝 Evaluado ID {respuesta_id}: {resp_record.llm_score}/10")
-                color = "green" if nota >= 7 else "yellow" if nota >= 4 else "red"
-                
-                socketio.emit('student_activity', {
-                    'type': 'answer',
-                    'student_email': resp_record.correo_identificacion,
-                    'status': color,
-                    'score': nota,
-                    'practice': resp_record.practice_name,
-                    'problem_id': resp_record.problema_id,
-                    'progress_pct': prog_pct,
-                    'timestamp': hora_ensenada().isoformat(),
-                    'answer_id': resp_record.id
-                })
-                
+        resp_record = db.session.get(RespuestaUsuario, respuesta_id)
+        if resp_record:
+            resp_record.llm_score = nota
+            resp_record.llm_comment = comentario_completo
+            resp_record.status = "pending"
+            db.session.commit()
+            print(f"📝 Evaluado ID {respuesta_id}: {resp_record.llm_score}/10")
+            color = "green" if nota >= 7 else "yellow" if nota >= 4 else "red"
+            safe_emit('student_activity', {
+                'type': 'answer',
+                'student_email': resp_record.correo_identificacion,
+                'status': color,
+                'score': nota,
+                'practice': resp_record.practice_name,
+                'problem_id': resp_record.problema_id,
+                'progress_pct': prog_pct,
+                'timestamp': hora_ensenada().isoformat(),
+                'answer_id': resp_record.id
+            })
+            
     except Exception as e:
         print(f"❌ Error en Auto-Grading: {e}")
 
 # --- app.py (Helper functions section) ---
 def calculate_sliding_window_color(student_email):
-    """Calculates status color based on recent interaction history."""
-    with app.app_context():
-        since_time = hora_ensenada() - dt.timedelta(minutes=SEMAPHORE_WINDOW_MINUTES)
-        recent_interactions = AnalisisInteraccion.query.filter(
-            AnalisisInteraccion.correo_identificacion == student_email,
-            AnalisisInteraccion.created_at >= since_time
-        ).order_by(AnalisisInteraccion.created_at.desc()).all()
-        
-        if not recent_interactions:
-            return "green"
-        red_count = 0
-        yellow_count = 0
-        
-        for interaction in recent_interactions:
-            intent_lower = (interaction.intent or "").lower()
-            
-            if any(flag.lower() in intent_lower for flag in RED_FLAG_INTENTS):
-                red_count += 1
-            elif any(flag.lower() in intent_lower for flag in YELLOW_FLAG_INTENTS):
-                yellow_count += 1
-                
-        if red_count >= RED_THRESHOLD:
-            return "red"
-        elif yellow_count >= YELLOW_THRESHOLD:
-            return "yellow"
-        else:
-            return "green"
+    since_time = hora_ensenada() - dt.timedelta(minutes=SEMAPHORE_WINDOW_MINUTES)
+    recent_interactions = AnalisisInteraccion.query.filter(
+        AnalisisInteraccion.correo_identificacion == student_email,
+        AnalisisInteraccion.created_at >= since_time
+    ).order_by(AnalisisInteraccion.created_at.desc()).all()
+    if not recent_interactions:
+        return "green"
+    red_count = 0
+    yellow_count = 0
+    for interaction in recent_interactions:
+        intent_lower = (interaction.intent or "").lower()
+        if any(flag.lower() in intent_lower for flag in RED_FLAG_INTENTS):
+            red_count += 1
+        elif any(flag.lower() in intent_lower for flag in YELLOW_FLAG_INTENTS):
+            yellow_count += 1
+    if red_count >= RED_THRESHOLD:
+        return "red"
+    elif yellow_count >= YELLOW_THRESHOLD:
+        return "yellow"
+    else:
+        return "green"
 # ------------------------------------------------------------------------------------
 # Routes
 # ------------------------------------------------------------------------------------
@@ -623,15 +647,19 @@ def health():
     return jsonify({"ok": True})
 
 @app.route("/verificar_respuesta/<int:problema_id>", methods=["POST"])
+@jwt_required()
 def verificar_respuesta(problema_id):
+    claims = get_jwt()
     data = request.get_json()
-    respuesta = data.get("respuesta")
     correo = data.get("correo_identificacion")
     practice_name = data.get("practice_name", "unknown_session.json")
     prog_pct = float(data.get("progress_pct", 0.0))
-    
+    respuesta = data.get("respuesta")
     if not respuesta or not correo:
         return jsonify({"error": "Datos incompletos"}), 400
+    correo_from_token = claims.get("email")
+    if correo_from_token and correo_from_token != correo:
+        return jsonify({"error": "No autorizado"}), 403
         
     usuario = get_or_create_user(correo)
     
@@ -663,12 +691,17 @@ def verificar_respuesta(problema_id):
     return jsonify({"message": "Respuesta registrada y enviada a evaluación"}), 200
 
 @app.route("/chat/<int:problema_id>", methods=["POST"])
+@jwt_required()
 def chat(problema_id: int):
+    claims = get_jwt()
     data = request.get_json() or {}
-    user_msg = (data.get("message") or "").strip()
     correo = (data.get("correo_identificacion") or "").strip()
     practice_name = (data.get("practice_name") or "").strip()
     prog_pct = float(data.get("progress_pct", 0.0))
+    correo_from_token = claims.get("email")
+    if correo_from_token and correo_from_token != correo:
+        return jsonify({"error": "No autorizado"}), 403
+    user_msg = (data.get("message") or "").strip()
     if not user_msg:
         return jsonify({"status": "error", "message": "Mensaje vacío"}), 400
     usuario = get_or_create_user(correo)
@@ -752,7 +785,7 @@ def send_student_alert():
     if not student_email or not message:
         return jsonify({"error": "Faltan datos"}), 400
     
-    socketio.emit('teacher_alert', {
+    safe_emit('teacher_alert', {
         'student_email': student_email,
         'message': message
     })
@@ -1171,14 +1204,18 @@ def get_student_profile(student_email):
     
     reportes = ReporteDesempeno.query.filter_by(student_email=student_email).all()
     for r in reportes:
-        if r.practice_name in profile_data:
-            profile_data[r.practice_name]["reporte"] = {
+        matched_key = None
+        if r.practica_id:
+            matched_key = practica_titles.get(r.practica_id)
+        if not matched_key:
+            matched_key = r.practice_name
+        if matched_key and matched_key in profile_data:
+            profile_data[matched_key]["reporte"] = {
                 "perfil_estudiante": r.perfil_estudiante,
                 "persistencia": r.persistencia,
                 "diagnostico_general": r.diagnostico_general,
                 "fecha": r.created_at.isoformat()
             }
-            
     return jsonify(profile_data), 200
 
 @app.route('/api/teacher/generate-report', methods=['POST'])
@@ -1419,22 +1456,18 @@ def generate_live_session_report():
 
     if not interacciones and not respuestas and not chats:
         return jsonify({"error": "No hubo actividad de estudiantes durante esta sesión."}), 400
-
-    # 4. Estructurar la Data por Estudiante
-    # Recopilamos qué prácticas se usaron para extraer enunciados
-    practicas_involucradas = set()
+        
+    practicas_involucradas_ids = set()
     for item in respuestas + chats:
-        if item.practice_name: practicas_involucradas.add(item.practice_name)
-    
-    # Pre-cargar descripciones de prácticas y problemas
+        if item.practica_id:
+            practicas_involucradas_ids.add(item.practica_id)
+                
     enunciados_cache = {}
-    for prac in practicas_involucradas:
-        meta = get_exercise_metadata(prac)
-        enunciados_cache[prac] = meta
-
+    for pid in practicas_involucradas_ids:
+        meta = get_exercise_metadata(str(pid))
+        enunciados_cache[pid] = meta
+            
     estudiantes_data = {}
-    
-    # Inicializar a los estudiantes que tuvieron CUALQUIER tipo de actividad
     active_emails = set(i.correo_identificacion for i in interacciones + respuestas + chats)
     
     for email in active_emails:
@@ -1451,10 +1484,10 @@ def generate_live_session_report():
     # Llenar Chats
     for c in chats:
         role = "Estudiante" if c.role == "user" else ("Profesor" if c.role == "teacher" else "IA")
-        practica_desc = enunciados_cache.get(c.practice_name, {}).get("description", "Sin desc.")
-        # Buscamos el enunciado exacto
+        cache_key = c.practica_id  # int
+        practica_desc = enunciados_cache.get(cache_key, {}).get("description", "Sin desc.")
         enunciado = "No encontrado"
-        for p in enunciados_cache.get(c.practice_name, {}).get("problemas", []):
+        for p in enunciados_cache.get(cache_key, {}).get("problemas", []):
             if p.get("id") == c.problema_id:
                 enunciado = p.get("enunciado", "No encontrado")
                 break
@@ -1465,8 +1498,9 @@ def generate_live_session_report():
 
     # Llenar Respuestas
     for r in respuestas:
+        titulo = enunciados_cache.get(r.practica_id, {}).get("title", r.practice_name or "?")
         estudiantes_data[r.correo_identificacion]["respuestas_finales"].append(
-            f"[Práctica: {r.practice_name} | Problema: {r.problema_id} | Entregó]: {r.respuesta}"
+            f"[Práctica: {titulo} | Problema: {r.problema_id} | Entregó]: {r.respuesta}"
         )
 
     # 5. Generar Prompts Masivos (Por Estudiante y Uno General)
@@ -1636,85 +1670,188 @@ def download_grades_report():
     output.seek(0)
     return send_file(output, download_name="Reporte_Calificaciones.xlsx", as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-def process_pdf_background(app_obj, file_bytes, filename, prof_id):
-    """Esta función corre en segundo plano sin que el servidor la mate por tiempo"""
+def process_pdf_background(app_obj, file_bytes, filename, prof_id, params):
     with app_obj.app_context():
         try:
             stream = BytesIO(file_bytes)
             text = ""
             print("📖 [Upload] Leyendo con pdfplumber...")
             with pdfplumber.open(stream) as pdf:
-                for i, page in enumerate(pdf.pages):
-                    extracted = page.extract_text()
+                for page_obj in pdf.pages:
+                    extracted = page_obj.extract_text()
                     if extracted:
                         text += extracted + "\n"
-
             if len(text.strip()) < 50:
-                print("⚠️ [Upload] PDF sin texto. Activando OCR fallback...")
+                print("⚠️ [Upload] Sin texto. Activando OCR...")
                 images = convert_from_bytes(stream.getvalue())
                 for img in images:
                     text += pytesseract.image_to_string(img, lang="spa") + "\n"
-
             if len(text.strip()) < 50:
-                print("❌ [Upload] PDF ilegible.")
+                print("❌ [Upload] PDF ilegible incluso con OCR.")
                 return
+            p_nombre      = params.get("p_nombre", "").strip()
+            p_tiempo      = params.get("p_tiempo", "").strip()
+            p_descripcion = params.get("p_descripcion", "").strip()
+            p_rubricas    = params.get("p_rubricas", "").strip()
+            p_num_ej      = params.get("p_num_ej", "").strip()
+            if p_nombre:
+                bloque_titulo = (
+                    f'TÍTULO: Usa EXACTAMENTE este título, sin modificarlo: "{p_nombre}".'
+                )
+            else:
+                bloque_titulo = (
+                    "TÍTULO: Genera un título académico conciso (máximo 7 palabras) "
+                    "que capture el tema central del documento."
+                )
+            if p_tiempo and p_tiempo.isdigit():
+                bloque_tiempo = (
+                    f'TIEMPO LÍMITE: El campo "max_time" DEBE valer exactamente {p_tiempo}. '
+                    "No uses ningún otro valor."
+                )
+            else:
+                bloque_tiempo = (
+                    'TIEMPO LÍMITE: Estima el tiempo en minutos que un estudiante universitario '
+                    'necesitaría para resolver estos ejercicios con atención. '
+                    'Usa ese valor en "max_time". Rango permitido: 15–180.'
+                )
+            if p_descripcion:
+                bloque_descripcion = (
+                    f'DESCRIPCIÓN: Usa EXACTAMENTE esta descripción, sin modificarla: "{p_descripcion}".'
+                )
+            else:
+                bloque_descripcion = (
+                    "DESCRIPCIÓN: Redacta 2–3 oraciones orientadas al estudiante explicando "
+                    "el propósito pedagógico de la práctica y qué competencias desarrollará."
+                )
+            if p_rubricas:
+                rubrica_list = [r.strip() for r in p_rubricas.split(",") if r.strip()]
+                bloque_rubricas = (
+                    f'RÚBRICAS: El campo "rubricas" DEBE contener EXACTAMENTE esta lista y '
+                    f'ninguna otra: {json.dumps(rubrica_list, ensure_ascii=False)}.'
+                )
+            else:
+                bloque_rubricas = (
+                    'RÚBRICAS: El campo "rubricas" DEBE ser una lista vacía: []'
+                )
+            if p_num_ej and p_num_ej.isdigit():
+                n = int(p_num_ej)
+                bloque_ejercicios = (
+                    f'EJERCICIOS: Extrae EXACTAMENTE {n} ejercicio(s). '
+                    f'Si el documento contiene más, selecciona los {n} más representativos. '
+                    f'Si contiene menos, crea ejercicios adicionales coherentes con el tema '
+                    f'y el nivel académico del documento hasta completar {n}. '
+                    f'El array "problemas" DEBE tener exactamente {n} elemento(s).'
+                )
+            else:
+                bloque_ejercicios = (
+                    "EJERCICIOS: Extrae TODOS los ejercicios o problemas resolubles del documento. "
+                    "Ignora secciones teóricas, instrucciones generales y bibliografía. "
+                    "Mínimo 1, máximo 15."
+                )
+            sys_prompt = f"""Eres un experto en diseño instruccional universitario. \
+Tu única tarea es analizar el documento académico proporcionado y convertirlo \
+en una práctica estructurada, respetando ESTRICTAMENTE las siguientes reglas:
 
-            print("🤖 [Upload] Enviando a Mistral...")
-            sys_prompt = "Eres un asistente experto en pedagogía. Extrae los ejercicios del documento provisto y devuelve EXCLUSIVAMENTE un JSON válido con esta estructura: {\"titulo\": \"...\", \"descripcion\": \"...\", \"max_time\": 60, \"problemas\": [{\"id\": 1, \"enunciado\": \"...\"}]}"
+{bloque_titulo}
 
+{bloque_descripcion}
+
+{bloque_tiempo}
+
+{bloque_rubricas}
+
+{bloque_ejercicios}
+
+REGLAS GENERALES PARA LOS EJERCICIOS:
+- Cada enunciado debe ser autosuficiente: incluye todos los datos, contexto y \
+condiciones necesarias para que el estudiante lo resuelva sin consultar el documento original.
+- Redacta en español académico claro y preciso.
+- No numeres los enunciados dentro del texto; el número va solo en el campo "id".
+
+FORMATO DE RESPUESTA:
+Devuelve ÚNICAMENTE un objeto JSON válido. Sin texto antes ni después. \
+Sin bloques de código markdown. La estructura exacta es:
+{{
+  "titulo": "...",
+  "descripcion": "...",
+  "max_time": <entero en minutos>,
+  "rubricas": ["...", "..."],
+  "problemas": [
+    {{"id": 1, "enunciado": "Enunciado completo..."}},
+    {{"id": 2, "enunciado": "Enunciado completo..."}}
+  ]
+}}"""
+            print(f"🤖 [Upload] Enviando a Mistral — params: nombre={bool(p_nombre)}, "
+                  f"tiempo={p_tiempo or 'IA'}, desc={bool(p_descripcion)}, "
+                  f"rubricas={bool(p_rubricas)}, num_ej={p_num_ej or 'IA'}")
             messages = [
                 {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": f"DOCUMENTO:\n{text[:15000]}"}
+                {"role": "user",   "content": f"DOCUMENTO ACADÉMICO:\n\n{text[:15000]}"},
             ]
-
-            raw_json = call_mistral(messages, temperature=0.1, max_tokens=2500)
-
-            import re
+            raw_json = call_mistral(messages, temperature=0.1, max_tokens=3500)
             match = re.search(r'\{.*\}', raw_json, re.DOTALL)
             if not match:
-                print(f"❌ [Upload] IA no devolvió JSON válido.")
+                print(f"❌ [Upload] IA no devolvió JSON. Respuesta: {raw_json[:300]}")
                 return
-
             data_ia = json.loads(match.group(0))
-
+            problemas_ia = data_ia.get("problemas", [])
+            if not problemas_ia:
+                print("❌ [Upload] IA no encontró problemas en el documento.")
+                return
+            titulo_final      = p_nombre      if p_nombre      else data_ia.get("titulo", filename.replace(".pdf", ""))
+            descripcion_final = p_descripcion if p_descripcion else data_ia.get("descripcion", "")
+            max_time_final    = int(p_tiempo) if (p_tiempo and p_tiempo.isdigit()) else int(data_ia.get("max_time", 60))
+            if p_rubricas:
+                rubricas_final = [r.strip() for r in p_rubricas.split(",") if r.strip()]
+            else:
+                raw_rub = data_ia.get("rubricas", [])
+                rubricas_final = [
+                    (r if isinstance(r, str) else r.get("dimension", str(r)))
+                    for r in raw_rub
+                ]
             nueva_practica = Practica(
-                titulo=data_ia.get("titulo", filename.replace(".pdf", "")),
-                descripcion=data_ia.get("descripcion", ""),
-                max_time=int(data_ia.get("max_time", 60)),
+                titulo=titulo_final,
+                descripcion=descripcion_final,
+                max_time=max_time_final,
                 profesor_id=prof_id,
-                rubricas=[]
+                rubricas=rubricas_final,
             )
             db.session.add(nueva_practica)
             db.session.flush()
-
-            for prob in data_ia.get("problemas", []):
-                nuevo_prob = Problema(
+            for prob in problemas_ia:
+                db.session.add(Problema(
                     practica_id=nueva_practica.id,
                     numero_ejercicio=int(prob.get("id", prob.get("numero", 1))),
-                    enunciado=str(prob.get("enunciado", ""))
-                )
-                db.session.add(nuevo_prob)
-
+                    enunciado=str(prob.get("enunciado", "")),
+                ))
             db.session.add(ListaEjercicios(
                 profesor_id=prof_id,
                 exercise_filename=f"MIGRADO_{nueva_practica.id}",
                 practica_id=nueva_practica.id,
-                is_active=True
+                is_active=True,
             ))
-
             db.session.commit()
-            print("✅ [Upload] Tarea guardada con éxito.")
-
-        except Exception as e:
-            import traceback
+            print(f"✅ [Upload] Práctica #{nueva_practica.id} '{titulo_final}' "
+                  f"guardada — {len(problemas_ia)} ejercicios, {max_time_final} min.")
+        except json.JSONDecodeError as exc:
+            print(f"❌ [Upload] JSON inválido de la IA: {exc}")
             traceback.print_exc()
-            print(f"❌ [Upload] Error interno: {str(e)}")
-
+        except Exception as exc:
+            print(f"❌ [Upload] Error interno: {exc}")
+            traceback.print_exc()
+            
 @app.route("/api/teacher/exercises/upload", methods=["POST"])
 @jwt_required()
 def upload_exercise_pdf():
     prof_id = int(get_jwt_identity())
     filename = request.args.get("filename", "documento.pdf")
+    params = {
+        "p_nombre":      request.args.get("p_nombre",      "").strip(),
+        "p_tiempo":      request.args.get("p_tiempo",      "").strip(),
+        "p_descripcion": request.args.get("p_descripcion", "").strip(),
+        "p_rubricas":    request.args.get("p_rubricas",    "").strip(),
+        "p_num_ej":      request.args.get("p_num_ej",      "").strip(),
+    }
     if request.files:
         file = list(request.files.values())[0]
         filename = file.filename or filename
@@ -1723,9 +1860,10 @@ def upload_exercise_pdf():
         file_bytes = request.data
     else:
         return jsonify({"error": "No se recibió el archivo"}), 400
-    if not filename.lower().endswith('.pdf'):
+    if not filename.lower().endswith(".pdf"):
         return jsonify({"error": "Solo se permiten PDFs"}), 400
-    gevent.spawn(process_pdf_background, app, file_bytes, filename, prof_id)
+    print(f"🚀 [Upload] {filename} | params={params}")
+    gevent.spawn(process_pdf_background, app, file_bytes, filename, prof_id, params)
     return jsonify({"msg": "Recibido. Procesando en segundo plano"}), 202
 
 # =========================================
@@ -1736,10 +1874,24 @@ def upload_exercise_pdf():
 @jwt_required()
 def get_available_exercises():
     prof_id = int(get_jwt_identity())
-    practicas = Practica.query.filter((Practica.profesor_id == None) | (Practica.profesor_id != prof_id)).order_by(Practica.id.desc()).all()
+    practicas = Practica.query.filter(
+        (Practica.profesor_id == None) | (Practica.profesor_id != prof_id)
+    ).order_by(Practica.id.desc()).all()
+    if not practicas:
+        return jsonify([]), 200
+    prac_ids = [p.id for p in practicas]
+    all_probs = Problema.query.filter(
+        Problema.practica_id.in_(prac_ids)
+    ).order_by(Problema.practica_id, Problema.numero_ejercicio).all()
+    from collections import defaultdict
+    probs_by_prac = defaultdict(list)
+    for prob in all_probs:
+        probs_by_prac[prob.practica_id].append(
+            {"id": prob.numero_ejercicio, "enunciado": prob.enunciado}
+        )
     data = []
     for p in practicas:
-        probs = Problema.query.filter_by(practica_id=p.id).order_by(Problema.numero_ejercicio).all()
+        probs = probs_by_prac[p.id]
         data.append({
             "filename": str(p.id),
             "practica_id": p.id,
@@ -1747,7 +1899,7 @@ def get_available_exercises():
             "description": p.descripcion,
             "max_time": p.max_time * 60,
             "num_problems": len(probs),
-            "problemas": [{"id": pr.numero_ejercicio, "enunciado": pr.enunciado} for pr in probs]
+            "problemas": probs,
         })
     return jsonify(data), 200
 
@@ -1756,22 +1908,36 @@ def get_available_exercises():
 def get_my_exercises():
     prof_id = int(get_jwt_identity())
     asignaciones = ListaEjercicios.query.filter_by(profesor_id=prof_id).all()
+    if not asignaciones:
+        return jsonify([]), 200
+    prac_ids = [a.practica_id for a in asignaciones if a.practica_id]
+    practicas = {p.id: p for p in Practica.query.filter(Practica.id.in_(prac_ids)).all()}
+    all_probs = Problema.query.filter(
+        Problema.practica_id.in_(prac_ids)
+    ).order_by(Problema.practica_id, Problema.numero_ejercicio).all()
+    from collections import defaultdict
+    probs_by_prac = defaultdict(list)
+    for prob in all_probs:
+        probs_by_prac[prob.practica_id].append(
+            {"id": prob.numero_ejercicio, "enunciado": prob.enunciado}
+        )
     data = []
     for asig in asignaciones:
-        p = Practica.query.get(asig.practica_id)
-        if p:
-            probs = Problema.query.filter_by(practica_id=p.id).order_by(Problema.numero_ejercicio).all()
-            data.append({
-                "filename": str(p.id),
-                "practica_id": p.id,
-                "title": p.titulo,
-                "description": p.descripcion,
-                "max_time": p.max_time * 60,
-                "num_problems": len(probs),
-                "problemas": [{"id": pr.numero_ejercicio, "enunciado": pr.enunciado} for pr in probs], # <--- AGREGADO
-                "is_active": asig.is_active,
-                "is_mine": p.profesor_id == prof_id or p.profesor_id is None
-            })
+        p = practicas.get(asig.practica_id)
+        if not p:
+            continue
+        probs = probs_by_prac[p.id]
+        data.append({
+            "filename": str(p.id),
+            "practica_id": p.id,
+            "title": p.titulo,
+            "description": p.descripcion,
+            "max_time": p.max_time * 60,
+            "num_problems": len(probs),
+            "problemas": probs,
+            "is_active": asig.is_active,
+            "is_mine": p.profesor_id == prof_id or p.profesor_id is None,
+        })
     return jsonify(data), 200
 
 @app.route("/api/teacher/my-exercises", methods=["POST"])

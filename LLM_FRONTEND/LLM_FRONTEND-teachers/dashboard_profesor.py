@@ -277,6 +277,36 @@ def main(page: ft.Page):
     @sio.event
     def disconnect():
         print("❌ Desconectado del servidor de tiempo real")
+        def _reconnect_loop():
+            import time as _t
+            for attempt in range(1, 6):
+                _t.sleep(3 * attempt)
+                if not page.is_alive:
+                    return
+                if not load_k(page, "is_live_session_active", False):
+                    return
+                try:
+                    if not sio.connected:
+                        sio.connect(BASE)
+                        print(f"✅ Reconectado al servidor (intento {attempt})")
+                        session_status_text.value = "🔴 EN VIVO: Recibiendo alertas..."
+                        session_status_text.color = COLORES["error"]
+                        try:
+                            session_status_text.update()
+                        except Exception:
+                            pass
+                        return
+                except Exception as e:
+                    print(f"⚠️ Reintento {attempt}/5 fallido: {e}")
+            if page.is_alive:
+                session_status_text.value = "⚠️ Conexión perdida. Recarga la página."
+                session_status_text.color = COLORES["advertencia"]
+                try:
+                    session_status_text.update()
+                    flash("Conexión en tiempo real perdida. Intenta recargar.", ok=False, ms=8000)
+                except Exception:
+                    pass
+        threading.Thread(target=_reconnect_loop, daemon=True).start()
     
     @sio.event
     def student_activity(data):
@@ -402,7 +432,7 @@ def main(page: ft.Page):
             if not page.is_alive: break
             
             if state["token"]:
-                if is_session_active:
+                if load_k(page, "is_live_session_active", False):
                     reset_inactivity_timer()
                 last_act = state.get("last_activity", 0)
                 if time.time() - last_act > 3600:
@@ -675,22 +705,206 @@ def main(page: ft.Page):
                     )
                 ])
                 
+        # ==========================================
+        # FILE PICKER: SUBIDA DE PDF A LA IA
+        # ==========================================
+        state["_pdf_pending_filename"] = None
+        
+        def on_upload_result(e: ft.FilePickerResultEvent):
+            if not e.files:
+                return
+            state["_pdf_pending_filename"] = e.files[0].name
+            _open_pdf_params_dialog()
+            
+        def _open_pdf_params_dialog():
+            f_nombre = ft.TextField(
+                label="Nombre de la práctica",
+                hint_text="Dejar vacío → la IA lo sugiere",
+                expand=True,
+                border_color=COLORES["primario"],
+                color=COLORES["texto"],
+                bgcolor=COLORES["fondo"],
+                focused_border_color=COLORES["secundario"],
+                text_size=13,
+            )
+            f_tiempo = ft.TextField(
+                label="Tiempo límite (minutos)",
+                hint_text="Vacío = sin límite",
+                width=200,
+                keyboard_type=ft.KeyboardType.NUMBER,
+                border_color=COLORES["primario"],
+                color=COLORES["texto"],
+                bgcolor=COLORES["fondo"],
+                focused_border_color=COLORES["secundario"],
+                text_size=13,
+            )
+            f_descripcion = ft.TextField(
+                label="Descripción para los estudiantes",
+                hint_text="Vacío → la IA la genera",
+                multiline=True,
+                min_lines=2,
+                max_lines=4,
+                expand=True,
+                border_color=COLORES["primario"],
+                color=COLORES["texto"],
+                bgcolor=COLORES["fondo"],
+                focused_border_color=COLORES["secundario"],
+                text_size=13,
+            )
+            f_rubricas = ft.TextField( 
+                label="Rúbricas de evaluación (separadas por coma)",
+                hint_text='Ej: "Exactitud, Procedimiento, Explicación"   |   Vacío = sin rúbricas',
+                multiline=True,
+                min_lines=2,
+                max_lines=3,
+                expand=True,
+                border_color=COLORES["primario"],
+                color=COLORES["texto"],
+                bgcolor=COLORES["fondo"],
+                focused_border_color=COLORES["secundario"],
+                text_size=13,
+            )
+            f_num_ej = ft.TextField(
+                label="Número de ejercicios",
+                hint_text="Vacío → la IA decide",
+                width=200,
+                keyboard_type=ft.KeyboardType.NUMBER,
+                border_color=COLORES["primario"],
+                color=COLORES["texto"],
+                bgcolor=COLORES["fondo"],
+                focused_border_color=COLORES["secundario"],
+                text_size=13,
+            )
+            lbl_error = ft.Text(
+                "",
+                color=COLORES["error"],
+                size=12,
+                visible=False,
+            )
+
+            def _do_upload(ev):
+                tiempo_str = (f_tiempo.value or "").strip()
+                if tiempo_str:
+                    if not tiempo_str.isdigit() or not (5 <= int(tiempo_str) <= 480):
+                        lbl_error.value = "El tiempo debe ser un número entre 5 y 480 minutos, o dejar vacío."
+                        lbl_error.visible = True
+                        page.update()
+                        return
+                num_str = (f_num_ej.value or "").strip()
+                if num_str:
+                    if not num_str.isdigit() or not (1 <= int(num_str) <= 30):
+                        lbl_error.value = "El número de ejercicios debe ser un entero entre 1 y 30, o dejar vacío."
+                        lbl_error.visible = True
+                        page.update()
+                        return
+                params_dlg.open = False
+                page.update()
+                import urllib.parse
+                qs = urllib.parse.urlencode({
+                    "jwt":           state["token"],
+                    "filename":      state["_pdf_pending_filename"],
+                    "p_nombre":      (f_nombre.value or "").strip(),
+                    "p_tiempo":      tiempo_str,
+                    "p_descripcion": (f_descripcion.value or "").strip(),
+                    "p_rubricas":    (f_rubricas.value or "").strip(),
+                    "p_num_ej":      num_str,
+                })
+                upload_url = f"{BASE}/api/teacher/exercises/upload?{qs}"
+                page.splash = ft.ProgressBar()
+                page.update()
+                file_picker.upload([
+                    ft.FilePickerUploadFile(
+                        state["_pdf_pending_filename"],
+                        upload_url=upload_url,
+                        method="POST",
+                    )
+                ])
+                
+            params_dlg = ft.AlertDialog(
+                modal=True,
+                title=ft.Row([
+                    ft.Icon(ft.Icons.AUTO_AWESOME, color=COLORES["primario"], size=22),
+                    ft.Text(
+                        "Configurar tarea generada por IA",
+                        weight="bold",
+                        color=COLORES["texto"],
+                        size=17,
+                    ),
+                ], spacing=8),
+                content=ft.Container(
+                    width=580,
+                    content=ft.Column(
+                        [
+                            ft.Text(
+                                f"📄  {state['_pdf_pending_filename']}",
+                                color=COLORES["subtitulo"],
+                                size=12,
+                                italic=True,
+                            ),
+                            ft.Text(
+                                "Completa los campos que quieras personalizar. "
+                                "Los que dejes vacíos serán decididos por la IA.",
+                                color=COLORES["subtitulo"],
+                                size=12,
+                            ),
+                            ft.Divider(color=COLORES["borde"]),
+                            ft.Row([f_nombre, f_tiempo], spacing=10),
+                            f_descripcion,
+                            f_rubricas,
+                            ft.Row([
+                                f_num_ej,
+                                ft.Text(
+                                    "máx. recomendado: 10",
+                                    size=11,
+                                    color=COLORES["subtitulo"],
+                                    italic=True,
+                                ),
+                            ], spacing=12, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+                            lbl_error,
+                        ],
+                        spacing=10,
+                        scroll=ft.ScrollMode.AUTO,
+                    ),
+                    padding=ft.padding.only(top=6, bottom=2),
+                ),
+                actions=[
+                    ft.TextButton(
+                        "Cancelar",
+                        on_click=lambda _: (
+                            setattr(params_dlg, "open", False),
+                            page.update(),
+                        ),
+                    ),
+                    ft.ElevatedButton(
+                        "Procesar con IA  →",
+                        icon=ft.Icons.ROCKET_LAUNCH,
+                        bgcolor=COLORES["primario"],
+                        color=COLORES["fondo"],
+                        on_click=_do_upload,
+                    ),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            if params_dlg not in page.overlay:
+                page.overlay.append(params_dlg)
+            params_dlg.open = True
+            page.update()
+
         def on_upload_progress(e: ft.FilePickerUploadEvent):
             if e.error:
                 page.splash = None
                 flash(f"Error al subir: {e.error}", ok=False)
                 page.update()
                 return
-                
+
             if e.progress == 1.0:
                 page.splash = ft.ProgressBar(color=COLORES["advertencia"])
                 flash("Archivo en el servidor. La IA lo está leyendo, espera por favor...", ok=True, ms=4000)
                 page.update()
-                
+
                 def check_backend_success():
                     old_count = len(state.get("my_exercises", []))
-                    
-                    for _ in range(60): 
+                    for _ in range(60):
                         time.sleep(5)
                         try:
                             res = auth_request("GET", "/api/teacher/my-exercises")
@@ -704,13 +918,10 @@ def main(page: ft.Page):
                                     return
                         except Exception:
                             pass
-                            
                     page.splash = None
                     flash("❌ Tiempo de espera agotado o error al procesar el PDF.", ok=False, ms=6000)
                     page.update()
-
                 threading.Thread(target=check_backend_success, daemon=True).start()
-                
         file_picker = ft.FilePicker(on_result=on_upload_result, on_upload=on_upload_progress)
         page.overlay.append(file_picker)
         
@@ -2523,7 +2734,8 @@ def main(page: ft.Page):
 
                 def get_group_key(item, group_type):
                     if group_type == "fecha": return item.get("fecha", "")[:10]
-                    elif group_type == "practica": return item.get("practica", "Sin práctica")
+                    elif group_type == "practica":
+                        return item.get("titulo_practica") or item.get("practica", "Sin práctica")
                     elif group_type == "problema": return f"Ejercicio #{item.get('problema_id', '?')}"
                     elif group_type == "estudiante": return item.get("nombre", item.get("correo"))
                     return "General"
@@ -3048,10 +3260,26 @@ def main(page: ft.Page):
             ], expand=True)
         )
         
-        load_students()
-        load_exercises()
-        load_grades()
-        load_classes()
+        page.splash = ft.ProgressBar(color=COLORES["primario"])
+        page.update()
+
+        def _initial_load():
+            threads = [
+                threading.Thread(target=load_students,  daemon=True),
+                threading.Thread(target=load_exercises, daemon=True),
+                threading.Thread(target=load_grades,    daemon=True),
+                threading.Thread(target=load_classes,   daemon=True),
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=15)
+            page.splash = None
+            try:
+                page.update()
+            except Exception:
+                pass
+        threading.Thread(target=_initial_load, daemon=True).start()
         
     stored_token = load_k(page, "teacher_token")
     last_act_stored = load_k(page, "last_activity")
