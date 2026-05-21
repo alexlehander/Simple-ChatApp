@@ -171,20 +171,28 @@ def main(page: ft.Page):
             except Exception as e:
                 print(f"Error procesando mensaje de socket: {e}")
         threading.Thread(target=procesar_mensaje, daemon=True).start()
+        
     @sio.event
     def disconnect():
         print("⚠️ Socket desconectado.")
         def reconnect():
-            for i in range(5):
+            for attempt in range(1, 6):
+                time.sleep(3 * attempt)
+                if not page.is_alive:
+                    return
+                if not state.get("token"):
+                    return
                 try:
-                    time.sleep(2)
                     if not sio.connected:
                         sio.connect(BASE, wait_timeout=10)
-                        print("✅ Socket reconectado")
+                        print(f"✅ Socket reconectado (intento {attempt})")
                         return
-                except Exception as e:
-                    print(f"Reconnect error: {e}")
+                except Exception as ex:
+                    if "already connected" in str(ex).lower():
+                        return
+                    print(f"⚠️ Reintento {attempt}/5: {ex}")
         threading.Thread(target=reconnect, daemon=True).start()
+        
     try:
         last_heartbeat = page.client_storage.get("last_heartbeat")
         now = time.time()
@@ -864,6 +872,8 @@ def main(page: ft.Page):
         page.padding = 20
         user_input = None
         correo = page.client_storage.get("correo_identificacion") or "No disponible"
+        session_meta = load_k(page, "selected_session_meta", {}) or {}
+        rubricas = session_meta.get("rubricas", [])
         stop_timer = False
         page.input_is_focused = False
         
@@ -872,7 +882,8 @@ def main(page: ft.Page):
         def on_input_blur(e): page.input_is_focused = False
         
         def on_global_keyboard(e):
-            if e.key and len(e.key) == 1 and not page.input_is_focused: user_input.focus()
+            if e.key and len(e.key) == 1 and not page.input_is_focused and user_input is not None:
+                user_input.focus()
             
         def handle_bot_message(data):
             pid_recibido = int(data['problema_id'])
@@ -941,8 +952,12 @@ def main(page: ft.Page):
         barra_progreso = construir_barra_progreso()
         
         def guardar_respuesta_actual():
-            if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
-                texto = (respuesta_container.controls[0].value or "").strip()
+            tf_ctrl = next(
+                (c for c in respuesta_container.controls if isinstance(c, ft.TextField)),
+                None
+            )
+            if tf_ctrl:
+                texto = (tf_ctrl.value or "").strip()
                 save_k(page, f"respuesta_{problema_actual_id}", texto)
                 
         def add_chat_bubble(role, text):
@@ -1026,9 +1041,6 @@ def main(page: ft.Page):
                 ejercicio_text.text_align = ft.TextAlign.JUSTIFY
                 # ✅ Crear campo de respuesta
                 respuesta_container.controls.clear()
-                # Show rubrics if the practice has them defined
-                session_meta = load_k(page, "selected_session_meta", {}) or {}
-                rubricas = session_meta.get("rubricas", [])
 
                 if rubricas:
                     rubrica_items = [
@@ -1102,6 +1114,11 @@ def main(page: ft.Page):
                     
                 barra_progreso.controls.clear()
                 barra_progreso.controls.extend(construir_barra_progreso().controls)
+                try:
+                    if barra_progreso.page:
+                        barra_progreso.update()
+                except Exception:
+                    pass
                 page.update()
                 
         def _debounced_cargar(pid):
@@ -1160,11 +1177,16 @@ def main(page: ft.Page):
             try:
                 val = ""
                 # 1. Validación de respuesta no vacía (Lógica original - CORRECTA)
-                if respuesta_container.controls and isinstance(respuesta_container.controls[0], ft.TextField):
-                    val = (respuesta_container.controls[0].value or "").strip()
+                tf_ctrl = next(
+                    (c for c in respuesta_container.controls if isinstance(c, ft.TextField)),
+                    None
+                )
+                if tf_ctrl:
+                    val = (tf_ctrl.value or "").strip()
                 if not val:
                     mostrar_aviso("¡La respuesta no puede estar vacía!")
                     enviar_button.disabled = False
+                    page._is_sending_response = False
                     return
 
                 practice_name = load_k(page, "selected_session_filename", "unknown_session.json")
@@ -1243,6 +1265,11 @@ def main(page: ft.Page):
                 # 🔄 Refresh progress bar colors
                 barra_progreso.controls.clear()
                 barra_progreso.controls.extend(construir_barra_progreso().controls)
+                try:
+                    if barra_progreso.page:
+                        barra_progreso.update()
+                except Exception:
+                    pass
                 
                 # --- Verificar existencia del siguiente problema ---
                 next_id = problema_actual_id + 1
@@ -1340,22 +1367,6 @@ def main(page: ft.Page):
                             threading.Timer(2.0, show_login_register).start()
                         return
                     resp.raise_for_status()
-                    data = resp.json()
-                    if data.get("status") == "ok":
-                        bot_response = data.get("response", "")
-                        if getattr(page, "burbuja_carga", None) in chat_area.controls:
-                            chat_area.controls.remove(page.burbuja_carga)
-                        add_chat_bubble("assistant", bot_response)
-                        update_map(
-                            page,
-                            STATE_KEYS["chat"],
-                            problema_actual_id,
-                            {
-                                "role": "assistant",
-                                "text": bot_response
-                            }
-                        )
-                        page.update()
                 except requests.exceptions.RequestException as ex:
                     print(f"❌ Error al enviar mensaje: {ex}")
                     add_to_pending_queue(page, {
