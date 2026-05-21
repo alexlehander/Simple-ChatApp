@@ -1832,8 +1832,6 @@ def main(page: ft.Page):
 
         def close_stop_session_dlg():
             stop_session_dlg.open = False
-            if stop_session_dlg in page.overlay:
-                page.overlay.remove(stop_session_dlg)
             page.update()
 
         def confirm_stop_session(e):
