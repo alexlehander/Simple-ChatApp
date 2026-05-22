@@ -614,12 +614,27 @@ def main(page: ft.Page):
             exercises_grid.controls.clear()
             exercises_grid.controls.append(ft.ProgressRing(color=COLORES["primario"]))
             page.update()
-            
             def fetch_practica():
                 try:
                     res = auth_request("GET", f"/api/exercises/detail/{filename}")
                     if res and res.status_code == 200:
                         data = res.json()
+                        num_problems = len(data.get("problemas", []))
+                        keys_to_clear = [
+                            "respuestas_enviadas",
+                            STATE_KEYS["current_problem"],
+                            STATE_KEYS["answers"],
+                            STATE_KEYS["chat"],
+                            STATE_KEYS["timer_start"],
+                            "finish_epoch",
+                        ]
+                        for k in keys_to_clear:
+                            try: page.client_storage.remove(k)
+                            except Exception: pass
+                        for n in range(1, 51):
+                            for prefix in ("respuesta_", "chat_draft_"):
+                                try: page.client_storage.remove(f"{prefix}{n}")
+                                except Exception: pass
                         save_k(page, "selected_session_meta", data)
                         save_k(page, "selected_session_title", title)
                         save_k(page, "selected_session_problems", data.get("problemas", []))
@@ -629,7 +644,6 @@ def main(page: ft.Page):
                         flash("Error al descargar la práctica.", ok=False)
                 except Exception as e:
                     flash("Error de conexión.", ok=False)
-                    
             threading.Thread(target=fetch_practica, daemon=True).start()
 
         def ejecutar_logout(e):
@@ -877,6 +891,7 @@ def main(page: ft.Page):
         user_input = None
         correo = page.client_storage.get("correo_identificacion") or "No disponible"
         session_meta = load_k(page, "selected_session_meta", {}) or {}
+        practica_key = load_k(page, "selected_session_filename", "0")  # e.g. "15"
         rubricas = session_meta.get("rubricas", [])
         stop_timer = False
         page.input_is_focused = False
@@ -962,7 +977,7 @@ def main(page: ft.Page):
             )
             if tf_ctrl:
                 texto = (tf_ctrl.value or "").strip()
-                save_k(page, f"respuesta_{problema_actual_id}", texto)
+                save_k(page, f"respuesta_{practica_key}_{problema_actual_id}", texto)
                 
         def add_chat_bubble(role, text):
             is_user = role == "user"
@@ -1079,10 +1094,9 @@ def main(page: ft.Page):
                     hint_style=ft.TextStyle(color=COLORES["subtitulo"]),
                     color=COLORES["accento"],
                     on_focus=on_input_focus,
-                    on_blur=lambda e, pid=id_problema: (save_k(page, f"respuesta_{pid}", e.control.value), on_input_blur(e))
+                    on_blur=lambda e, pid=id_problema: (save_k(page, f"respuesta_{practica_key}_{pid}", e.control.value), on_input_blur(e))
                 )
-
-                draft = page.client_storage.get(f"respuesta_{id_problema}")
+                draft = page.client_storage.get(f"respuesta_{practica_key}_{id_problema}")
                 if draft: tf.value = draft
                 respuesta_container.controls.append(tf)
                 chat_draft = load_k(page, f"chat_draft_{id_problema}", "")
@@ -1237,7 +1251,7 @@ def main(page: ft.Page):
                     
                 
                 # 3. Lógica de GUARDADO LOCAL y AVANCE (Se ejecuta siempre, independientemente del éxito del envío)
-                save_k(page, f"respuesta_{problema_actual_id}", val)
+                save_k(page, f"respuesta_{practica_key}_{problema_actual_id}", val)
                 respuestas_enviadas[problema_actual_id - 1] = True
                 save_k(page, "respuestas_enviadas", respuestas_enviadas)
                 
