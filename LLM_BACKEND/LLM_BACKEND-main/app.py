@@ -302,7 +302,6 @@ def review_with_qc(original_answer: str, problem_text: str, system_rules: str, u
         )}
     ]
     try:
-        # más determinista en la revisión
         reviewed = call_mistral(messages, temperature=0.25, max_tokens=1000)
         reviewed = (reviewed or "").strip()
         return reviewed or original_answer
@@ -520,7 +519,7 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
             response_text = call_mistral([
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_message}
-            ], temperature=0.2, max_tokens=100)
+            ], temperature=0.25, max_tokens=100)
             try:
                 data = json.loads(response_text)
             except:
@@ -618,12 +617,20 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
             response_text = call_mistral([
                 {"role": "system", "content": "Eres un evaluador académico estricto y justo que responde solo en JSON."},
                 {"role": "user", "content": user_prompt}
-            ], temperature=0.2)
+            ], temperature=0.25)
+            response_text = response_text.strip()
+            if response_text.startswith("```"):
+                response_text = re.sub(r'^```(?:json)?\s*', '', response_text)
+                response_text = re.sub(r'\s*```\s*$', '', response_text.strip())
             try:
                 data = json.loads(response_text)
             except:
                 match = re.search(r'\{.*\}', response_text, re.DOTALL)
-                data = json.loads(match.group(0)) if match else {"calificación": 0, "comentario": "Error al procesar la evaluación del LLM"}
+                data = json.loads(match.group(0)) if match else {
+                    "calificación": 0,
+                    "comentario": "Error al procesar la evaluación del LLM",
+                    "rubricas": []
+                }
             nota = float(data.get("calificación", data.get("calificacion", data.get("score", 0))))
             comentario_completo = json.dumps(data, ensure_ascii=False)
             resp_record = db.session.get(RespuestaUsuario, respuesta_id)
@@ -1360,7 +1367,7 @@ def generate_student_report():
         response_text = call_mistral([
             {"role": "system", "content": "Eres un investigador educativo experto. Responde sólo en JSON."},
             {"role": "user", "content": prompt}
-        ], temperature=0.2, max_tokens=1000)
+        ], temperature=0.25, max_tokens=1000)
         try:
             parsed = json.loads(response_text)
         except:
@@ -1600,7 +1607,7 @@ def generate_live_session_report():
                 analisis = call_mistral([
                     {"role": "system", "content": "Eres un analista académico estricto."},
                     {"role": "user", "content": prompt_estudiante}
-                ], temperature=0.3, max_tokens=300)
+                ], temperature=0.25, max_tokens=300)
             except Exception as e:
                 print(f"Error evaluando a {email}: {e}")
                 analisis = "Error al conectar con IA para este estudiante."
@@ -1635,7 +1642,7 @@ def generate_live_session_report():
             analisis_grupal = call_mistral([
                 {"role": "system", "content": "Eres un director de academia."},
                 {"role": "user", "content": prompt_grupo}
-            ], temperature=0.4, max_tokens=400)
+            ], temperature=0.5, max_tokens=500)
         except Exception as e:
             analisis_grupal = "No se pudo generar el análisis grupal."
             
@@ -1866,7 +1873,7 @@ Sin bloques de código markdown. La estructura exacta es:
                 {"role": "system", "content": sys_prompt},
                 {"role": "user",   "content": f"DOCUMENTO ACADÉMICO:\n\n{text[:15000]}"},
             ]
-            raw_json = call_mistral(messages, temperature=0.1, max_tokens=3500)
+            raw_json = call_mistral(messages, temperature=0.25, max_tokens=3500)
             match = re.search(r'\{.*\}', raw_json, re.DOTALL)
             if not match:
                 print(f"❌ [Upload] IA no devolvió JSON. Respuesta: {raw_json[:300]}")
