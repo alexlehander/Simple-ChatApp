@@ -2559,8 +2559,12 @@ def main(page: ft.Page):
                         comentario_general = raw_comment 
                         llm_rubric_list.controls.clear()
                         try:
-                            import json
-                            rubric_data = json.loads(raw_comment)
+                            import json, re as _re
+                            clean_comment = raw_comment.strip()
+                            if clean_comment.startswith("```"):
+                                clean_comment = _re.sub(r'^```(?:json)?\s*', '', clean_comment)
+                                clean_comment = _re.sub(r'\s*```\s*$', '', clean_comment.strip())
+                            rubric_data = json.loads(clean_comment)
                             comentario_general = rubric_data.get("comentario", raw_comment)
                             if "rubricas" in rubric_data:
                                 for rub in rubric_data["rubricas"]:
@@ -2573,9 +2577,9 @@ def main(page: ft.Page):
                                             bgcolor=COLORES["fondo"], padding=8, border_radius=5, border=ft.border.all(1, COLORES["borde"])
                                         )
                                     )
-                        except:
+                        except Exception as _e:
+                            print(f"⚠️ llm_comment parse error: {_e} | raw: {raw_comment[:300]}")
                             llm_rubric_list.controls.append(ft.Text("Evaluación general, sin desglose de rúbricas.", size=12, color=COLORES["texto"], italic=True))
-
                         t_comment = item.get('teacher_comment')
                         if t_comment and not str(t_comment).strip().startswith("{") and not str(t_comment).strip().startswith("["):
                             grade_comment_field.value = t_comment if is_revised else comentario_general
