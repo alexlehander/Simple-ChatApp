@@ -1859,5 +1859,5 @@ if __name__ == "__main__":
         view=ft.AppView.WEB_BROWSER, 
         host="0.0.0.0", 
         port=port, 
-        assets_dir=ASSETS_PATH  # <--- AQUÍ USAMOS LA VARIABLE CALCULADA
+        assets_dir=ASSETS_PATH
     )
