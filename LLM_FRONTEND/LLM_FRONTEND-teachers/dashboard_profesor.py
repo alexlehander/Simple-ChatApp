@@ -144,8 +144,6 @@ def main(page: ft.Page):
 
     def close_detail_dlg():
         detail_dlg.open = False
-        if detail_dlg in page.overlay:
-            page.overlay.remove(detail_dlg)
         page.update()
 
     def show_student_detail(email):
@@ -912,8 +910,10 @@ def main(page: ft.Page):
 
                 def check_backend_success():
                     old_count = len(state.get("my_exercises", []))
-                    for _ in range(60):
+                    for _ in range(18):
                         time.sleep(5)
+                        if not page.is_alive:
+                            return
                         try:
                             res = auth_request("GET", "/api/teacher/my-exercises")
                             if res and res.status_code == 200:
@@ -976,8 +976,7 @@ def main(page: ft.Page):
         def add_student_action(e, email_to_add):
             e.control.disabled = True
             page.update()
-            headers = {"Authorization": f"Bearer {state['token']}"}
-            res = requests.post(f"{BASE}/api/teacher/students", headers=headers, json={"emails": [email_to_add]})
+            res = auth_request("POST", "/api/teacher/students", json={"emails": [email_to_add]})
             if res.status_code == 200:
                 flash(f"Estudiante {email_to_add} agregado", ok=True)
             else:
@@ -987,8 +986,7 @@ def main(page: ft.Page):
         def delete_student(e, email):
             e.control.disabled = True
             page.update()
-            headers = {"Authorization": f"Bearer {state['token']}"}
-            res = requests.delete(f"{BASE}/api/teacher/students", headers=headers, json={"email": email})
+            res = auth_request("DELETE", "/api/teacher/students", json={"email": email})
             if res.status_code == 200:
                 flash(f"Estudiante {email} eliminado", ok=True)
             else:
@@ -1076,7 +1074,11 @@ def main(page: ft.Page):
                     global_students_col.update()
                 except Exception:
                     pass
-                page.update()
+            try:
+                if page.is_alive:
+                    page.update()
+            except Exception:
+                pass
                 
         # Layout de la pestaña dividida
         tab_students = ft.Container(
@@ -1347,9 +1349,8 @@ def main(page: ft.Page):
         def add_exercise(e, filename):
             e.control.disabled = True
             page.update()
-            headers = {"Authorization": f"Bearer {state['token']}"}
-            res = requests.post(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
-            if res.status_code == 200:
+            res = auth_request("POST", "/api/teacher/my-exercises", json={"filename": filename})
+            if res and res.status_code == 200:
                 flash(f"{filename} agregada a tu lista", ok=True)
             else:
                 flash("Error al agregar tarea", ok=False)
@@ -1358,9 +1359,8 @@ def main(page: ft.Page):
         def remove_exercise(e, filename):
             e.control.disabled = True
             page.update()
-            headers = {"Authorization": f"Bearer {state['token']}"}
-            res = requests.delete(f"{BASE}/api/teacher/my-exercises", headers=headers, json={"filename": filename})
-            if res.status_code == 200:
+            res = auth_request("DELETE", "/api/teacher/my-exercises", json={"filename": filename})
+            if res and res.status_code == 200:
                 flash(f"{filename} eliminada de tu lista", ok=True)
             else:
                 flash("Error al eliminar tarea", ok=False)
@@ -1369,7 +1369,10 @@ def main(page: ft.Page):
         def toggle_exercise_status(e, filename):
             e.control.disabled = True
             page.update()
-            res = auth_request("PUT", "/api/teacher/my-exercises/toggle", json={"filename": filename})
+            ex_data = next((e for e in state.get("my_exercises", []) if e.get("filename") == filename), {})
+            practica_id = ex_data.get("practica_id")
+            payload = {"practica_id": practica_id} if practica_id else {"filename": filename}
+            res = auth_request("PUT", "/api/teacher/my-exercises/toggle", json=payload)
             if res and res.status_code == 200:
                 data = res.json()
                 is_active = data.get("is_active", False)
@@ -1521,7 +1524,11 @@ def main(page: ft.Page):
                     col_available.update()
                 except Exception:
                     pass
-                page.update()
+            try:
+                if page.is_alive:
+                    page.update()
+            except Exception:
+                pass
                 
         tab_exercises = ft.Container(
             content=ft.Column([
@@ -2788,6 +2795,11 @@ def main(page: ft.Page):
                     col_pending_grades.update()
                 except Exception:
                     pass
+            try:
+                if page.is_alive:
+                    page.update()
+            except Exception:
+                pass
                 
         def download_grades_excel(e):
             url = f"{BASE}/api/teacher/grades/download?token={state['token']}"

@@ -84,7 +84,7 @@ def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct",
             if r.status_code in (429, 503) and attempt < _retries:
                 wait = 2 ** attempt  # 2s, 4s, 8s
                 print(f"⚠️ [LLM] HTTP {r.status_code} — retrying in {wait}s (attempt {attempt}/{_retries})")
-                import time as _time; _time.sleep(wait)
+                gevent.sleep(wait)
                 continue
             r.raise_for_status()
             data = r.json()
@@ -92,7 +92,7 @@ def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct",
         except Exception as exc:
             last_exc = exc
             if attempt < _retries:
-                import time as _time; _time.sleep(2 ** attempt)
+                gevent.sleep(2 ** attempt)
     raise last_exc
 
 # ------------------------------------------------------------------------------------
@@ -421,12 +421,25 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
     with app_obj.app_context():
         print(f"🤖 [Background] Procesando mensaje para {correo}...")
         try:
-            last_user_msg = ChatLog.query.filter_by(
-                correo_identificacion=correo, 
-                practice_name=practice_name,
-                problema_id=problema_id, 
-                role="user"
-            ).order_by(ChatLog.id.desc()).first()
+            try:
+                practica_id_int = int(practice_name) if practice_name else None
+            except (ValueError, TypeError):
+                practica_id_int = None
+
+            if practica_id_int:
+                last_user_msg = ChatLog.query.filter_by(
+                    correo_identificacion=correo,
+                    practica_id=practica_id_int,
+                    problema_id=problema_id,
+                    role="user"
+                ).order_by(ChatLog.id.desc()).first()
+            else:
+                last_user_msg = ChatLog.query.filter_by(
+                    correo_identificacion=correo,
+                    practice_name=practice_name,
+                    problema_id=problema_id,
+                    role="user"
+                ).order_by(ChatLog.id.desc()).first()
             user_query_text = last_user_msg.content if last_user_msg else ""
             context = ""
             if len(user_query_text.strip()) > 15:
@@ -460,7 +473,7 @@ def background_llm_task(app_obj, usuario_id, correo, practice_name, problema_id)
 def get_exercise_metadata(filename):
     try:
         pid = int(filename)
-        p = Practica.query.get(pid)
+        p = db.session.get(Practica, pid)
     except ValueError:
         p = Practica.query.filter_by(titulo=filename).first()
         
@@ -480,6 +493,7 @@ def get_exercise_metadata(filename):
     }
 
 def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
+    emit_payload = None
     with app.app_context():
         sys_prompt = (
             "Eres un experto en Learning Analytics. Clasifica la interacción del estudiante.\n"
@@ -544,9 +558,11 @@ def analyze_interaction_semaphore(chat_log_id, user_message, correo, prog_pct):
             })
         except Exception as e:
             print(f"❌ Error in Semaphore Analysis: {e}")
-            
-# 2. Automated Grading Function
+    if emit_payload:
+        safe_emit('student_activity', emit_payload)        
+
 def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
+    emit_payload = None
     with app.app_context():
         example_json = """{
             "calificación": 8,
@@ -592,13 +608,11 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
             Respuesta del Estudiante: {student_answer}
             --- FIN DE LA RESPUESTA ---
         """
-
         try:
             response_text = call_mistral([
                 {"role": "system", "content": "Eres un evaluador académico estricto y justo que responde solo en JSON."},
                 {"role": "user", "content": user_prompt}
             ], temperature=0.2)
-            
             try:
                 data = json.loads(response_text)
             except:
@@ -606,7 +620,6 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
                 data = json.loads(match.group(0)) if match else {"calificación": 0, "comentario": "Error al procesar la evaluación del LLM"}
             nota = float(data.get("calificación", data.get("calificacion", data.get("score", 0))))
             comentario_completo = json.dumps(data, ensure_ascii=False)
-
             resp_record = db.session.get(RespuestaUsuario, respuesta_id)
             if resp_record:
                 resp_record.llm_score = nota
@@ -615,7 +628,7 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
                 db.session.commit()
                 print(f"📝 Evaluado ID {respuesta_id}: {resp_record.llm_score}/10")
                 color = "green" if nota >= 7 else "yellow" if nota >= 4 else "red"
-                safe_emit('student_activity', {
+                emit_payload = {
                     'type': 'answer',
                     'student_email': resp_record.correo_identificacion,
                     'status': color,
@@ -625,10 +638,11 @@ def auto_grade_answer(respuesta_id, problem_text, student_answer, prog_pct):
                     'progress_pct': prog_pct,
                     'timestamp': hora_ensenada().isoformat(),
                     'answer_id': resp_record.id
-                })
-                
+                }
         except Exception as e:
             print(f"❌ Error en Auto-Grading: {e}")
+    if emit_payload:
+        safe_emit('student_activity', emit_payload)
 
 # --- app.py (Helper functions section) ---
 def calculate_sliding_window_color(student_email):
@@ -738,52 +752,8 @@ def chat(problema_id: int):
         correo,
         prog_pct
     )
-    try:
-        messages = history_for_chat(
-            correo,
-            problema_id,
-            practice_name
-        )
-        bot_response = call_mistral(messages)
-        if QC_ENABLED:
-            problem_text = get_problem_enunciado(
-                practice_name,
-                problema_id
-            )
-            bot_response = review_with_qc(
-                bot_response,
-                problem_text,
-                DEFAULT_SYSTEM_PROMPT,
-                user_msg
-            )
-        save_chat_turn(
-            usuario,
-            correo,
-            practice_name,
-            problema_id,
-            "assistant",
-            bot_response
-        )
-        safe_emit(
-            'nuevo_mensaje_bot',
-            {
-                'correo': correo,
-                'problema_id': problema_id,
-                'role': 'assistant',
-                'content': bot_response
-            }
-        )
-        return jsonify({
-            "status": "ok",
-            "response": bot_response
-        })
-    except Exception as e:
-        print(f"❌ Chat Error: {e}")
-        traceback.print_exc()
-        return jsonify({
-            "status": "error",
-            "message": "Error generando respuesta"
-        }), 500
+    gevent.spawn(background_llm_task, app, usuario.id, correo, practice_name, problema_id)
+    return jsonify({"status": "processing", "message": "Procesando..."})
     
 @app.route("/api/teacher/register", methods=["POST"])
 def teacher_register():
@@ -951,31 +921,41 @@ def get_all_registered_users():
 def get_teacher_classes():
     prof_id = int(get_jwt_identity())
     grupos = Grupo.query.filter_by(profesor_id=prof_id).order_by(Grupo.created_at.desc()).all()
-    
+    if not grupos:
+        return jsonify([]), 200
+    grupo_ids = [g.id for g in grupos]
+    rels_est = GrupoEstudiante.query.filter(GrupoEstudiante.grupo_id.in_(grupo_ids)).all()
+    rels_tar = GrupoTarea.query.filter(GrupoTarea.grupo_id.in_(grupo_ids)).all()
+    all_emails = list({r.student_email for r in rels_est})
+    usuarios_map = {
+        u.correo_identificacion: u.nombre or "Estudiante"
+        for u in Usuario.query.filter(Usuario.correo_identificacion.in_(all_emails)).all()
+    }
+    all_filenames = list({r.exercise_filename for r in rels_tar})
+    prac_ids = []
+    for f in all_filenames:
+        try: prac_ids.append(int(f))
+        except ValueError: pass
+    practicas_map = {str(p.id): p.titulo for p in Practica.query.filter(Practica.id.in_(prac_ids)).all()}
+    from collections import defaultdict
+    est_by_grupo = defaultdict(list)
+    for r in rels_est:
+        est_by_grupo[r.grupo_id].append({
+            "email": r.student_email,
+            "nombre": usuarios_map.get(r.student_email, "Estudiante")
+        })
+    tar_by_grupo = defaultdict(list)
+    for r in rels_tar:
+        title = practicas_map.get(r.exercise_filename, r.exercise_filename)
+        tar_by_grupo[r.grupo_id].append({"filename": r.exercise_filename, "title": title})
     data = []
     for g in grupos:
-        # 1. Obtener estudiantes de esta clase
-        rels_est = GrupoEstudiante.query.filter_by(grupo_id=g.id).all()
-        emails = [r.student_email for r in rels_est]
-        usuarios = Usuario.query.filter(Usuario.correo_identificacion.in_(emails)).all()
-        lista_estudiantes = [{"email": u.correo_identificacion, "nombre": u.nombre or "Estudiante"} for u in usuarios]
-        
-        # 2. Obtener tareas de esta clase
-        rels_tar = GrupoTarea.query.filter_by(grupo_id=g.id).all()
-        filenames = [r.exercise_filename for r in rels_tar]
-        lista_tareas = []
-        for fname in filenames:
-            meta = get_exercise_metadata(fname)
-            lista_tareas.append({"filename": fname, "title": meta["title"]})
-            
-        # 3. Ensamblar objeto
         data.append({
             "id": g.id,
             "nombre": g.nombre,
-            "estudiantes": lista_estudiantes,
-            "tareas": lista_tareas
+            "estudiantes": est_by_grupo[g.id],
+            "tareas": tar_by_grupo[g.id]
         })
-        
     return jsonify(data), 200
 
 @app.route("/api/teacher/classes", methods=["POST"])
@@ -1109,7 +1089,7 @@ def get_completed_grades():
 @jwt_required()
 def delete_grade(resp_id):
     prof_id = int(get_jwt_identity())
-    resp = RespuestaUsuario.query.get(resp_id)
+    p = db.session.get(Practica, practica_id)
     if not resp:
         return jsonify({"msg": "No encontrado"}), 404
     asig = ListaEjercicios.query.filter_by(
@@ -1124,13 +1104,19 @@ def delete_grade(resp_id):
 @app.route("/api/teacher/grades/submit", methods=["POST"])
 @jwt_required()
 def submit_teacher_grade():
+    prof_id = int(get_jwt_identity())
     data = request.get_json()
     resp_id = data.get("id")
     action = data.get("action")
     
-    resp = RespuestaUsuario.query.get(resp_id)
-    if not resp: return jsonify({"msg": "Not found"}), 404
-    
+    resp = db.session.get(RespuestaUsuario, resp_id)
+    if not resp:
+        return jsonify({"msg": "Not found"}), 404
+    asig = ListaEjercicios.query.filter_by(
+        profesor_id=prof_id, practica_id=resp.practica_id
+    ).first()
+    if not asig:
+        return jsonify({"error": "No autorizado para calificar esta evaluación"}), 403
     if action == "approve":
         resp.teacher_score = resp.llm_score
         resp.teacher_comment = data.get("comment") 
@@ -1170,7 +1156,13 @@ def get_student_statuses():
 @app.route('/api/student_timeline/<path:email>', methods=['GET'])
 @jwt_required()
 def get_student_timeline(email):
-    """Fetches combined chronological timeline of chat and answers."""
+    profesor_id = int(get_jwt_identity())
+    claims = get_jwt()
+    if claims.get("role") != "student":
+        student_records = ListaClase.query.filter_by(profesor_id=profesor_id).all()
+        my_emails = {s.student_email for s in student_records}
+        if email not in my_emails:
+            return jsonify({"error": "Acceso no autorizado"}), 403
     try:
         chats = db.session.query(AnalisisInteraccion, ChatLog.content).join(
             ChatLog, AnalisisInteraccion.chat_id == ChatLog.id
@@ -1482,8 +1474,11 @@ def get_student_active_exercises():
         ListaEjercicios.is_active == True
     ).all()
     
-    unique_ids = {e.practica_id for e in ejercicios_activos if e.practica_id}
-    
+    seen = {}
+    for e in ejercicios_activos:
+        if e.practica_id and e.practica_id not in seen:
+            seen[e.practica_id] = True
+    unique_ids = list(seen.keys())
     data = [get_exercise_metadata(str(pid)) for pid in unique_ids]
     return jsonify(data), 200
   
@@ -1583,26 +1578,27 @@ def generate_live_session_report():
     results_map = {}
 
     def analizar_estudiante(email, data):
-        transcripcion_corta = "\n".join(data["transcripcion_chats"][-15:])
-        respuestas_texto = "\n".join(data["respuestas_finales"])
-        prompt_estudiante = f"""
-        Actúa como un profesor experto evaluando el desempeño del estudiante '{email}'.
-        Métricas de Semáforo: Verdes: {data['semaforo']['green']}, Amarillas: {data['semaforo']['yellow']}, Rojas: {data['semaforo']['red']}
-        Respuestas Entregadas:\n{respuestas_texto}
-        Transcripción de Chat:\n{transcripcion_corta}
-        Genera un análisis cualitativo en español con: 1. Puntos fuertes. 2. Debilidades. 3. Si requiere intervención.
-        Devuelve solo párrafos, sin markdown, sin saludo.
-        """
-        try:
-            analisis = call_mistral([
-                {"role": "system", "content": "Eres un analista académico estricto."},
-                {"role": "user", "content": prompt_estudiante}
-            ], temperature=0.3, max_tokens=300)
-        except Exception as e:
-            print(f"Error evaluando a {email}: {e}")
-            analisis = "Error al conectar con IA para este estudiante."
-        results_map[email] = analisis
-
+        with app.app_context():
+            transcripcion_corta = "\n".join(data["transcripcion_chats"][-15:])
+            respuestas_texto = "\n".join(data["respuestas_finales"])
+            prompt_estudiante = f"""
+            Actúa como un profesor experto evaluando el desempeño del estudiante '{email}'.
+            Métricas de Semáforo: Verdes: {data['semaforo']['green']}, Amarillas: {data['semaforo']['yellow']}, Rojas: {data['semaforo']['red']}
+            Respuestas Entregadas:\n{respuestas_texto}
+            Transcripción de Chat:\n{transcripcion_corta}
+            Genera un análisis cualitativo en español con: 1. Puntos fuertes. 2. Debilidades. 3. Si requiere intervención.
+            Devuelve solo párrafos, sin markdown, sin saludo.
+            """
+            try:
+                analisis = call_mistral([
+                    {"role": "system", "content": "Eres un analista académico estricto."},
+                    {"role": "user", "content": prompt_estudiante}
+                ], temperature=0.3, max_tokens=300)
+            except Exception as e:
+                print(f"Error evaluando a {email}: {e}")
+                analisis = "Error al conectar con IA para este estudiante."
+            results_map[email] = analisis
+            
     # Lanzar todos en paralelo con gevent
     greenlets = [gevent.spawn(analizar_estudiante, email, data) for email, data in estudiantes_data.items()]
     gevent.joinall(greenlets, timeout=90)  # Espera máximo 90s al total
@@ -1903,7 +1899,7 @@ Sin bloques de código markdown. La estructura exacta es:
                 profesor_id=prof_id,
                 exercise_filename=f"MIGRADO_{nueva_practica.id}",
                 practica_id=nueva_practica.id,
-                is_active=True,
+                is_active=False,
             ))
             db.session.commit()
             print(f"✅ [Upload] Práctica #{nueva_practica.id} '{titulo_final}' "
@@ -2078,7 +2074,7 @@ def get_exercise_detail(identificador):
     # Soporta tanto el nuevo ID numérico como el viejo formato .json si algún alumno lo pide
     try:
         pid = int(identificador)
-        p = Practica.query.get(pid)
+        p = db.session.get(Practica, pid)
     except ValueError:
         p = Practica.query.filter_by(titulo=identificador).first() # Fallback
 
