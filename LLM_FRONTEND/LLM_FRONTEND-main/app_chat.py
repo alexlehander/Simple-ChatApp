@@ -1,8 +1,9 @@
 import flet as ft
-import requests, time, threading, os, json
+import requests, time, threading, os, json, re
 import socketio
 
 BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
 
 def encontrar_raiz_proyecto(marcador="assets"):
     ruta_actual = os.path.dirname(os.path.abspath(__file__))
@@ -402,6 +403,9 @@ def main(page: ft.Page):
             
         def submit_action(e):
             if is_register:
+                if not EMAIL_REGEX.match((email_field.value or "").strip()):
+                    flash("El correo no tiene un formato válido (ej: nombre@dominio.com)", ok=False)
+                    return
                 if not email_field.value or not pass_field.value or not name_field.value or not teacher_dropdown.value:
                     flash("Por favor, llena todos los campos", ok=False)
                     return

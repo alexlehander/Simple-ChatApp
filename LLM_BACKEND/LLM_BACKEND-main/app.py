@@ -16,7 +16,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt, decode_token
 from zoneinfo import ZoneInfo
 from pdf2image import convert_from_bytes
+from collections import defaultdict
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+
+def is_valid_email(email: str) -> bool:
+    return bool(EMAIL_REGEX.match((email or "").strip()))
 
 def hora_ensenada():
     return dt.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None)
@@ -758,16 +764,15 @@ def chat(problema_id: int):
 @app.route("/api/teacher/register", methods=["POST"])
 def teacher_register():
     data = request.get_json()
-    email = data.get("email")
     password = data.get("password")
     nombre = data.get("nombre", "Profesor")
-    
+    email = (data.get("email") or "").strip().lower()
+    if not is_valid_email(email):
+        return jsonify({"msg": "El correo electrónico no tiene un formato válido"}), 400
     if not email or not password:
         return jsonify({"msg": "Faltan datos"}), 400
-    
     if Profesor.query.filter_by(email=email).first():
         return jsonify({"msg": "El usuario ya existe"}), 400
-        
     hashed = generate_password_hash(password)
     new_prof = Profesor(email=email, password_hash=hashed, nombre=nombre)
     db.session.add(new_prof)
@@ -804,8 +809,11 @@ def manage_students():
         if isinstance(emails, str): emails = [emails]
         added = 0
         for email in emails:
-            email = email.strip()
-            if not email: continue
+            email = email.strip().lower()
+            if not email:
+                continue
+            if not is_valid_email(email):
+                continue
             exists = ListaClase.query.filter_by(profesor_id=profesor_id, student_email=email).first()
             if not exists:
                 db.session.add(ListaClase(profesor_id=profesor_id, student_email=email))
@@ -937,7 +945,6 @@ def get_teacher_classes():
         try: prac_ids.append(int(f))
         except ValueError: pass
     practicas_map = {str(p.id): p.titulo for p in Practica.query.filter(Practica.id.in_(prac_ids)).all()}
-    from collections import defaultdict
     est_by_grupo = defaultdict(list)
     for r in rels_est:
         est_by_grupo[r.grupo_id].append({
@@ -1395,14 +1402,14 @@ def get_public_teachers():
 @app.route("/api/student/register", methods=["POST"])
 def student_register():
     data = request.get_json()
-    email = data.get("email")
     password = data.get("password")
     nombre = data.get("nombre")
     teacher_ids = data.get("teacher_ids", [])
-
+    email = (data.get("email") or "").strip().lower()
+    if not is_valid_email(email):
+        return jsonify({"msg": "El correo electrónico no tiene un formato válido"}), 400
     if not email or not password or not nombre or not teacher_ids:
         return jsonify({"msg": "Faltan datos obligatorios o no seleccionó profesores"}), 400
-
     if Usuario.query.filter_by(correo_identificacion=email).first():
         return jsonify({"msg": "El correo ya está registrado"}), 400
 
@@ -1954,7 +1961,6 @@ def get_available_exercises():
     all_probs = Problema.query.filter(
         Problema.practica_id.in_(prac_ids)
     ).order_by(Problema.practica_id, Problema.numero_ejercicio).all()
-    from collections import defaultdict
     probs_by_prac = defaultdict(list)
     for prob in all_probs:
         probs_by_prac[prob.practica_id].append(
@@ -1986,7 +1992,6 @@ def get_my_exercises():
     all_probs = Problema.query.filter(
         Problema.practica_id.in_(prac_ids)
     ).order_by(Problema.practica_id, Problema.numero_ejercicio).all()
-    from collections import defaultdict
     probs_by_prac = defaultdict(list)
     for prob in all_probs:
         probs_by_prac[prob.practica_id].append(
@@ -2098,7 +2103,7 @@ def get_exercise_detail(identificador):
 @jwt_required()
 def edit_exercise(practica_id):
     prof_id = int(get_jwt_identity())
-    p = Practica.query.get(practica_id)
+    p = db.session.get(Practica, practica_id)
     if not p: return jsonify({"error": "Práctica no encontrada"}), 404
     
     # Bloqueo de seguridad: Solo el creador original puede modificarla

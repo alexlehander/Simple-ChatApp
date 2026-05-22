@@ -1,10 +1,11 @@
 import flet as ft
-import requests, time, threading, os, json
+import requests, time, threading, os, json, re
 import socketio
 import datetime as dt
 from zoneinfo import ZoneInfo
 
 BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
 
 def encontrar_raiz_proyecto(marcador="assets"):
     ruta_actual = os.path.dirname(os.path.abspath(__file__))
@@ -974,23 +975,43 @@ def main(page: ft.Page):
             page.update()
             
         def add_student_action(e, email_to_add):
+            email_clean = (email_to_add or "").strip().lower()
+            if not EMAIL_REGEX.match(email_clean):
+                flash("Correo inválido. Usa el formato correcto (ej: alumno@uabc.edu.mx)", ok=False)
+                return
             e.control.disabled = True
             page.update()
-            res = auth_request("POST", "/api/teacher/students", json={"emails": [email_to_add]})
+            res = auth_request("POST", "/api/teacher/students", json={"emails": [email_clean]})
+            if res is None:
+                flash("Error de conexión o sesión expirada. Vuelve a iniciar sesión.", ok=False)
+                e.control.disabled = False
+                page.update()
+                return
+
             if res.status_code == 200:
-                flash(f"Estudiante {email_to_add} agregado", ok=True)
+                flash(f"Estudiante {email_clean} agregado correctamente", ok=True)
             else:
-                flash("Error al agregar estudiante", ok=False)
+                msg = "Error al agregar estudiante"
+                try:
+                    msg = res.json().get("msg", msg)
+                except Exception:
+                    pass
+                flash(msg, ok=False)
+
+            e.control.disabled = False
+            page.update()
             load_students()
             
         def delete_student(e, email):
             e.control.disabled = True
             page.update()
             res = auth_request("DELETE", "/api/teacher/students", json={"email": email})
-            if res.status_code == 200:
+            if res and res.status_code == 200:
                 flash(f"Estudiante {email} eliminado", ok=True)
             else:
-                flash("Error al eliminar estudiante", ok=False)
+                flash("Error al eliminar estudiante" if res else "Sesión expirada", ok=False)
+            e.control.disabled = False
+            page.update()
             load_students()
             
         def render_students():
