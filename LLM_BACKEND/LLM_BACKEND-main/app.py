@@ -36,6 +36,7 @@ def encontrar_raiz_proyecto(marcador="assets"):
         if ruta_padre == ruta_actual:
             raise FileNotFoundError(f"No se encontró la carpeta raíz conteniendo '{marcador}'")
         ruta_actual = ruta_padre
+        
 try:
     ROOT_DIR = encontrar_raiz_proyecto("assets") 
     ASSETS_PATH = os.path.join(ROOT_DIR, "assets")
@@ -63,14 +64,11 @@ HF_EMBED_URL = os.getenv("HF_EMBED_URL", "https://EmbeddingsAPI.hf.space/embed")
 SEMAPHORE_WINDOW_MINUTES = 5
 RED_FLAG_INTENTS = ["Demanda por Respuesta", "Comportamiento Negativo"]
 YELLOW_FLAG_INTENTS = ["Fuera del Tema", "Expresion de Incomprension"]
-RED_THRESHOLD = 2    # How many red flags in the window trigger RED state
-YELLOW_THRESHOLD = 2 # How many yellow flags trigger YELLOW state
-
-# If you want to implement a second layer of security / verification mechanism for LLM-generated answers - uncomment the next line and delete False (The quality of life improvement is very little)
+RED_THRESHOLD = 2
+YELLOW_THRESHOLD = 2
 QC_ENABLED = False  #os.getenv("QC_ENABLED", "true").lower() in ("1", "true", "yes", "on")
 
-def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct",
-                 temperature=0.5, max_tokens=1000, _retries=3):
+def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct", temperature=0.5, max_tokens=1000, _retries=3):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
@@ -88,7 +86,7 @@ def call_mistral(messages, model="mistralai/mistral-small-3.2-24b-instruct",
         try:
             r = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=180)
             if r.status_code in (429, 503) and attempt < _retries:
-                wait = 2 ** attempt  # 2s, 4s, 8s
+                wait = 2 ** attempt
                 print(f"⚠️ [LLM] HTTP {r.status_code} — retrying in {wait}s (attempt {attempt}/{_retries})")
                 gevent.sleep(wait)
                 continue
@@ -109,23 +107,15 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 app.config["JWT_QUERY_STRING_NAME"] = "jwt"
 CORS(app)
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-    "DATABASE_URL",
-    "mysql+pymysql://app:app@db:3306/llmapp"
-)
+app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "mysql+pymysql://app:app@db:3306/llmapp")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key-change-in-prod")
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = dt.timedelta(hours=12)
 app.config["JWT_TOKEN_LOCATION"] = ["headers", "query_string"]
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-socketio = SocketIO(
-    app,
-    cors_allowed_origins="*",
-    async_mode="gevent",
-    ping_timeout=60,
-    ping_interval=20
-)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent", ping_timeout=60, ping_interval=20)
+
 def safe_emit(event, data, room=None):
     try:
         if room:
@@ -134,7 +124,7 @@ def safe_emit(event, data, room=None):
             socketio.emit(event, data, namespace='/')
     except Exception as e:
         print(f"⚠️ [Socket] Emit failed for '{event}': {e}")
-
+        
 # ------------------------------------------------------------------------------------
 # Data Models
 # ------------------------------------------------------------------------------------
@@ -145,7 +135,7 @@ class Usuario(db.Model):
     correo_identificacion = db.Column(db.String(128), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     nombre = db.Column(db.String(128), nullable=True)
-
+    
 class RespuestaUsuario(db.Model):
     __tablename__ = "railway_respuesta_usuario"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -161,7 +151,7 @@ class RespuestaUsuario(db.Model):
     teacher_score = db.Column(db.Float, nullable=True)
     teacher_comment = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), default="pending")
-
+    
 class ChatLog(db.Model):
     __tablename__ = "railway_chat_log"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -1959,8 +1949,13 @@ def upload_exercise_pdf():
 @jwt_required()
 def get_available_exercises():
     prof_id = int(get_jwt_identity())
+    ya_en_lista = {
+        e.practica_id
+        for e in ListaEjercicios.query.filter_by(profesor_id=prof_id).all()
+        if e.practica_id
+    }
     practicas = Practica.query.filter(
-        (Practica.profesor_id == None) | (Practica.profesor_id != prof_id)
+        ~Practica.id.in_(ya_en_lista)
     ).order_by(Practica.id.desc()).all()
     if not practicas:
         return jsonify([]), 200
