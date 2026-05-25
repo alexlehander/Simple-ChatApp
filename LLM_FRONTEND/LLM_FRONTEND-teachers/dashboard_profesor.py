@@ -1247,6 +1247,7 @@ def main(page: ft.Page):
                 
                 def render_r():
                     col_rubricas.controls.clear()
+                    col_rubricas.controls.append(ft.Container(height=10))
                     for i, r in enumerate(rubricas_list):
                         r_dim  = r.get("dimension", r) if isinstance(r, dict) else r
                         r_desc = r.get("descripcion", "") if isinstance(r, dict) else ""
@@ -1267,6 +1268,7 @@ def main(page: ft.Page):
                     
                 def render_p():
                     col_problemas.controls.clear()
+                    col_problemas.controls.append(ft.Container(height=10))
                     for i, p in enumerate(problemas_list):
                         enun_tf = ft.TextField(
                             label=f"Problema {i+1}",
@@ -1310,6 +1312,7 @@ def main(page: ft.Page):
                 dlg_h = page.height * 0.80
                 inner_h = dlg_h - 125
                 content = ft.Column([
+                    ft.Container(height=10),
                     ft.Row([title_field, time_field]),
                     desc_field,
                     ft.Divider(height=1),
@@ -1363,6 +1366,7 @@ def main(page: ft.Page):
                 inner_h = dlg_h - 125
 
                 content = ft.Column([
+                    ft.Container(height=10),
                     ft.Text(data.get("title", ""), weight="bold",
                             size=18, color=COLORES["primario"]),
                     ft.Text(data.get("description", ""), size=14, italic=True),
