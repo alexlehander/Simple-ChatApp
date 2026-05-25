@@ -1,6 +1,6 @@
 import flet as ft
-import requests, time, threading, os, json, re
-import socketio
+import requests, time, threading, os, json, re, socketio, urllib.parse
+import time as _t
 import datetime as dt
 from zoneinfo import ZoneInfo
 
@@ -195,13 +195,12 @@ def main(page: ft.Page):
                 }.get(color_name, (ft.Icons.CIRCLE_OUTLINED, COLORES["subtitulo"]))
                 
             nuevos_controles = []
-            import datetime as dt_module
-            now_tj = dt_module.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None)
+            now_tj = dt.datetime.now(ZoneInfo("America/Tijuana")).replace(tzinfo=None)
 
             filtered_data = []
             for event in timeline_data:
                 try:
-                    dt_obj = dt_module.datetime.fromisoformat(event['timestamp'].replace('Z', ''))
+                    dt_obj = dt.datetime.fromisoformat(event['timestamp'].replace('Z', ''))
                     if filter_recent["value"]:
                         if (now_tj - dt_obj).total_seconds() > 7200: continue
                     filtered_data.append((event, dt_obj))
@@ -284,16 +283,15 @@ def main(page: ft.Page):
     def disconnect():
         print("❌ Desconectado del servidor de tiempo real")
         def _reconnect_loop():
-            import time as _t
             for attempt in range(1, 6):
-                _t.sleep(3 * attempt)
+                _t.sleep(3 + random.uniform(0, attempt * 2))
                 if not page.is_alive:
                     return
                 if not load_k(page, "is_live_session_active", False):
                     return
                 try:
                     if not sio.connected:
-                        sio.connect(BASE)
+                        sio.connect(BASE, wait_timeout=10)
                         print(f"✅ Reconectado al servidor (intento {attempt})")
                         session_status_text.value = "🔴 EN VIVO: Recibiendo alertas..."
                         session_status_text.color = COLORES["error"]
@@ -805,7 +803,6 @@ def main(page: ft.Page):
                         return
                 params_dlg.open = False
                 page.update()
-                import urllib.parse
                 qs = urllib.parse.urlencode({
                     "jwt":           state["token"],
                     "filename":      state["_pdf_pending_filename"],
@@ -1238,8 +1235,10 @@ def main(page: ft.Page):
                 def render_r():
                     col_rubricas.controls.clear()
                     for i, r in enumerate(rubricas_list):
-                        dim_tf = ft.TextField(label="Dimensión", value=r.get("dimension",""), expand=1, text_size=12, on_change=lambda e, idx=i: r.update({"dimension": e.control.value}))
-                        desc_tf = ft.TextField(label="Descripción", value=r.get("descripcion",""), expand=2, text_size=12, on_change=lambda e, idx=i: r.update({"descripcion": e.control.value}))
+                        r_dim  = r.get("dimension", r) if isinstance(r, dict) else r
+                        r_desc = r.get("descripcion", "") if isinstance(r, dict) else ""
+                        dim_tf  = ft.TextField(label="Dimensión",   value=r_dim,  expand=1, text_size=12, on_change=lambda e, idx=i: rubricas_list.__setitem__(idx, {**( rubricas_list[idx] if isinstance(rubricas_list[idx], dict) else {"dimension": rubricas_list[idx]}), "dimension": e.control.value}))
+                        desc_tf = ft.TextField(label="Descripción", value=r_desc, expand=2, text_size=12, on_change=lambda e, idx=i: rubricas_list.__setitem__(idx, {**( rubricas_list[idx] if isinstance(rubricas_list[idx], dict) else {"dimension": rubricas_list[idx]}), "descripcion": e.control.value}))
                         del_btn = ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, idx=i: delete_r(idx))
                         col_rubricas.controls.append(ft.Row([dim_tf, desc_tf, del_btn]))
                     page.update()
@@ -1316,17 +1315,27 @@ def main(page: ft.Page):
                     ft.Text(f"Tiempo estimado: {int(data.get('max_time', 3600)/60)} minutos", italic=True),
                     ft.Divider(),
                     ft.Text("Rúbricas de Evaluación:", weight="bold", color=COLORES["primario"]),
-                    ft.Column([ft.Text(f"• {r.get('dimension')}: {r.get('descripcion')}", size=12) for r in data.get("rubricas",[])]),
+                    ft.Column([
+                        ft.Text(
+                            f"• {r.get('dimension', r) if isinstance(r, dict) else r}"
+                            + (f": {r.get('descripcion','')}" if isinstance(r, dict) and r.get('descripcion') else ""),
+                            size=12
+                        )
+                        for r in data.get("rubricas", [])
+                    ]),
                     ft.Divider(),
                     ft.Text("Problemas:", weight="bold", color=COLORES["primario"]),
                     ft.Column([ft.Text(f"{p['id']}. {p['enunciado']}", size=12) for p in data.get("problemas",[])]),
                 ], scroll="auto", spacing=10)
                 actions = [ft.TextButton("Cerrar", on_click=lambda e: (setattr(dlg, 'open', False), page.overlay.remove(dlg) if dlg in page.overlay else None, page.update()))]
 
+            page.overlay[:] = [o for o in page.overlay if not isinstance(o, ft.AlertDialog) or o == ex_detail_dlg]
             dlg = ft.AlertDialog(
+                modal=True,
                 title=ft.Text("Editor de Tareas" if is_mine else "Detalles de la Tarea"),
                 content=ft.Container(width=700, height=600, content=content),
-                actions=actions
+                actions=actions,
+                on_dismiss=lambda e: (page.overlay.remove(dlg) if dlg in page.overlay else None, page.update())
             )
             page.overlay.append(dlg)
             dlg.open = True
@@ -2559,11 +2568,10 @@ def main(page: ft.Page):
                         comentario_general = raw_comment 
                         llm_rubric_list.controls.clear()
                         try:
-                            import json, re as _re
                             clean_comment = raw_comment.strip()
                             if clean_comment.startswith("```"):
-                                clean_comment = _re.sub(r'^```(?:json)?\s*', '', clean_comment)
-                                clean_comment = _re.sub(r'\s*```\s*$', '', clean_comment.strip())
+                                clean_comment = re.sub(r'^```(?:json)?\s*', '', clean_comment)
+                                clean_comment = re.sub(r'\s*```\s*$', '', clean_comment.strip())
                             rubric_data = json.loads(clean_comment)
                             comentario_general = rubric_data.get("comentario", raw_comment)
                             if "rubricas" in rubric_data:

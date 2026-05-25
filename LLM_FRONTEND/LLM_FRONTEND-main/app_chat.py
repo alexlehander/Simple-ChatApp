@@ -1,8 +1,8 @@
 import flet as ft
-import requests, time, threading, os, json, re
-import socketio
+import requests, time, threading, os, json, re, random, socketio
+import time as _t
 
-BASE                    = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+BASE = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
 
 def encontrar_raiz_proyecto(marcador="assets"):
@@ -82,6 +82,19 @@ def load_k(page, k, default=None):
     except Exception as e:
         return default
         
+def safe_storage_get(page, key, default=None, retries=3, delay=0.4):
+    for attempt in range(retries):
+        try:
+            if page.client_storage.contains_key(key):
+                return page.client_storage.get(key)
+            return default
+        except Exception as e:
+            if attempt < retries - 1:
+                time.sleep(delay)
+            else:
+                print(f"⚠️ [safe_storage_get] '{key}' failed after {retries} attempts: {e}")
+                return default
+                
 def update_map(page, key, problem_id, item):
     m = load_k(page, key, {}) or {}
     pid = str(problem_id)
@@ -133,12 +146,12 @@ def add_to_pending_queue(page, item: dict):
     save_k(page, STATE_KEYS["pending_queue"], queue)
     
 def main(page: ft.Page):
-    theme_name = load_k(page, "theme", "dark")
+    theme_name = safe_storage_get(page, "theme", "dark")
     COLORES = DARK_COLORS.copy() if theme_name == "dark" else LIGHT_COLORS.copy()
     state = {
-        "token": load_k(page, "student_token"),
-        "correo": load_k(page, "correo_identificacion"),
-        "nombre": load_k(page, "student_name", "Estudiante"),
+        "token":  safe_storage_get(page, "student_token"),
+        "correo": safe_storage_get(page, "correo_identificacion"),
+        "nombre": safe_storage_get(page, "student_name", "Estudiante"),
         "teachers_list": []
     }
     
@@ -178,7 +191,7 @@ def main(page: ft.Page):
         print("⚠️ Socket desconectado.")
         def reconnect():
             for attempt in range(1, 6):
-                time.sleep(3 * attempt)
+                time.sleep(3 + random.uniform(0, attempt * 2))
                 if not page.is_alive:
                     return
                 if not state.get("token"):
@@ -195,18 +208,20 @@ def main(page: ft.Page):
         threading.Thread(target=reconnect, daemon=True).start()
         
     try:
-        last_heartbeat = page.client_storage.get("last_heartbeat")
+        last_heartbeat = safe_storage_get(page, "last_heartbeat")
         now = time.time()
-        if last_heartbeat and (now - last_heartbeat > 3600):
-            inactividad = int(now - last_heartbeat)
+        if last_heartbeat and (now - float(last_heartbeat) > 3600):
+            inactividad = int(now - float(last_heartbeat))
             print(f"🕒 Sesión inactiva por {inactividad}s. Limpiando progreso...")
             if inactividad > 43200:
                 print("🚪 Inactividad mayor a 12h. Forzando logout local.")
-                page.client_storage.remove("student_token")
+                try: page.client_storage.remove("student_token")
+                except Exception: pass
                 state["token"] = None
             else:
                 reset_progress(page)
-            page.client_storage.set("last_heartbeat", now)
+            try: page.client_storage.set("last_heartbeat", now)
+            except Exception: pass
     except Exception as e:
         print(f"⚠️ Error verificando sesión: {e}")
         
@@ -1691,7 +1706,7 @@ def main(page: ft.Page):
                         payload = item["data"]
                         problema_id = item["problema_id"]
                         is_success = False
-                        MAX_RETRIES = 50
+                        MAX_RETRIES = 20 if item["type"] == "answer" else 3
                         
                         try:
                             if item["type"] == "answer":

@@ -2,7 +2,7 @@ import gevent.monkey
 gevent.monkey.patch_all()
 import pandas as pd
 import datetime as dt
-import os, random, string, requests, json, threading, re, traceback, warnings, pdfplumber, gevent, pytesseract
+import os, random, string, requests, json, threading, re, traceback, warnings, pdfplumber, gevent, pytesseract, time, resource
 from io import BytesIO
 from typing import List, Dict
 from flask import Flask, jsonify, request, send_file
@@ -17,9 +17,19 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from zoneinfo import ZoneInfo
 from pdf2image import convert_from_bytes
 from collections import defaultdict
-warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+threading.Thread(target=log_memory, daemon=True).start()
+
+def log_memory():
+    while True:
+        try:
+            mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            print(f"📊 Memory: {mem // 1024} MB")
+        except Exception:
+            pass
+        time.sleep(300)
 
 def is_valid_email(email: str) -> bool:
     return bool(EMAIL_REGEX.match((email or "").strip()))
@@ -58,8 +68,13 @@ OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "GrowTogether")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 PINECONE_INDEX_NAME = "evatutor"
-pc_client = Pinecone(api_key=PINECONE_API_KEY)
-pinecone_index = pc_client.Index(PINECONE_INDEX_NAME)
+try:
+    pc_client = Pinecone(api_key=PINECONE_API_KEY)
+    pinecone_index = pc_client.Index(PINECONE_INDEX_NAME)
+except Exception as e:
+    print(f"⚠️ Pinecone init skipped: {e}")
+    pc_client = None
+    pinecone_index = None
 HF_EMBED_URL = os.getenv("HF_EMBED_URL", "https://EmbeddingsAPI.hf.space/embed")
 SEMAPHORE_WINDOW_MINUTES = 5
 RED_FLAG_INTENTS = ["Demanda por Respuesta", "Comportamiento Negativo"]
@@ -749,13 +764,7 @@ def chat(problema_id: int):
         "user",
         user_msg
     )
-    socketio.start_background_task(
-        analyze_interaction_semaphore,
-        chat_id,
-        user_msg,
-        correo,
-        prog_pct
-    )
+    gevent.spawn(analyze_interaction_semaphore, chat_id, user_msg, correo, prog_pct)
     gevent.spawn(background_llm_task, app, usuario.id, correo, practice_name, problema_id)
     return jsonify({"status": "processing", "message": "Procesando..."})
     
@@ -1851,7 +1860,7 @@ Sin bloques de código markdown. La estructura exacta es:
   "titulo": "...",
   "descripcion": "...",
   "max_time": <entero en minutos>,
-  "rubricas": ["...", "..."],
+  "rubricas": [{"dimension": "Nombre de la dimension", "descripcion": "Descripción breve"}],
   "problemas": [
     {{"id": 1, "enunciado": "Enunciado completo..."}},
     {{"id": 2, "enunciado": "Enunciado completo..."}}
@@ -1882,7 +1891,8 @@ Sin bloques de código markdown. La estructura exacta es:
             else:
                 raw_rub = data_ia.get("rubricas", [])
                 rubricas_final = [
-                    (r if isinstance(r, str) else r.get("dimension", str(r)))
+                    {"dimension": r, "descripcion": ""} if isinstance(r, str)
+                    else {"dimension": r.get("dimension", ""), "descripcion": r.get("descripcion", "")}
                     for r in raw_rub
                 ]
             nueva_practica = Practica(
