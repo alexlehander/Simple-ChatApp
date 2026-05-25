@@ -1349,7 +1349,6 @@ def main(page: ft.Page):
                     ),
                 ],
                 spacing=10,
-                scroll=ft.ScrollMode.AUTO,
                 )
                 actions = [
                     ft.TextButton("Cancelar",
@@ -1394,7 +1393,6 @@ def main(page: ft.Page):
                     ], spacing=3),
                 ],
                 spacing=10,
-                scroll=ft.ScrollMode.AUTO,
                 )
                 actions = [ft.TextButton("Cerrar", on_click=lambda e: setattr(dlg, "open", False) or page.update())]
                 
@@ -1411,10 +1409,13 @@ def main(page: ft.Page):
                     size=18, weight="bold"
                 ),
                 content=ft.Container(
-                    content=content,
                     width=dlg_w,
                     height=inner_h,
-                    padding=ft.padding.only(left=10, right=10, top=15, bottom=0),
+                    content=ft.Column(
+                        [content],
+                        scroll=ft.ScrollMode.AUTO,
+                        spacing=0,
+                    ),
                 ),
                 actions=actions,
                 actions_alignment=ft.MainAxisAlignment.END,
