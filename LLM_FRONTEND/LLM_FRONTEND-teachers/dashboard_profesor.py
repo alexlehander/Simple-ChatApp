@@ -1268,11 +1268,18 @@ def main(page: ft.Page):
                 def render_p():
                     col_problemas.controls.clear()
                     for i, p in enumerate(problemas_list):
-                        enun_tf = ft.TextField(label=f"Problema {i+1}", value=p.get("enunciado", ""),
+                        enun_tf = ft.TextField(
+                            label=f"Problema {i+1}",
+                            value=p.get("enunciado", ""),
                             expand=True, multiline=True, text_size=12,
-                            on_change=lambda e, idx=i: p.update({"enunciado": e.control.value, "id": idx + 1}))
-                        del_btn = ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"],
-                            on_click=lambda e, idx=i: (problemas_list.pop(idx), render_p()))
+                            on_change=lambda e, idx=i: problemas_list.__setitem__(
+                                idx, {**problemas_list[idx], "enunciado": e.control.value, "id": idx + 1}
+                            )
+                        )
+                        del_btn = ft.IconButton(
+                            ft.Icons.DELETE, icon_color=COLORES["error"],
+                            on_click=lambda e, idx=i: (problemas_list.pop(idx), render_p())
+                        )
                         col_problemas.controls.append(ft.Row([enun_tf, del_btn]))
                     page.update()
 
