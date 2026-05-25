@@ -20,7 +20,6 @@ from collections import defaultdict
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
-threading.Thread(target=log_memory, daemon=True).start()
 
 def log_memory():
     while True:
@@ -30,6 +29,8 @@ def log_memory():
         except Exception:
             pass
         time.sleep(300)
+
+threading.Thread(target=log_memory, daemon=True).start()
 
 def is_valid_email(email: str) -> bool:
     return bool(EMAIL_REGEX.match((email or "").strip()))
