@@ -1197,7 +1197,12 @@ def main(page: ft.Page):
         
         ex_detail_dlg = ft.AlertDialog(
             title=ex_detail_dlg_title,
-            content=ft.Container(content=ex_detail_dlg_content, width=700, height=500, padding=10),
+            content=ft.Container(
+                content=ex_detail_dlg_content,
+                width=page.width * 0.75,
+                height=page.height * 0.65,
+                padding=10
+            ),
             actions=[ft.TextButton("Cerrar", on_click=lambda e: close_ex_detail_dlg())],
             on_dismiss=lambda e: close_ex_detail_dlg()
         )
@@ -1214,37 +1219,32 @@ def main(page: ft.Page):
         def open_exercise_dialog(ex):
             is_mine = ex.get("is_mine", False)
             ex_id = ex.get("practica_id") or ex.get("filename")
-
+            
             if not ex_id:
                 flash("No se pudo identificar la tarea.", ok=False)
                 return
-
+                
             res = auth_request("GET", f"/api/exercises/detail/{ex_id}")
             if not res or res.status_code != 200:
                 flash(f"Error al cargar la tarea (ID: {ex_id})", ok=False)
                 return
-
+                
             data = res.json()
-
-            # Close helper — used by all exit paths
             def close_dlg(e=None):
                 dlg.open = False
                 if dlg in page.overlay:
                     page.overlay.remove(dlg)
                 page.update()
-
+                
             if is_mine:
-                # --- EDIT MODE ---
                 title_field = ft.TextField(label="Título de la Práctica", value=data.get("title", ""), expand=True)
                 desc_field  = ft.TextField(label="Descripción general", value=data.get("description", ""), multiline=True, min_lines=2)
                 time_field  = ft.TextField(label="Tiempo (min)", value=str(int(data.get("max_time", 3600) / 60)), width=120)
-
                 rubricas_list  = data.get("rubricas", [])
                 problemas_list = data.get("problemas", [])
-
-                col_rubricas  = ft.Column(spacing=5, scroll="auto", height=150)
-                col_problemas = ft.Column(spacing=5, scroll="auto", height=200)
-
+                col_rubricas  = ft.Column(spacing=5, scroll=ft.ScrollMode.AUTO, height=page.height * 0.15)
+                col_problemas = ft.Column(spacing=5, scroll=ft.ScrollMode.AUTO, height=page.height * 0.30)
+                
                 def render_r():
                     col_rubricas.controls.clear()
                     for i, r in enumerate(rubricas_list):
@@ -1264,7 +1264,7 @@ def main(page: ft.Page):
                             on_click=lambda e, idx=i: (rubricas_list.pop(idx), render_r()))
                         col_rubricas.controls.append(ft.Row([dim_tf, desc_tf, del_btn]))
                     page.update()
-
+                    
                 def render_p():
                     col_problemas.controls.clear()
                     for i, p in enumerate(problemas_list):
@@ -1282,10 +1282,10 @@ def main(page: ft.Page):
                         )
                         col_problemas.controls.append(ft.Row([enun_tf, del_btn]))
                     page.update()
-
+                    
                 render_r()
                 render_p()
-
+                
                 def save_task(e):
                     e.control.disabled = True
                     page.update()
@@ -1306,68 +1306,123 @@ def main(page: ft.Page):
                         flash("Error al guardar", ok=False)
                         e.control.disabled = False
                         page.update()
-
+                dlg_w = page.width  * 0.80
+                dlg_h = page.height * 0.80
+                inner_h = dlg_h - 100
                 content = ft.Column([
                     ft.Row([title_field, time_field]),
                     desc_field,
-                    ft.Divider(),
+                    ft.Divider(height=1),
                     ft.Row([
-                        ft.Text("Rúbricas de Evaluación", weight="bold", color=COLORES["primario"]),
+                        ft.Text("Rúbricas de Evaluación", weight="bold",
+                                size=13, color=COLORES["primario"]),
                         ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"],
-                            on_click=lambda e: (rubricas_list.append({"dimension": "", "descripcion": ""}), render_r()))
+                            tooltip="Agregar rúbrica",
+                            on_click=lambda e: (
+                                rubricas_list.append({"dimension": "", "descripcion": ""}),
+                                render_r()
+                            ))
                     ], alignment="spaceBetween"),
-                    ft.Container(content=col_rubricas, padding=10, border=ft.border.all(1, COLORES["borde"]), border_radius=5),
-                    ft.Divider(),
+                    ft.Container(
+                        content=col_rubricas,
+                        padding=8,
+                        border=ft.border.all(1, COLORES["borde"]),
+                        border_radius=5,
+                    ),
+                    ft.Divider(height=1),
                     ft.Row([
-                        ft.Text("Ejercicios / Problemas", weight="bold", color=COLORES["primario"]),
+                        ft.Text("Ejercicios / Problemas", weight="bold",
+                                size=13, color=COLORES["primario"]),
                         ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"],
-                            on_click=lambda e: (problemas_list.append({"id": len(problemas_list) + 1, "enunciado": ""}), render_p()))
+                            tooltip="Agregar problema",
+                            on_click=lambda e: (
+                                problemas_list.append(
+                                    {"id": len(problemas_list) + 1, "enunciado": ""}),
+                                render_p()
+                            ))
                     ], alignment="spaceBetween"),
-                    ft.Container(content=col_problemas, padding=10, border=ft.border.all(1, COLORES["borde"]), border_radius=5),
-                ], scroll="auto", spacing=10)
-
+                    ft.Container(
+                        content=col_problemas,
+                        padding=8,
+                        border=ft.border.all(1, COLORES["borde"]),
+                        border_radius=5,
+                    ),
+                ],
+                spacing=8,
+                scroll=ft.ScrollMode.AUTO,
+                expand=True,
+                )
                 actions = [
-                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, "open", False) or page.update()),
-                    ft.ElevatedButton("Guardar Cambios", bgcolor=COLORES["exito"], color=COLORES["fondo"], on_click=save_task),
+                    ft.TextButton("Cancelar",
+                        on_click=lambda e: setattr(dlg, "open", False) or page.update()),
+                    ft.ElevatedButton("Guardar Cambios",
+                        bgcolor=COLORES["exito"], color=COLORES["fondo"],
+                        on_click=save_task),
                 ]
             else:
-                # --- READ-ONLY MODE ---
+                dlg_w = page.width  * 0.80
+                dlg_h = page.height * 0.80
+                inner_h = dlg_h - 100
+
                 content = ft.Column([
-                    ft.Text(f"Título: {data.get('title')}", weight="bold", size=18, color=COLORES["primario"]),
-                    ft.Text(f"Descripción: {data.get('description')}"),
-                    ft.Text(f"Tiempo estimado: {int(data.get('max_time', 3600) / 60)} minutos", italic=True),
-                    ft.Divider(),
-                    ft.Text("Rúbricas de Evaluación:", weight="bold", color=COLORES["primario"]),
+                    ft.Text(data.get("title", ""), weight="bold",
+                            size=18, color=COLORES["primario"]),
+                    ft.Text(data.get("description", ""), size=14, italic=True),
+                    ft.Text(
+                        f"⏱ {int(data.get('max_time', 3600) / 60)} minutos",
+                        italic=True, color=COLORES["subtitulo"]
+                    ),
+                    ft.Divider(height=1),
+                    ft.Text("Rúbricas de Evaluación:", weight="bold",
+                            color=COLORES["primario"]),
                     ft.Column([
                         ft.Text(
                             f"• {r.get('dimension', r) if isinstance(r, dict) else r}"
-                            + (f": {r.get('descripcion', '')}" if isinstance(r, dict) and r.get("descripcion") else ""),
+                            + (f": {r.get('descripcion', '')}"
+                               if isinstance(r, dict) and r.get("descripcion") else ""),
                             size=12
                         )
                         for r in data.get("rubricas", [])
-                    ]),
-                    ft.Divider(),
+                    ], spacing=3),
+                    ft.Divider(height=1),
                     ft.Text("Problemas:", weight="bold", color=COLORES["primario"]),
-                    ft.Column([ft.Text(f"{p.get('id', i+1)}. {p.get('enunciado', '')}", size=12)
-                               for i, p in enumerate(data.get("problemas", []))]),
-                ], scroll="auto", spacing=10)
+                    ft.Column([
+                        ft.Text(
+                            f"{p.get('id', i+1)}. {p.get('enunciado', '')}",
+                            size=12
+                        )
+                        for i, p in enumerate(data.get("problemas", []))
+                    ], spacing=3),
+                ],
+                spacing=10,
+                scroll=ft.ScrollMode.AUTO,
+                expand=True,
+                )
                 actions = [ft.TextButton("Cerrar", on_click=lambda e: setattr(dlg, "open", False) or page.update())]
-
-            # ── Remove only exercise-editor dialogs, preserve all others (alert_dialog_student, etc.)
+                
             page.overlay[:] = [
                 o for o in page.overlay
-                if not (isinstance(o, ft.AlertDialog) and getattr(o, "_is_exercise_dlg", False))
+                if not (isinstance(o, ft.AlertDialog)
+                        and getattr(o, "_is_exercise_dlg", False))
             ]
-
+            
             dlg = ft.AlertDialog(
-                modal=False,          # ← False = click outside to close
-                title=ft.Text("Editor de Tareas" if is_mine else "Detalles de la Tarea"),
-                content=ft.Container(width=700, height=600, content=content),
+                modal=False,
+                title=ft.Text(
+                    "Editor de Tareas" if is_mine else "Detalles de la Tarea",
+                    size=18, weight="bold"
+                ),
+                content=ft.Container(
+                    content=content,
+                    width=dlg_w,
+                    height=inner_h,
+                    padding=ft.padding.only(left=8, right=8, top=4, bottom=0),
+                ),
                 actions=actions,
-                on_dismiss=close_dlg, # ← Escape key or outside click
+                actions_alignment=ft.MainAxisAlignment.END,
+                on_dismiss=close_dlg,
             )
-            dlg._is_exercise_dlg = True   # ← tag so the sweep only removes these
-
+            dlg._is_exercise_dlg = True
             page.overlay.append(dlg)
             dlg.open = True
             page.update()
