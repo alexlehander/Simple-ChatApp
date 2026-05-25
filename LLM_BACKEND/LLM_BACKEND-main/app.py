@@ -2026,7 +2026,7 @@ def get_my_exercises():
             "num_problems": len(probs),
             "problemas": probs,
             "is_active": asig.is_active,
-            "is_mine": p.profesor_id == prof_id or p.profesor_id is None,
+            "is_mine": p.profesor_id == prof_id,
         })
     return jsonify(data), 200
 

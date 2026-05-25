@@ -1213,130 +1213,153 @@ def main(page: ft.Page):
             
         def open_exercise_dialog(ex):
             is_mine = ex.get("is_mine", False)
-            ex_id = ex["practica_id"]
-            
+            ex_id = ex.get("practica_id") or ex.get("filename")
+
+            if not ex_id:
+                flash("No se pudo identificar la tarea.", ok=False)
+                return
+
             res = auth_request("GET", f"/api/exercises/detail/{ex_id}")
             if not res or res.status_code != 200:
-                flash("Error al cargar la tarea", ok=False)
+                flash(f"Error al cargar la tarea (ID: {ex_id})", ok=False)
                 return
-                
+
             data = res.json()
-            
+
+            # Close helper — used by all exit paths
+            def close_dlg(e=None):
+                dlg.open = False
+                if dlg in page.overlay:
+                    page.overlay.remove(dlg)
+                page.update()
+
             if is_mine:
-                # --- MODO EDICIÓN (Tus tareas) ---
+                # --- EDIT MODE ---
                 title_field = ft.TextField(label="Título de la Práctica", value=data.get("title", ""), expand=True)
-                desc_field = ft.TextField(label="Descripción general", value=data.get("description", ""), multiline=True, min_lines=2)
-                time_field = ft.TextField(label="Tiempo (min)", value=str(int(data.get("max_time", 3600)/60)), width=120)
-                
-                rubricas_list = data.get("rubricas", [])
+                desc_field  = ft.TextField(label="Descripción general", value=data.get("description", ""), multiline=True, min_lines=2)
+                time_field  = ft.TextField(label="Tiempo (min)", value=str(int(data.get("max_time", 3600) / 60)), width=120)
+
+                rubricas_list  = data.get("rubricas", [])
                 problemas_list = data.get("problemas", [])
-                
-                col_rubricas = ft.Column(spacing=5, scroll="auto", height=150)
+
+                col_rubricas  = ft.Column(spacing=5, scroll="auto", height=150)
+                col_problemas = ft.Column(spacing=5, scroll="auto", height=200)
+
                 def render_r():
                     col_rubricas.controls.clear()
                     for i, r in enumerate(rubricas_list):
                         r_dim  = r.get("dimension", r) if isinstance(r, dict) else r
                         r_desc = r.get("descripcion", "") if isinstance(r, dict) else ""
-                        dim_tf  = ft.TextField(label="Dimensión",   value=r_dim,  expand=1, text_size=12, on_change=lambda e, idx=i: rubricas_list.__setitem__(idx, {**( rubricas_list[idx] if isinstance(rubricas_list[idx], dict) else {"dimension": rubricas_list[idx]}), "dimension": e.control.value}))
-                        desc_tf = ft.TextField(label="Descripción", value=r_desc, expand=2, text_size=12, on_change=lambda e, idx=i: rubricas_list.__setitem__(idx, {**( rubricas_list[idx] if isinstance(rubricas_list[idx], dict) else {"dimension": rubricas_list[idx]}), "descripcion": e.control.value}))
-                        del_btn = ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, idx=i: delete_r(idx))
+                        dim_tf  = ft.TextField(label="Dimensión",   value=r_dim,  expand=1, text_size=12,
+                            on_change=lambda e, idx=i: rubricas_list.__setitem__(idx, {
+                                **(rubricas_list[idx] if isinstance(rubricas_list[idx], dict) else {"dimension": rubricas_list[idx]}),
+                                "dimension": e.control.value
+                            }))
+                        desc_tf = ft.TextField(label="Descripción", value=r_desc, expand=2, text_size=12,
+                            on_change=lambda e, idx=i: rubricas_list.__setitem__(idx, {
+                                **(rubricas_list[idx] if isinstance(rubricas_list[idx], dict) else {"dimension": rubricas_list[idx]}),
+                                "descripcion": e.control.value
+                            }))
+                        del_btn = ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"],
+                            on_click=lambda e, idx=i: (rubricas_list.pop(idx), render_r()))
                         col_rubricas.controls.append(ft.Row([dim_tf, desc_tf, del_btn]))
                     page.update()
-                
-                def delete_r(idx):
-                    rubricas_list.pop(idx)
-                    render_r()
-                    
-                def add_r(e):
-                    rubricas_list.append({"dimension": "", "descripcion": ""})
-                    render_r()
-                    
-                render_r()
-                
-                col_problemas = ft.Column(spacing=5, scroll="auto", height=200)
+
                 def render_p():
                     col_problemas.controls.clear()
                     for i, p in enumerate(problemas_list):
-                        enun_tf = ft.TextField(label=f"Problema {i+1}", value=p.get("enunciado",""), expand=True, multiline=True, text_size=12, on_change=lambda e, idx=i: p.update({"enunciado": e.control.value, "id": idx+1}))
-                        del_btn = ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"], on_click=lambda e, idx=i: delete_p(idx))
+                        enun_tf = ft.TextField(label=f"Problema {i+1}", value=p.get("enunciado", ""),
+                            expand=True, multiline=True, text_size=12,
+                            on_change=lambda e, idx=i: p.update({"enunciado": e.control.value, "id": idx + 1}))
+                        del_btn = ft.IconButton(ft.Icons.DELETE, icon_color=COLORES["error"],
+                            on_click=lambda e, idx=i: (problemas_list.pop(idx), render_p()))
                         col_problemas.controls.append(ft.Row([enun_tf, del_btn]))
                     page.update()
-                
-                def delete_p(idx):
-                    problemas_list.pop(idx)
-                    render_p()
-                    
-                def add_p(e):
-                    problemas_list.append({"id": len(problemas_list)+1, "enunciado": ""})
-                    render_p()
-                    
+
+                render_r()
                 render_p()
 
                 def save_task(e):
                     e.control.disabled = True
                     page.update()
                     payload = {
-                        "title": title_field.value,
+                        "title":       title_field.value,
                         "description": desc_field.value,
-                        "max_time": int(time_field.value) if time_field.value.isdigit() else 60,
-                        "rubricas": rubricas_list,
-                        "problemas": problemas_list
+                        "max_time":    int(time_field.value) if time_field.value.isdigit() else 60,
+                        "rubricas":    rubricas_list,
+                        "problemas":   problemas_list,
                     }
                     res = auth_request("PUT", f"/api/teacher/exercises/{ex_id}", json=payload)
                     if res and res.status_code == 200:
                         flash("Tarea actualizada exitosamente", ok=True)
-                        dlg.open = False
+                        close_dlg()
                         load_exercises()
                     else:
                         flash("Error al guardar", ok=False)
                         e.control.disabled = False
-                    page.update()
+                        page.update()
 
                 content = ft.Column([
                     ft.Row([title_field, time_field]),
                     desc_field,
                     ft.Divider(),
-                    ft.Row([ft.Text("Rúbricas de Evaluación", weight="bold", color=COLORES["primario"]), ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"], on_click=add_r)], alignment="spaceBetween"),
+                    ft.Row([
+                        ft.Text("Rúbricas de Evaluación", weight="bold", color=COLORES["primario"]),
+                        ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"],
+                            on_click=lambda e: (rubricas_list.append({"dimension": "", "descripcion": ""}), render_r()))
+                    ], alignment="spaceBetween"),
                     ft.Container(content=col_rubricas, padding=10, border=ft.border.all(1, COLORES["borde"]), border_radius=5),
                     ft.Divider(),
-                    ft.Row([ft.Text("Ejercicios / Problemas", weight="bold", color=COLORES["primario"]), ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"], on_click=add_p)], alignment="spaceBetween"),
+                    ft.Row([
+                        ft.Text("Ejercicios / Problemas", weight="bold", color=COLORES["primario"]),
+                        ft.IconButton(ft.Icons.ADD_CIRCLE, icon_color=COLORES["exito"],
+                            on_click=lambda e: (problemas_list.append({"id": len(problemas_list) + 1, "enunciado": ""}), render_p()))
+                    ], alignment="spaceBetween"),
                     ft.Container(content=col_problemas, padding=10, border=ft.border.all(1, COLORES["borde"]), border_radius=5),
                 ], scroll="auto", spacing=10)
-                
+
                 actions = [
-                    ft.TextButton("Cancelar", on_click=lambda e: (setattr(dlg, 'open', False), page.overlay.remove(dlg) if dlg in page.overlay else None, page.update())),
-                    ft.ElevatedButton("Guardar Cambios", bgcolor=COLORES["exito"], color=COLORES["fondo"], on_click=save_task)
+                    ft.TextButton("Cancelar", on_click=close_dlg),
+                    ft.ElevatedButton("Guardar Cambios", bgcolor=COLORES["exito"], color=COLORES["fondo"], on_click=save_task),
                 ]
             else:
-                # --- MODO LECTURA (Tareas Globales) ---
+                # --- READ-ONLY MODE ---
                 content = ft.Column([
                     ft.Text(f"Título: {data.get('title')}", weight="bold", size=18, color=COLORES["primario"]),
                     ft.Text(f"Descripción: {data.get('description')}"),
-                    ft.Text(f"Tiempo estimado: {int(data.get('max_time', 3600)/60)} minutos", italic=True),
+                    ft.Text(f"Tiempo estimado: {int(data.get('max_time', 3600) / 60)} minutos", italic=True),
                     ft.Divider(),
                     ft.Text("Rúbricas de Evaluación:", weight="bold", color=COLORES["primario"]),
                     ft.Column([
                         ft.Text(
                             f"• {r.get('dimension', r) if isinstance(r, dict) else r}"
-                            + (f": {r.get('descripcion','')}" if isinstance(r, dict) and r.get('descripcion') else ""),
+                            + (f": {r.get('descripcion', '')}" if isinstance(r, dict) and r.get("descripcion") else ""),
                             size=12
                         )
                         for r in data.get("rubricas", [])
                     ]),
                     ft.Divider(),
                     ft.Text("Problemas:", weight="bold", color=COLORES["primario"]),
-                    ft.Column([ft.Text(f"{p['id']}. {p['enunciado']}", size=12) for p in data.get("problemas",[])]),
+                    ft.Column([ft.Text(f"{p.get('id', i+1)}. {p.get('enunciado', '')}", size=12)
+                               for i, p in enumerate(data.get("problemas", []))]),
                 ], scroll="auto", spacing=10)
-                actions = [ft.TextButton("Cerrar", on_click=lambda e: (setattr(dlg, 'open', False), page.overlay.remove(dlg) if dlg in page.overlay else None, page.update()))]
+                actions = [ft.TextButton("Cerrar", on_click=close_dlg)]
 
-            page.overlay[:] = [o for o in page.overlay if not isinstance(o, ft.AlertDialog) or o == ex_detail_dlg]
+            # ── Remove only exercise-editor dialogs, preserve all others (alert_dialog_student, etc.)
+            page.overlay[:] = [
+                o for o in page.overlay
+                if not (isinstance(o, ft.AlertDialog) and getattr(o, "_is_exercise_dlg", False))
+            ]
+
             dlg = ft.AlertDialog(
-                modal=True,
+                modal=False,          # ← False = click outside to close
                 title=ft.Text("Editor de Tareas" if is_mine else "Detalles de la Tarea"),
                 content=ft.Container(width=700, height=600, content=content),
                 actions=actions,
-                on_dismiss=lambda e: (page.overlay.remove(dlg) if dlg in page.overlay else None, page.update())
+                on_dismiss=close_dlg, # ← Escape key or outside click
             )
+            dlg._is_exercise_dlg = True   # ← tag so the sweep only removes these
+
             page.overlay.append(dlg)
             dlg.open = True
             page.update()
