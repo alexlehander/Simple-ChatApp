@@ -1308,7 +1308,7 @@ def main(page: ft.Page):
                         page.update()
                 dlg_w = page.width  * 0.80
                 dlg_h = page.height * 0.80
-                inner_h = dlg_h - 100
+                inner_h = dlg_h - 125
                 content = ft.Column([
                     ft.Row([title_field, time_field]),
                     desc_field,
@@ -1348,9 +1348,8 @@ def main(page: ft.Page):
                         border_radius=5,
                     ),
                 ],
-                spacing=8,
+                spacing=10,
                 scroll=ft.ScrollMode.AUTO,
-                expand=True,
                 )
                 actions = [
                     ft.TextButton("Cancelar",
@@ -1362,7 +1361,7 @@ def main(page: ft.Page):
             else:
                 dlg_w = page.width  * 0.80
                 dlg_h = page.height * 0.80
-                inner_h = dlg_h - 100
+                inner_h = dlg_h - 125
 
                 content = ft.Column([
                     ft.Text(data.get("title", ""), weight="bold",
@@ -1396,7 +1395,6 @@ def main(page: ft.Page):
                 ],
                 spacing=10,
                 scroll=ft.ScrollMode.AUTO,
-                expand=True,
                 )
                 actions = [ft.TextButton("Cerrar", on_click=lambda e: setattr(dlg, "open", False) or page.update())]
                 
@@ -1416,7 +1414,7 @@ def main(page: ft.Page):
                     content=content,
                     width=dlg_w,
                     height=inner_h,
-                    padding=ft.padding.only(left=8, right=8, top=4, bottom=0),
+                    padding=ft.padding.only(left=10, right=10, top=15, bottom=0),
                 ),
                 actions=actions,
                 actions_alignment=ft.MainAxisAlignment.END,
