@@ -1411,13 +1411,10 @@ def main(page: ft.Page):
                     size=18, weight="bold"
                 ),
                 content=ft.Container(
+                    content=content,
                     width=dlg_w,
-                    padding=ft.padding.symmetric(horizontal=10),
-                    content=ft.Column(
-                        controls=[content],
-                        scroll=ft.ScrollMode.AUTO,
-                        height=inner_h,
-                    ),
+                    height=inner_h,
+                    padding=ft.padding.only(left=10, right=10, top=15, bottom=0),
                 ),
                 actions=actions,
                 actions_alignment=ft.MainAxisAlignment.END,
