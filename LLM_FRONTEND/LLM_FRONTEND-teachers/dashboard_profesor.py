@@ -1292,7 +1292,8 @@ def main(page: ft.Page):
                     res = auth_request("PUT", f"/api/teacher/exercises/{ex_id}", json=payload)
                     if res and res.status_code == 200:
                         flash("Tarea actualizada exitosamente", ok=True)
-                        close_dlg()
+                        dlg.open = False
+                        page.update()
                         load_exercises()
                     else:
                         flash("Error al guardar", ok=False)
@@ -1319,7 +1320,7 @@ def main(page: ft.Page):
                 ], scroll="auto", spacing=10)
 
                 actions = [
-                    ft.TextButton("Cancelar", on_click=close_dlg),
+                    ft.TextButton("Cancelar", on_click=lambda e: setattr(dlg, "open", False) or page.update()),
                     ft.ElevatedButton("Guardar Cambios", bgcolor=COLORES["exito"], color=COLORES["fondo"], on_click=save_task),
                 ]
             else:
@@ -1343,7 +1344,7 @@ def main(page: ft.Page):
                     ft.Column([ft.Text(f"{p.get('id', i+1)}. {p.get('enunciado', '')}", size=12)
                                for i, p in enumerate(data.get("problemas", []))]),
                 ], scroll="auto", spacing=10)
-                actions = [ft.TextButton("Cerrar", on_click=close_dlg)]
+                actions = [ft.TextButton("Cerrar", on_click=lambda e: setattr(dlg, "open", False) or page.update())]
 
             # ── Remove only exercise-editor dialogs, preserve all others (alert_dialog_student, etc.)
             page.overlay[:] = [
