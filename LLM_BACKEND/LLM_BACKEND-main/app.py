@@ -1861,7 +1861,7 @@ Sin bloques de código markdown. La estructura exacta es:
   "titulo": "...",
   "descripcion": "...",
   "max_time": <entero en minutos>,
-  "rubricas": [{"dimension": "Nombre de la dimension", "descripcion": "Descripción breve"}],
+  "rubricas": [{{"dimension": "Nombre de la dimension", "descripcion": "Descripción breve"}}],
   "problemas": [
     {{"id": 1, "enunciado": "Enunciado completo..."}},
     {{"id": 2, "enunciado": "Enunciado completo..."}}
