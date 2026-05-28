@@ -1465,24 +1465,38 @@ def main(page: ft.Page):
             e.control.disabled = False
             page.update()
             
-        def add_exercise(e, filename):
+        def add_exercise(e, ex_data):
             e.control.disabled = True
             page.update()
-            res = auth_request("POST", "/api/teacher/my-exercises", json={"filename": filename})
+            payload = {"practica_id": ex_data.get("practica_id"), "filename": ex_data.get("filename")}
+            res = auth_request("POST", "/api/teacher/my-exercises", json=payload)
             if res and res.status_code == 200:
-                flash(f"{filename} agregada a tu lista", ok=True)
+                flash(f"{ex_data.get('title', ex_data.get('filename'))} agregada a tu lista", ok=True)
             else:
-                flash("Error al agregar tarea", ok=False)
+                try:
+                    msg = res.json().get("error", "Error al agregar tarea") if res else "Sin conexión"
+                except Exception:
+                    msg = "Error al agregar tarea"
+                flash(msg, ok=False)
+            e.control.disabled = False
+            page.update()
             load_exercises()
 
-        def remove_exercise(e, filename):
+        def remove_exercise(e, ex_data):
             e.control.disabled = True
             page.update()
-            res = auth_request("DELETE", "/api/teacher/my-exercises", json={"filename": filename})
+            payload = {"practica_id": ex_data.get("practica_id"), "filename": ex_data.get("filename")}
+            res = auth_request("DELETE", "/api/teacher/my-exercises", json=payload)
             if res and res.status_code == 200:
-                flash(f"{filename} eliminada de tu lista", ok=True)
+                flash(f"{ex_data.get('title', ex_data.get('filename'))} eliminada de tu lista", ok=True)
             else:
-                flash("Error al eliminar tarea", ok=False)
+                try:
+                    msg = res.json().get("error", "Error al eliminar tarea") if res else "Sin conexión"
+                except Exception:
+                    msg = "Error al eliminar tarea"
+                flash(msg, ok=False)
+            e.control.disabled = False
+            page.update()
             load_exercises()
             
         def toggle_exercise_status(e, filename):
@@ -1571,7 +1585,7 @@ def main(page: ft.Page):
                             icon_color=COLORES["error"],
                             tooltip="Quitar de mi lista",
                             icon_size=20,
-                            on_click=lambda e, f=ex_data["filename"]: remove_exercise(e, f)
+                            on_click=lambda e, d=ex_data: remove_exercise(e, d)
                         )
                         top_row_controls.append(del_btn)
                     else:
@@ -1580,7 +1594,7 @@ def main(page: ft.Page):
                             icon_color=COLORES["exito"],
                             tooltip="Agregar a mis tareas", 
                             icon_size=20,
-                            on_click=lambda e, f=ex_data["filename"]: add_exercise(e, f)
+                            on_click=lambda e, d=ex_data: add_exercise(e, d)
                         )
                         top_row_controls.append(add_btn)
                         

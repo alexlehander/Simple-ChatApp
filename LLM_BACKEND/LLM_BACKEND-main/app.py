@@ -1104,7 +1104,7 @@ def get_completed_grades():
 @jwt_required()
 def delete_grade(resp_id):
     prof_id = int(get_jwt_identity())
-    p = db.session.get(Practica, practica_id)
+    resp = db.session.get(RespuestaUsuario, resp_id)
     if not resp:
         return jsonify({"msg": "No encontrado"}), 404
     asig = ListaEjercicios.query.filter_by(
@@ -2042,7 +2042,7 @@ def add_my_exercise():
     pid = int(pid)
     existe = ListaEjercicios.query.filter_by(profesor_id=prof_id, practica_id=pid).first()
     if not existe:
-        db.session.add(ListaEjercicios(profesor_id=prof_id, practica_id=pid, exercise_filename=f"MIGRADO_{pid}", is_active=True))
+        db.session.add(ListaEjercicios(profesor_id=prof_id, practica_id=pid, exercise_filename=f"MIGRADO_{pid}", is_active=False))
         db.session.commit()
     return jsonify({"msg": "Tarea agregada a tu lista"}), 200
 
@@ -2052,9 +2052,20 @@ def remove_my_exercise():
     prof_id = int(get_jwt_identity())
     data = request.get_json()
     pid = data.get("practica_id") or data.get("filename")
+    filename = data.get("filename")
+    deleted = 0
     if pid:
-        ListaEjercicios.query.filter_by(profesor_id=prof_id, practica_id=int(pid)).delete()
-        db.session.commit()
+        try:
+            deleted = ListaEjercicios.query.filter_by(
+                profesor_id=prof_id, practica_id=int(pid)
+            ).delete()
+        except (ValueError, TypeError):
+            pass
+    if not deleted and filename:
+        deleted = ListaEjercicios.query.filter_by(
+            profesor_id=prof_id, exercise_filename=str(filename)
+        ).delete()
+    db.session.commit()
     return jsonify({"msg": "Tarea removida de tu lista"}), 200
 
 @app.route("/api/teacher/my-exercises/toggle", methods=["PUT"])
@@ -2120,8 +2131,10 @@ def edit_exercise(practica_id):
     p = db.session.get(Practica, practica_id)
     if not p: return jsonify({"error": "Práctica no encontrada"}), 404
     
-    # Bloqueo de seguridad: Solo el creador original puede modificarla
-    if p.profesor_id != prof_id and p.profesor_id is not None:
+    is_in_my_list = ListaEjercicios.query.filter_by(
+        profesor_id=prof_id, practica_id=practica_id
+    ).first() is not None
+    if p.profesor_id != prof_id and p.profesor_id is not None and not is_in_my_list:
         return jsonify({"error": "No tienes permiso para editar esta tarea."}), 403
         
     data = request.get_json()
